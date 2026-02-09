@@ -20,26 +20,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 
 	"github.com/openshift-online/rh-trex/pkg/api"
+	"github.com/openshift-online/rh-trex/pkg/trex"
 	"github.com/openshift-online/rh-trex/test"
 )
 
 func TestMetadataGet(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	// Build the metadata URL (metadata endpoint is at /api/rh-trex, not /api/rh-trex/v1)
+	apiPrefix := strings.TrimSuffix(trex.GetConfig().BasePath, "/v1")
 	protocol := "http"
 	if h.AppConfig.Server.EnableHTTPS {
 		protocol = "https"
 	}
-	metadataURL := fmt.Sprintf("%s://%s/api/rh-trex", protocol, h.AppConfig.Server.BindAddress)
-
-	// Test GET /api/rh-trex - metadata endpoint doesn't require authentication
+	metadataURL := fmt.Sprintf("%s://%s%s", protocol, h.AppConfig.Server.BindAddress, apiPrefix)
 	resp, err := resty.R().
 		SetHeader("Content-Type", "application/json").
 		Get(metadataURL)
@@ -57,9 +57,9 @@ func TestMetadataGet(t *testing.T) {
 	Expect(contentType).To(Equal("application/json"), "Expected Content-Type to be application/json")
 
 	// Verify all metadata fields
-	Expect(metadata.ID).To(Equal("trex"), "Expected ID to be 'trex'")
-	Expect(metadata.Kind).To(Equal("API"), "Expected Kind to be 'API'")
-	Expect(metadata.HREF).To(Equal("/api/rh-trex"), "Expected HREF to match the request path")
+	Expect(metadata.ID).To(Equal(trex.GetConfig().MetadataID))
+	Expect(metadata.Kind).To(Equal("API"))
+	Expect(metadata.HREF).To(Equal(apiPrefix))
 	Expect(metadata.Version).NotTo(BeEmpty(), "Expected Version to be set")
 	Expect(metadata.BuildTime).NotTo(BeEmpty(), "Expected BuildTime to be set")
 }

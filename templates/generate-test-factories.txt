@@ -1,7 +1,8 @@
-package factories
+package {{.KindLowerPlural}}_test
 
 import (
 	"context"
+	"fmt"
 {{- $hasTime := false}}
 {{- range .Fields}}
 {{- if eq .Type "time"}}
@@ -11,10 +12,68 @@ import (
 {{- if $hasTime}}
 	"time"
 {{- end}}
-	"{{.Repo}}/{{.Project}}/cmd/trex/environments"
-	"{{.Repo}}/{{.Project}}/pkg/api"
+
+	"{{.Repo}}/{{.Project}}/cmd/{{.Cmd}}/environments"
 	"{{.Repo}}/{{.Project}}/plugins/{{.KindLowerPlural}}"
 )
+
+func new{{.Kind}}(id string) (*{{.KindLowerPlural}}.{{.Kind}}, error) {
+	{{.KindLowerSingular}}Service := {{.KindLowerPlural}}.Service(&environments.Environment().Services)
+
+	{{.KindLowerSingular}} := &{{.KindLowerPlural}}.{{.Kind}}{
+{{- range .Fields}}
+{{- if .Nullable}}
+{{- if eq .Type "string"}}
+		{{.Name}}: stringPtr("test-{{.NameSnakeCase}}"),
+{{- else if eq .Type "int"}}
+		{{.Name}}: intPtr(42),
+{{- else if eq .Type "int64"}}
+		{{.Name}}: int64Ptr(42),
+{{- else if eq .Type "bool"}}
+		{{.Name}}: boolPtr(true),
+{{- else if eq .Type "float"}}
+		{{.Name}}: float64Ptr(3.14),
+{{- else if eq .Type "time"}}
+		{{.Name}}: timePtr(time.Now()),
+{{- end}}
+{{- else}}
+{{- if eq .Type "string"}}
+		{{.Name}}: "test-{{.NameSnakeCase}}",
+{{- else if eq .Type "int"}}
+		{{.Name}}: 42,
+{{- else if eq .Type "int64"}}
+		{{.Name}}: 42,
+{{- else if eq .Type "bool"}}
+		{{.Name}}: true,
+{{- else if eq .Type "float"}}
+		{{.Name}}: 3.14,
+{{- else if eq .Type "time"}}
+		{{.Name}}: time.Now(),
+{{- end}}
+{{- end}}
+{{- end}}
+	}
+
+	sub, err := {{.KindLowerSingular}}Service.Create(context.Background(), {{.KindLowerSingular}})
+	if err != nil {
+		return nil, err
+	}
+
+	return sub, nil
+}
+
+func new{{.Kind}}List(namePrefix string, count int) ([]*{{.KindLowerPlural}}.{{.Kind}}, error) {
+	var items []*{{.KindLowerPlural}}.{{.Kind}}
+	for i := 1; i <= count; i++ {
+		name := fmt.Sprintf("%s_%d", namePrefix, i)
+		c, err := new{{.Kind}}(name)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, c)
+	}
+	return items, nil
+}
 
 {{- $hasNullableString := false}}
 {{- $hasNullableInt := false}}
@@ -34,7 +93,6 @@ import (
 {{- end}}
 {{- if or $hasNullableString $hasNullableInt $hasNullableInt64 $hasNullableBool $hasNullableFloat $hasNullableTime}}
 
-// Helper functions for pointer types
 {{- if $hasNullableString}}
 func stringPtr(s string) *string       { return &s }
 {{- end}}
@@ -54,67 +112,3 @@ func float64Ptr(f float64) *float64    { return &f }
 func timePtr(t time.Time) *time.Time   { return &t }
 {{- end}}
 {{- end}}
-
-func (f *Factories) New{{.Kind}}(id string) (*api.{{.Kind}}, error) {
-	{{.KindLowerSingular}}Service := {{.KindLowerPlural}}.Service(&environments.Environment().Services)
-
-	{{.KindLowerSingular}} := &api.{{.Kind}}{
-		Meta:       api.Meta{ID: id},
-{{- range .Fields}}
-{{- if .Nullable}}
-{{- if eq .Type "string"}}
-		{{.Name}}:    stringPtr("test-{{.NameSnakeCase}}"),
-{{- else if eq .Type "int"}}
-		{{.Name}}:    intPtr(42),
-{{- else if eq .Type "int64"}}
-		{{.Name}}:    int64Ptr(42),
-{{- else if eq .Type "bool"}}
-		{{.Name}}:    boolPtr(true),
-{{- else if eq .Type "float"}}
-		{{.Name}}:    float64Ptr(3.14),
-{{- else if eq .Type "time"}}
-		{{.Name}}:    timePtr(time.Now()),
-{{- end}}
-{{- else}}
-{{- if eq .Type "string"}}
-		{{.Name}}:    "test-{{.NameSnakeCase}}",
-{{- else if eq .Type "int"}}
-		{{.Name}}:    42,
-{{- else if eq .Type "int64"}}
-		{{.Name}}:    42,
-{{- else if eq .Type "bool"}}
-		{{.Name}}:    true,
-{{- else if eq .Type "float"}}
-		{{.Name}}:    3.14,
-{{- else if eq .Type "time"}}
-		{{.Name}}:    time.Now(),
-{{- end}}
-{{- end}}
-{{- end}}
-	}
-
-	sub, err := {{.KindLowerSingular}}Service.Create(context.Background(), {{.KindLowerSingular}})
-	if err != nil {
-		return nil, err
-	}
-
-	return sub, nil
-}
-
-func (f *Factories) New{{.Kind}}List(name string, count int) ([]*api.{{.Kind}}, error) {
-	var {{.KindPlural}} []*api.{{.Kind}}
-	for i := 1; i <= count; i++ {
-		c, _ := f.New{{.Kind}}(f.NewID())
-		{{.KindPlural}} = append({{.KindPlural}}, c)
-	}
-	return {{.KindPlural}}, nil
-}
-
-// Aliases for test compatibility
-func (f *Factories) New{{.KindPlural}}(id string) (*api.{{.Kind}}, error) {
-	return f.New{{.Kind}}(id)
-}
-
-func (f *Factories) New{{.KindPlural}}List(name string, count int) ([]*api.{{.Kind}}, error) {
-	return f.New{{.Kind}}List(name, count)
-}

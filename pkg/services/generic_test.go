@@ -17,6 +17,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type testModel struct {
+	api.Meta
+	Species string
+}
+
+func (testModel) TableName() string { return "dinosaurs" }
+
 func TestSQLTranslation(t *testing.T) {
 	RegisterTestingT(t)
 	var dbFactory db.SessionFactory = dbmocks.NewMockSessionFactory()
@@ -37,7 +44,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		var list []api.Dinosaur
+		var list []testModel
 		search := test["search"].(string)
 		errorMsg := test["error"].(string)
 		listCtx, model, serviceErr := genericService.newListContext(context.Background(), "", &ListArguments{Search: search}, &list)
@@ -59,7 +66,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		var list []api.Dinosaur
+		var list []testModel
 		search := test["search"].(string)
 		sqlReal := test["sql"].(string)
 		valuesReal := test["values"].(types.GomegaMatcher)

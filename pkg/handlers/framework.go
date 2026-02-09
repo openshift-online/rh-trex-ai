@@ -18,18 +18,18 @@ import (
 //	Validate is a list of validation function that run in order, returning fast on the first error.
 //	Action is the specific logic a handler must take (e.g, find an object, save an object)
 //	ErrorHandler is the way errors are returned to the client
-type handlerConfig struct {
-	MarshalInto  interface{}
-	Validate     []validate
-	Action       httpAction
-	ErrorHandler errorHandlerFunc
+type HandlerConfig struct {
+	Body         interface{}
+	Validators   []Validate
+	Action       HTTPAction
+	ErrorHandler ErrorHandlerFunc
 }
 
-type validate func() *errors.ServiceError
-type errorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError)
-type httpAction func() (interface{}, *errors.ServiceError)
+type Validate func() *errors.ServiceError
+type ErrorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError)
+type HTTPAction func() (interface{}, *errors.ServiceError)
 
-func handleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
+func HandleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
 	log := logger.NewOCMLogger(ctx)
 	operationID := logger.GetOperationID(ctx)
 	// If this is a 400 error, its the user's issue, log as info rather than error
@@ -41,24 +41,24 @@ func handleError(ctx context.Context, w http.ResponseWriter, err *errors.Service
 	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 }
 
-func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int) {
+func Handle(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig, httpStatus int) {
 	if cfg.ErrorHandler == nil {
-		cfg.ErrorHandler = handleError
+		cfg.ErrorHandler = HandleError
 	}
 
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		handleError(r.Context(), w, errors.MalformedRequest("Unable to read request body: %s", err))
+		HandleError(r.Context(), w, errors.MalformedRequest("Unable to read request body: %s", err))
 		return
 	}
 
-	err = json.Unmarshal(bytes, &cfg.MarshalInto)
+	err = json.Unmarshal(bytes, &cfg.Body)
 	if err != nil {
-		handleError(r.Context(), w, errors.MalformedRequest("Invalid request format: %s", err))
+		HandleError(r.Context(), w, errors.MalformedRequest("Invalid request format: %s", err))
 		return
 	}
 
-	for _, v := range cfg.Validate {
+	for _, v := range cfg.Validators {
 		err := v()
 		if err != nil {
 			cfg.ErrorHandler(r.Context(), w, err)
@@ -77,11 +77,11 @@ func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStat
 
 }
 
-func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int) {
+func HandleDelete(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig, httpStatus int) {
 	if cfg.ErrorHandler == nil {
-		cfg.ErrorHandler = handleError
+		cfg.ErrorHandler = HandleError
 	}
-	for _, v := range cfg.Validate {
+	for _, v := range cfg.Validators {
 		err := v()
 		if err != nil {
 			cfg.ErrorHandler(r.Context(), w, err)
@@ -100,9 +100,9 @@ func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, ht
 
 }
 
-func handleGet(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {
+func HandleGet(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig) {
 	if cfg.ErrorHandler == nil {
-		cfg.ErrorHandler = handleError
+		cfg.ErrorHandler = HandleError
 	}
 
 	result, serviceErr := cfg.Action()
@@ -114,9 +114,9 @@ func handleGet(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {
 	}
 }
 
-func handleList(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {
+func HandleList(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig) {
 	if cfg.ErrorHandler == nil {
-		cfg.ErrorHandler = handleError
+		cfg.ErrorHandler = HandleError
 	}
 
 	results, serviceError := cfg.Action()

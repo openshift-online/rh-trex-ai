@@ -18,7 +18,6 @@ package integration
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -31,11 +30,7 @@ import (
 func TestOpenAPIGet(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	protocol := "http"
-	if h.AppConfig.Server.EnableHTTPS {
-		protocol = "https"
-	}
-	openAPIURL := fmt.Sprintf("%s://%s/api/rh-trex/v1/openapi", protocol, h.AppConfig.Server.BindAddress)
+	openAPIURL := h.RestURL("/openapi")
 
 	resp, err := resty.R().
 		SetHeader("Content-Type", "application/json").
@@ -71,11 +66,7 @@ func TestOpenAPIGet(t *testing.T) {
 func TestOpenAPIUIGet(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	protocol := "http"
-	if h.AppConfig.Server.EnableHTTPS {
-		protocol = "https"
-	}
-	openAPIUIURL := fmt.Sprintf("%s://%s/api/rh-trex/v1/openapi.html", protocol, h.AppConfig.Server.BindAddress)
+	openAPIUIURL := h.RestURL("/openapi.html")
 
 	t.Logf("OpenAPI UI URL: %s", openAPIUIURL)
 

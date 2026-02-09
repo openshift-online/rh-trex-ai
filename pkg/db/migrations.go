@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-gormigrate/gormigrate/v2"
 	"github.com/golang/glog"
-	"github.com/openshift-online/rh-trex/pkg/db/migrations"
 
 	"gorm.io/gorm"
 )
@@ -35,5 +34,5 @@ func MigrateTo(sessionFactory SessionFactory, migrationID string) {
 }
 
 func newGormigrate(g2 *gorm.DB) *gormigrate.Gormigrate {
-	return gormigrate.New(g2, gormigrate.DefaultOptions, migrations.MigrationList)
+	return gormigrate.New(g2, gormigrate.DefaultOptions, LoadDiscoveredMigrations())
 }

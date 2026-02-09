@@ -26,20 +26,24 @@ import (
 	"github.com/openshift-online/rh-trex/pkg/api"
 )
 
-type metadataHandler struct{}
+var metadataID = "rh-trex"
 
-func NewMetadataHandler() *metadataHandler {
-	return &metadataHandler{}
+func SetMetadataID(id string) { metadataID = id }
+
+type MetadataHandler struct{}
+
+func NewMetadataHandler() *MetadataHandler {
+	return &MetadataHandler{}
 }
 
 // Get sends API documentation response.
-func (h metadataHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (h MetadataHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// Set the content type:
 	w.Header().Set("Content-Type", "application/json")
 
 	// Prepare the body:
 	body := api.Metadata{
-		ID:        "trex",
+		ID:        metadataID,
 		Kind:      "API",
 		HREF:      r.URL.Path,
 		Version:   api.Version,

@@ -1,14 +1,15 @@
-package migrations
+package {{.KindLowerPlural}}
 
 import (
 	"gorm.io/gorm"
 
 	"github.com/go-gormigrate/gormigrate/v2"
+	"{{.Repo}}/{{.Project}}/pkg/db"
 )
 
-func add{{.Kind}}s() *gormigrate.Migration {
+func migration() *gormigrate.Migration {
 	type {{.Kind}} struct {
-		Model
+		db.Model
 {{- range .Fields}}
 		{{.Name}} {{.GoType}}
 {{- end}}

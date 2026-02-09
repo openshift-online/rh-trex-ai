@@ -1,9 +1,12 @@
-package api
+package {{.KindLowerPlural}}
 
-import "gorm.io/gorm"
+import (
+	"{{.Repo}}/{{.Project}}/pkg/api"
+	"gorm.io/gorm"
+)
 
 type {{.Kind}} struct {
-	Meta
+	api.Meta
 {{- range .Fields}}
 	{{.Name}} {{.GoType}} {{.JSONTag}}
 {{- end}}
@@ -21,7 +24,7 @@ func (l {{.Kind}}List) Index() {{.Kind}}Index {
 }
 
 func (d *{{.Kind}}) BeforeCreate(tx *gorm.DB) error {
-	d.ID = NewID()
+	d.ID = api.NewID()
 	return nil
 }
 

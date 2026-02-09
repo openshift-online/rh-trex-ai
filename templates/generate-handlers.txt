@@ -1,25 +1,25 @@
-package handlers
+package {{.KindLowerPlural}}
 
 import (
 	"net/http"
 
 	"github.com/gorilla/mux"
 
-	"{{.Repo}}/{{.Project}}/pkg/api"
 	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
 	"{{.Repo}}/{{.Project}}/pkg/api/presenters"
 	"{{.Repo}}/{{.Project}}/pkg/errors"
+	"{{.Repo}}/{{.Project}}/pkg/handlers"
 	"{{.Repo}}/{{.Project}}/pkg/services"
 )
 
-var _ RestHandler = {{.KindLowerSingular}}Handler{}
+var _ handlers.RestHandler = {{.KindLowerSingular}}Handler{}
 
 type {{.KindLowerSingular}}Handler struct {
-	{{.KindLowerSingular}} services.{{.Kind}}Service
+	{{.KindLowerSingular}} {{.Kind}}Service
 	generic  services.GenericService
 }
 
-func New{{.Kind}}Handler({{.KindLowerSingular}} services.{{.Kind}}Service, generic services.GenericService) *{{.KindLowerSingular}}Handler {
+func New{{.Kind}}Handler({{.KindLowerSingular}} {{.Kind}}Service, generic services.GenericService) *{{.KindLowerSingular}}Handler {
 	return &{{.KindLowerSingular}}Handler{
 		{{.KindLowerSingular}}: {{.KindLowerSingular}},
 		generic:  generic,
@@ -28,33 +28,33 @@ func New{{.Kind}}Handler({{.KindLowerSingular}} services.{{.Kind}}Service, gener
 
 func (h {{.KindLowerSingular}}Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var {{.KindLowerSingular}} openapi.{{.Kind}}
-	cfg := &handlerConfig{
-		&{{.KindLowerSingular}},
-		[]validate{
-			validateEmpty(&{{.KindLowerSingular}}, "Id", "id"),
+	cfg := &handlers.HandlerConfig{
+		Body: &{{.KindLowerSingular}},
+		Validators: []handlers.Validate{
+			handlers.ValidateEmpty(&{{.KindLowerSingular}}, "Id", "id"),
 		},
-		func() (interface{}, *errors.ServiceError) {
+		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			{{.KindLowerSingular}}Model := presenters.Convert{{.Kind}}({{.KindLowerSingular}})
+			{{.KindLowerSingular}}Model := Convert{{.Kind}}({{.KindLowerSingular}})
 			{{.KindLowerSingular}}Model, err := h.{{.KindLowerSingular}}.Create(ctx, {{.KindLowerSingular}}Model)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.Present{{.Kind}}({{.KindLowerSingular}}Model), nil
+			return Present{{.Kind}}({{.KindLowerSingular}}Model), nil
 		},
-		handleError,
+		ErrorHandler: handlers.HandleError,
 	}
 
-	handle(w, r, cfg, http.StatusCreated)
+	handlers.Handle(w, r, cfg, http.StatusCreated)
 }
 
 func (h {{.KindLowerSingular}}Handler) Patch(w http.ResponseWriter, r *http.Request) {
 	var patch openapi.{{.Kind}}PatchRequest
 
-	cfg := &handlerConfig{
-		&patch,
-		[]validate{},
-		func() (interface{}, *errors.ServiceError) {
+	cfg := &handlers.HandlerConfig{
+		Body: &patch,
+		Validators: []handlers.Validate{},
+		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
 			found, err := h.{{.KindLowerSingular}}.Get(ctx, id)
@@ -62,30 +62,38 @@ func (h {{.KindLowerSingular}}Handler) Patch(w http.ResponseWriter, r *http.Requ
 				return nil, err
 			}
 
-            //patch a field{{range .Fields}}
-			if patch.{{.Name}} != nil {
+{{range .Fields}}			if patch.{{.Name}} != nil {
+{{- if and .NeedsIntConversion .Required}}
+				found.{{.Name}} = int(*patch.{{.Name}})
+{{- else if and .NeedsIntConversion .Nullable}}
+				{{.NameCamelCase}}Val := int(*patch.{{.Name}})
+				found.{{.Name}} = &{{.NameCamelCase}}Val
+{{- else if .Required}}
+				found.{{.Name}} = *patch.{{.Name}}
+{{- else}}
 				found.{{.Name}} = patch.{{.Name}}
-			}{{end}}
-
+{{- end}}
+			}
+{{end}}
 			{{.KindLowerSingular}}Model, err := h.{{.KindLowerSingular}}.Replace(ctx, found)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.Present{{.Kind}}({{.KindLowerSingular}}Model), nil
+			return Present{{.Kind}}({{.KindLowerSingular}}Model), nil
 		},
-		handleError,
+		ErrorHandler: handlers.HandleError,
 	}
 
-	handle(w, r, cfg, http.StatusOK)
+	handlers.Handle(w, r, cfg, http.StatusOK)
 }
 
 func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Request) {
-	cfg := &handlerConfig{
+	cfg := &handlers.HandlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var {{.KindLowerPlural}} []api.{{.Kind}}
+			var {{.KindLowerPlural}} []{{.Kind}}
 			paging, err := h.generic.List(ctx, "username", listArgs, &{{.KindLowerPlural}})
 			if err != nil {
 				return nil, err
@@ -99,7 +107,7 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 			}
 
 			for _, {{.KindLowerSingular}} := range {{.KindLowerPlural}} {
-				converted := presenters.Present{{.Kind}}(&{{.KindLowerSingular}})
+				converted := Present{{.Kind}}(&{{.KindLowerSingular}})
 				{{.KindLowerSingular}}List.Items = append({{.KindLowerSingular}}List.Items, converted)
 			}
 			if listArgs.Fields != nil {
@@ -113,11 +121,11 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 		},
 	}
 
-	handleList(w, r, cfg)
+	handlers.HandleList(w, r, cfg)
 }
 
 func (h {{.KindLowerSingular}}Handler) Get(w http.ResponseWriter, r *http.Request) {
-	cfg := &handlerConfig{
+	cfg := &handlers.HandlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
@@ -126,18 +134,24 @@ func (h {{.KindLowerSingular}}Handler) Get(w http.ResponseWriter, r *http.Reques
 				return nil, err
 			}
 
-			return presenters.Present{{.Kind}}({{.KindLowerSingular}}), nil
+			return Present{{.Kind}}({{.KindLowerSingular}}), nil
 		},
 	}
 
-	handleGet(w, r, cfg)
+	handlers.HandleGet(w, r, cfg)
 }
 
 func (h {{.KindLowerSingular}}Handler) Delete(w http.ResponseWriter, r *http.Request) {
-	cfg := &handlerConfig{
+	cfg := &handlers.HandlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
-			return nil, errors.NotImplemented("delete")
+			id := mux.Vars(r)["id"]
+			ctx := r.Context()
+			err := h.{{.KindLowerSingular}}.Delete(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
 		},
 	}
-	handleDelete(w, r, cfg, http.StatusNoContent)
+	handlers.HandleDelete(w, r, cfg, http.StatusNoContent)
 }

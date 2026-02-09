@@ -1,0 +1,18 @@
+package mocks
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"time"
+)
+
+func NewMockServerTimeout(endpoint string, waitTime time.Duration) (*httptest.Server, func()) {
+	apiHandler := http.NewServeMux()
+	apiHandler.HandleFunc(endpoint,
+		func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(waitTime)
+		},
+	)
+	server := httptest.NewServer(apiHandler)
+	return server, server.Close
+}

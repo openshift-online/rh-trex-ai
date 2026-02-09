@@ -293,6 +293,7 @@ When creating custom templates, these fields are available:
 - `{{.KindLowerPlural}}` - camelCase plural (e.g., "fizzBuzzs")
 - `{{.KindSnakeCasePlural}}` - snake_case plural for API paths (e.g., "fizz_buzzs")
 - `{{.Project}}` - Project name (e.g., "rh-trex")
+- `{{.ProjectPascalCase}}` - PascalCase project name for OpenAPI client methods (e.g., "RhTrex")
 - `{{.Repo}}` - Repository path (e.g., "github.com/openshift-online")
 - `{{.Cmd}}` - Command directory name (e.g., "trex")
 - `{{.ID}}` - Timestamp ID for migrations (e.g., "202507111234")

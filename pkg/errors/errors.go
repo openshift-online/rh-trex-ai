@@ -10,16 +10,18 @@ import (
 	"github.com/openshift-online/rh-trex/pkg/api/openapi"
 )
 
+var (
+	errorCodePrefix = "rh-trex"
+	errorHref       = "/api/rh-trex/v1/errors/"
+)
+
+func ErrorCodePrefix() string { return errorCodePrefix }
+func ErrorHrefBase() string   { return errorHref }
+
+func SetErrorCodePrefix(prefix string) { errorCodePrefix = prefix }
+func SetErrorHref(href string)         { errorHref = href }
+
 const (
-	// Prefix used for error code strings
-	// Example:
-	//   ErrorCodePrefix = "rh-text"
-	//   results in: rh-trex-1
-	ErrorCodePrefix = "rh-trex"
-
-	// HREF for API errors
-	ErrorHref = "/api/rh-trex/v1/errors/"
-
 	// InvalidToken occurs when a token is invalid (generally, not found in the database)
 	ErrorInvalidToken ServiceErrorCode = 1
 
@@ -150,11 +152,11 @@ func (e *ServiceError) AsOpenapiError(operationID string) openapi.Error {
 }
 
 func CodeStr(code ServiceErrorCode) *string {
-	return openapi.PtrString(fmt.Sprintf("%s-%d", ErrorCodePrefix, code))
+	return openapi.PtrString(fmt.Sprintf("%s-%d", errorCodePrefix, code))
 }
 
 func Href(code ServiceErrorCode) *string {
-	return openapi.PtrString(fmt.Sprintf("%s%d", ErrorHref, code))
+	return openapi.PtrString(fmt.Sprintf("%s%d", errorHref, code))
 }
 
 func NotFound(reason string, values ...interface{}) *ServiceError {

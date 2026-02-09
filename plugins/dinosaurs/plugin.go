@@ -5,35 +5,30 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/openshift-online/rh-trex/cmd/trex/environments"
-	"github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
-	"github.com/openshift-online/rh-trex/cmd/trex/server"
+	"github.com/openshift-online/rh-trex/pkg/registry"
+	pkgserver "github.com/openshift-online/rh-trex/pkg/server"
 	"github.com/openshift-online/rh-trex/pkg/api"
 	"github.com/openshift-online/rh-trex/pkg/api/presenters"
 	"github.com/openshift-online/rh-trex/pkg/auth"
 	"github.com/openshift-online/rh-trex/pkg/controllers"
-	"github.com/openshift-online/rh-trex/pkg/dao"
 	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/handlers"
-	"github.com/openshift-online/rh-trex/pkg/services"
 	"github.com/openshift-online/rh-trex/plugins/events"
 	"github.com/openshift-online/rh-trex/plugins/generic"
 )
 
-// ServiceLocator Service Locator
-type ServiceLocator func() services.DinosaurService
+type ServiceLocator func() DinosaurService
 
 func NewServiceLocator(env *environments.Env) ServiceLocator {
-	return func() services.DinosaurService {
-		return services.NewDinosaurService(
+	return func() DinosaurService {
+		return NewDinosaurService(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-			dao.NewDinosaurDao(&env.Database.SessionFactory),
+			NewDinosaurDao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
 		)
 	}
 }
 
-// Service helper function to get the dinosaur service from the registry
-func Service(s *environments.Services) services.DinosaurService {
+func Service(s *environments.Services) DinosaurService {
 	if s == nil {
 		return nil
 	}
@@ -45,15 +40,13 @@ func Service(s *environments.Services) services.DinosaurService {
 }
 
 func init() {
-	// Service registration
 	registry.RegisterService("Dinosaurs", func(env interface{}) interface{} {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	// Routes registration
-	server.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services server.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		dinosaurHandler := handlers.NewDinosaurHandler(Service(envServices), generic.Service(envServices))
+		dinosaurHandler := NewDinosaurHandler(Service(envServices), generic.Service(envServices))
 
 		dinosaursRouter := apiV1Router.PathPrefix("/dinosaurs").Subrouter()
 		dinosaursRouter.HandleFunc("", dinosaurHandler.List).Methods(http.MethodGet)
@@ -65,9 +58,8 @@ func init() {
 		dinosaursRouter.Use(authzMiddleware.AuthorizeApi)
 	})
 
-	// Controller registration
-	server.RegisterController("Dinosaurs", func(manager *controllers.KindControllerManager, services *environments.Services) {
-		dinoServices := Service(services)
+	pkgserver.RegisterController("Dinosaurs", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
+		dinoServices := Service(services.(*environments.Services))
 
 		manager.Add(&controllers.ControllerConfig{
 			Source: "Dinosaurs",
@@ -79,9 +71,10 @@ func init() {
 		})
 	})
 
-	// Presenter registration
-	presenters.RegisterPath(api.Dinosaur{}, "dinosaurs")
-	presenters.RegisterPath(&api.Dinosaur{}, "dinosaurs")
-	presenters.RegisterKind(api.Dinosaur{}, "Dinosaur")
-	presenters.RegisterKind(&api.Dinosaur{}, "Dinosaur")
+	presenters.RegisterPath(Dinosaur{}, "dinosaurs")
+	presenters.RegisterPath(&Dinosaur{}, "dinosaurs")
+	presenters.RegisterKind(Dinosaur{}, "Dinosaur")
+	presenters.RegisterKind(&Dinosaur{}, "Dinosaur")
+
+	db.RegisterMigration(migration())
 }

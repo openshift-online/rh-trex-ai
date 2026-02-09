@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
+	"sync"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
@@ -25,8 +25,8 @@ func SendNotFound(w http.ResponseWriter, r *http.Request) {
 	body := Error{
 		Type:   ErrorType,
 		ID:     id,
-		HREF:   "/api/rh-trex/v1/errors/" + id,
-		Code:   "rh-trex-" + id,
+		HREF:   errors.ErrorHrefBase() + id,
+		Code:   errors.ErrorCodePrefix() + "-" + id,
 		Reason: reason,
 	}
 	data, err := json.Marshal(body)
@@ -71,7 +71,7 @@ func SendUnauthorized(w http.ResponseWriter, r *http.Request, message string) {
 // SendPanic sends a panic error response to the client, but it doesn't end the process.
 func SendPanic(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_, err := w.Write(panicBody)
+	_, err := w.Write(getPanicBody())
 	if err != nil {
 		err = fmt.Errorf(
 			"can't send panic response for request '%s': %s",
@@ -83,34 +83,33 @@ func SendPanic(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// panicBody is the error body that will be sent when something unexpected happens while trying to
-// send another error response. For example, if sending an error response fails because the error
-// description can't be converted to JSON.
-var panicBody []byte
+var (
+	panicOnce sync.Once
+	panicBody []byte
+)
 
-func init() {
-	var err error
-
-	// Create the panic error body:
-	panicID := "1000"
-	panicError := Error{
-		Type: ErrorType,
-		ID:   panicID,
-		HREF: "/api/rh-trex/v1/" + panicID,
-		Code: "rh-trex-" + panicID,
-		Reason: "An unexpected error happened, please check the log of the service " +
-			"for details",
-	}
-
-	// Convert it to JSON:
-	panicBody, err = json.Marshal(panicError)
-	if err != nil {
-		err = fmt.Errorf(
-			"can't create the panic error body: %s",
-			err.Error(),
-		)
-		glog.Error(err)
-		sentry.CaptureException(err)
-		os.Exit(1)
-	}
+func getPanicBody() []byte {
+	panicOnce.Do(func() {
+		panicID := "1000"
+		panicError := Error{
+			Type: ErrorType,
+			ID:   panicID,
+			HREF: errors.ErrorHrefBase() + panicID,
+			Code: errors.ErrorCodePrefix() + "-" + panicID,
+			Reason: "An unexpected error happened, please check the log of the service " +
+				"for details",
+		}
+		var err error
+		panicBody, err = json.Marshal(panicError)
+		if err != nil {
+			err = fmt.Errorf(
+				"can't create the panic error body: %s",
+				err.Error(),
+			)
+			glog.Error(err)
+			sentry.CaptureException(err)
+			panic(err)
+		}
+	})
+	return panicBody
 }

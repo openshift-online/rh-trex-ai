@@ -1,4 +1,4 @@
-package presenters
+package {{.KindLowerPlural}}
 
 import (
 {{- $hasTime := false}}
@@ -13,11 +13,12 @@ import (
 {{- end}}
 	"{{.Repo}}/{{.Project}}/pkg/api"
 	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
+	"{{.Repo}}/{{.Project}}/pkg/api/presenters"
 	"{{.Repo}}/{{.Project}}/pkg/util"
 )
 
-func Convert{{.Kind}}({{.KindLowerSingular}} openapi.{{.Kind}}) *api.{{.Kind}} {
-	c := &api.{{.Kind}}{
+func Convert{{.Kind}}({{.KindLowerSingular}} openapi.{{.Kind}}) *{{.Kind}} {
+	c := &{{.Kind}}{
 		Meta: api.Meta{
 			ID: util.NilToEmptyString({{.KindLowerSingular}}.Id),
 		},
@@ -56,8 +57,8 @@ func Convert{{.Kind}}({{.KindLowerSingular}} openapi.{{.Kind}}) *api.{{.Kind}} {
 	return c
 }
 
-func Present{{.Kind}}({{.KindLowerSingular}} *api.{{.Kind}}) openapi.{{.Kind}} {
-	reference := PresentReference({{.KindLowerSingular}}.ID, {{.KindLowerSingular}})
+func Present{{.Kind}}({{.KindLowerSingular}} *{{.Kind}}) openapi.{{.Kind}} {
+	reference := presenters.PresentReference({{.KindLowerSingular}}.ID, {{.KindLowerSingular}})
 	return openapi.{{.Kind}}{
 		Id:        reference.Id,
 		Kind:      reference.Kind,

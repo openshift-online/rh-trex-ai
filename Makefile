@@ -211,7 +211,8 @@ ci-test-unit: install
 ci-test-integration: install
 	@echo $(db_password) > ${PWD}/secrets/db.password
 	OCM_ENV=integration_testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
-			./test/integration
+			./test/integration \
+			./plugins/...
 .PHONY: ci-test-integration
 
 # Runs the integration tests.
@@ -227,7 +228,8 @@ ci-test-integration: install
 test-integration: install
 	@echo $(db_password) > ${PWD}/secrets/db.password
 	OCM_ENV=integration_testing gotestsum --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
-			./test/integration
+			./test/integration \
+			./plugins/...
 .PHONY: test-integration
 
 # Regenerate openapi client and models

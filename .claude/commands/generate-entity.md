@@ -4,168 +4,63 @@ Generate a complete CRUD entity in the TRex application following the **plugin-b
 
 ## Plugin System Overview
 
-**NEW APPROACH**: TRex now uses a plugin system for entity registration. Each entity is self-contained in a plugin package that automatically registers:
-- Service locators
-- HTTP routes
-- Event controllers
-- Presenter mappings (Kind and Path)
+TRex uses a plugin system where each entity is fully self-contained in `plugins/{entity}s/`. The plugin auto-registers routes, controllers, presenters, and service locators via `init()` functions.
 
-**Key Benefits**:
-- ✅ **90% reduction in manual updates** (from 8 files to 3 files)
-- ✅ **Single source of truth** - all entity wiring in one plugin file
-- ✅ **Auto-discovery** - plugin registers itself via `init()` function
-- ✅ **Type-safe** - compile-time checks for service access
-- ✅ **Easier maintenance** - self-contained entity logic
+**All entity code lives in the plugin package** — NOT in `pkg/api/`, `pkg/dao/`, `pkg/services/`, `pkg/handlers/`, or `test/`. Only the migration lives in `pkg/db/migrations/` and the OpenAPI spec in `openapi/`.
 
-**File Count Summary**:
-- **1 new plugin file** (`plugins/{entity}s/plugin.go`) - replaces 5 manual update steps
-- **10 standard files** (API model, DAO, service, handlers, presenters, migration, OpenAPI, tests, factories)
-- **3 manual updates** (main.go import, migration list, OpenAPI refs)
+## Recommended: Use the Generator
 
-## Instructions
+The fastest and most reliable approach is to use the automated generator:
 
-You will guide the user through creating a new entity with all required artifacts. Use the Dinosaur plugin (`plugins/dinosaurs/plugin.go`) as the reference pattern.
+```bash
+# Basic entity with default "species" field
+go run ./scripts/generator.go --kind Widget
+
+# Entity with custom fields (snake_case field names)
+go run ./scripts/generator.go --kind Widget \
+  --fields "name:string:required,description:string,count:int,active:bool"
+
+# After generation, rebuild OpenAPI client
+make generate
+```
+
+**Supported field types:** `string`, `int`, `int64`, `bool`, `float`, `float64`, `time`
+**Nullability:** Fields are nullable by default. Use `:required` to make non-nullable, `:optional` to be explicit.
+
+The generator creates ALL files and updates ALL existing files automatically. See CLAUDE.md for full details.
+
+## Manual Approach (if generator is not suitable)
+
+If you need to create an entity manually, use the dinosaur plugin as the reference: `plugins/dinosaurs/`.
 
 ### Step 1: Gather Requirements
 
 Ask the user for:
-1. **Entity Name** (singular, PascalCase): e.g., "Widget", "Product", "Customer"
-2. **Entity Fields**: Additional fields beyond the base Meta fields (ID, CreatedAt, UpdatedAt, DeletedAt)
-   - Field name (camelCase in code, snake_case in DB)
-   - Field type (string, int, bool, time.Time, etc.)
-   - Database constraints (index, unique, etc.)
-3. **API Path** (plural, lowercase): e.g., "widgets", "products", "customers"
+1. **Entity Name** (singular, PascalCase): e.g., "Widget"
+2. **Entity Fields**: Beyond base Meta fields (ID, CreatedAt, UpdatedAt, DeletedAt)
+3. **API Path** (snake_case plural): e.g., "widgets", "fizz_buzzs"
 
-### Step 2: Create Required Files
+### Step 2: Create Plugin Files
 
-Use the TodoWrite tool to track your progress through these steps:
+All entity files go in `plugins/{entity}s/`. Use TodoWrite to track progress.
 
-#### 2.1 Plugin Package (`plugins/{entity}s/plugin.go`)
+#### 2.1 Model (`plugins/{entity}s/model.go`)
 
-**This is the NEW core file that replaces manual service locator, route registration, and controller setup.**
+The model is in the **plugin package**, not `pkg/api/`.
 
-Create a plugin file that registers:
-- Service locator function
-- Route registration
-- Controller registration
-- Presenter mappings (Kind and Path)
-
-Example pattern from `plugins/dinosaurs/plugin.go`:
+Reference: `plugins/dinosaurs/model.go`
 ```go
 package widgets
 
 import (
-    "net/http"
-
-    "github.com/gorilla/mux"
-    "github.com/openshift-online/rh-trex/cmd/trex/environments"
-    "github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
-    "github.com/openshift-online/rh-trex/cmd/trex/server"
     "github.com/openshift-online/rh-trex/pkg/api"
-    "github.com/openshift-online/rh-trex/pkg/api/presenters"
-    "github.com/openshift-online/rh-trex/pkg/auth"
-    "github.com/openshift-online/rh-trex/pkg/controllers"
-    "github.com/openshift-online/rh-trex/pkg/dao"
-    "github.com/openshift-online/rh-trex/pkg/db"
-    "github.com/openshift-online/rh-trex/pkg/handlers"
-    "github.com/openshift-online/rh-trex/pkg/services"
+    "gorm.io/gorm"
 )
 
-// Service Locator
-type WidgetServiceLocator func() services.WidgetService
-
-func NewWidgetServiceLocator(env *environments.Env) WidgetServiceLocator {
-    return func() services.WidgetService {
-        return services.NewWidgetService(
-            db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-            dao.NewWidgetDao(&env.Database.SessionFactory),
-            env.Services.Events(),
-        )
-    }
-}
-
-// WidgetService helper function to get the widget service from the registry
-func WidgetService(s *environments.Services) services.WidgetService {
-    if s == nil {
-        return nil
-    }
-    if obj := s.GetService("Widgets"); obj != nil {
-        locator := obj.(WidgetServiceLocator)
-        return locator()
-    }
-    return nil
-}
-
-func init() {
-    // Service registration
-    registry.RegisterService("Widgets", func(env interface{}) interface{} {
-        return NewWidgetServiceLocator(env.(*environments.Env))
-    })
-
-    // Routes registration
-    server.RegisterRoutes("widgets", func(apiV1Router *mux.Router, services server.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
-        envServices := services.(*environments.Services)
-        widgetHandler := handlers.NewWidgetHandler(WidgetService(envServices), envServices.Generic())
-
-        widgetsRouter := apiV1Router.PathPrefix("/widgets").Subrouter()
-        widgetsRouter.HandleFunc("", widgetHandler.List).Methods(http.MethodGet)
-        widgetsRouter.HandleFunc("/{id}", widgetHandler.Get).Methods(http.MethodGet)
-        widgetsRouter.HandleFunc("", widgetHandler.Create).Methods(http.MethodPost)
-        widgetsRouter.HandleFunc("/{id}", widgetHandler.Patch).Methods(http.MethodPatch)
-        widgetsRouter.HandleFunc("/{id}", widgetHandler.Delete).Methods(http.MethodDelete)
-        widgetsRouter.Use(authMiddleware.AuthenticateAccountJWT)
-        widgetsRouter.Use(authzMiddleware.AuthorizeApi)
-    })
-
-    // Controller registration
-    server.RegisterController("Widgets", func(manager *controllers.KindControllerManager, services *environments.Services) {
-        widgetServices := WidgetService(services)
-
-        manager.Add(&controllers.ControllerConfig{
-            Source: "Widgets",
-            Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-                api.CreateEventType: {widgetServices.OnUpsert},
-                api.UpdateEventType: {widgetServices.OnUpsert},
-                api.DeleteEventType: {widgetServices.OnDelete},
-            },
-        })
-    })
-
-    // Presenter registration
-    presenters.RegisterPath(api.Widget{}, "widgets")
-    presenters.RegisterPath(&api.Widget{}, "widgets")
-    presenters.RegisterKind(api.Widget{}, "Widget")
-    presenters.RegisterKind(&api.Widget{}, "Widget")
-}
-```
-
-**Key Features:**
-- **Self-contained**: All entity registration in one file
-- **Auto-discovery**: Uses `init()` function for automatic registration
-- **No manual edits needed**: Eliminates updates to routes.go, controllers.go, types.go, framework.go
-- **Service locator pattern**: Provides type-safe service access
-- **Helper function**: `WidgetService()` retrieves service from registry
-
-#### 2.2 API Model (`pkg/api/{entity}_types.go`)
-
-Create the entity struct with:
-- Embedded `Meta` struct (provides ID, CreatedAt, UpdatedAt, DeletedAt)
-- Custom fields from requirements
-- List and Index types
-- BeforeCreate hook for ID generation
-- PatchRequest struct for updates
-
-Example pattern:
-```go
-package api
-
-import "gorm.io/gorm"
-
 type Widget struct {
-    Meta
+    api.Meta
     Name        string
-    Description string
-    Status      string
+    Description *string
 }
 
 type WidgetList []*Widget
@@ -180,306 +75,191 @@ func (l WidgetList) Index() WidgetIndex {
 }
 
 func (w *Widget) BeforeCreate(tx *gorm.DB) error {
-    w.ID = NewID()
+    w.ID = api.NewID()
     return nil
 }
 
 type WidgetPatchRequest struct {
     Name        *string `json:"name,omitempty"`
     Description *string `json:"description,omitempty"`
-    Status      *string `json:"status,omitempty"`
 }
 ```
 
-#### 2.2 DAO Layer (`pkg/dao/{entity}.go`)
+#### 2.2 DAO (`plugins/{entity}s/dao.go`)
 
-Create interface and implementation with:
-- Get(ctx, id) - retrieve by ID
-- Create(ctx, entity) - create new record
-- Replace(ctx, entity) - update existing record
-- Delete(ctx, id) - delete record
-- FindByIDs(ctx, ids) - batch retrieval
-- All(ctx) - retrieve all records
-- Custom finders as needed
+Reference: `plugins/dinosaurs/dao.go`
 
-Pattern: See `pkg/dao/dinosaur.go`
+#### 2.3 Mock DAO (`plugins/{entity}s/mock_dao.go`)
 
-#### 2.3 DAO Mock (`pkg/dao/mocks/{entity}.go`)
+Reference: `plugins/dinosaurs/mock_dao.go`
 
-Create mock implementation for testing.
+#### 2.4 Service (`plugins/{entity}s/service.go`)
 
-Pattern: See `pkg/dao/mocks/dinosaur.go`
+Reference: `plugins/dinosaurs/service.go`
 
-#### 2.4 Service Layer (`pkg/services/{entity}s.go`)
+#### 2.5 Presenter (`plugins/{entity}s/presenter.go`)
 
-Create interface and implementation with:
-- CRUD operations (Get, Create, Replace, Delete, All, FindByIDs)
-- Event-driven handlers (OnUpsert, OnDelete)
-- Business logic and validation
-- Event creation for CREATE, UPDATE, DELETE operations
-- Advisory lock for concurrent updates
+Reference: `plugins/dinosaurs/presenter.go`
 
-Pattern: See `pkg/services/dinosaurs.go`
+#### 2.6 Handler (`plugins/{entity}s/handler.go`)
 
-Key features:
-- Use `LockFactory` for advisory locks on updates
-- Create events after successful operations
-- Implement idempotent OnUpsert and OnDelete handlers
+Reference: `plugins/dinosaurs/handler.go`
 
-**NOTE**: Service instantiation is now handled in the plugin file, NOT in a separate locator file
+#### 2.7 Plugin Registration (`plugins/{entity}s/plugin.go`)
 
-#### 2.5 Presenters (`pkg/api/presenters/{entity}.go`)
+This is the core integration file. It uses **local package types** (not `pkg/services`, `pkg/dao`, `pkg/handlers`).
 
-Create conversion functions:
-- `Convert{Entity}(openapi.{Entity}) *api.{Entity}` - OpenAPI to internal model
-- `Present{Entity}(*api.{Entity}) openapi.{Entity}` - Internal to OpenAPI model
-
-Pattern: See `pkg/api/presenters/dinosaur.go`
-
-#### 2.6 Handlers (`pkg/handlers/{entity}.go`)
-
-Create HTTP handlers:
-- Create - POST endpoint
-- Get - GET by ID endpoint
-- List - GET collection endpoint with pagination
-- Patch - PATCH update endpoint
-- Delete - DELETE endpoint
-
-Pattern: See `pkg/handlers/dinosaur.go`
-
-Include validation in handlers using the `validate` pattern.
-
-#### 2.7 Database Migration (`pkg/db/migrations/{timestamp}_add_{entity}s.go`)
-
-Create migration with:
-- Timestamp ID (YYYYMMDDHHMM format)
-- Inline model definition (never import from pkg/api)
-- Migrate function using AutoMigrate
-- Rollback function using DropTable
-
-Pattern: See `pkg/db/migrations/201911212019_add_dinosaurs.go`
-
-**IMPORTANT**: Use inline struct definition in migration, not imported types.
-
-#### 2.8 OpenAPI Specification (`openapi/openapi.{entity}s.yaml`)
-
-Create OpenAPI spec with:
-- Path definitions for collection and item endpoints
-- Schema definitions for entity, list, and patch request
-- Parameter definitions (id, page, size, search, orderBy, fields)
-- Security requirements (Bearer token)
-- Response codes and schemas
-
-Pattern: See `openapi/openapi.dinosaurs.yaml`
-
-#### 2.9 Plugin Import (`cmd/trex/main.go`)
-
-**IMPORTANT**: Add a blank import to ensure the plugin's `init()` function runs:
-
+Reference: `plugins/dinosaurs/plugin.go`
 ```go
+package widgets
+
 import (
-    _ "github.com/openshift-online/rh-trex/plugins/dinosaurs"
-    _ "github.com/openshift-online/rh-trex/plugins/widgets"  // <- Add this
+    "net/http"
+
+    "github.com/gorilla/mux"
+    "github.com/openshift-online/rh-trex/cmd/trex/environments"
+    "github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
+    "github.com/openshift-online/rh-trex/cmd/trex/server"
+    "github.com/openshift-online/rh-trex/pkg/api"
+    "github.com/openshift-online/rh-trex/pkg/api/presenters"
+    "github.com/openshift-online/rh-trex/pkg/auth"
+    "github.com/openshift-online/rh-trex/pkg/controllers"
+    "github.com/openshift-online/rh-trex/pkg/db"
+    "github.com/openshift-online/rh-trex/plugins/events"
+    "github.com/openshift-online/rh-trex/plugins/generic"
 )
+
+type ServiceLocator func() WidgetService
+
+func NewServiceLocator(env *environments.Env) ServiceLocator {
+    return func() WidgetService {
+        return NewWidgetService(
+            db.NewAdvisoryLockFactory(env.Database.SessionFactory),
+            NewWidgetDao(&env.Database.SessionFactory),
+            events.Service(&env.Services),
+        )
+    }
+}
+
+func Service(s *environments.Services) WidgetService {
+    if s == nil {
+        return nil
+    }
+    if obj := s.GetService("Widgets"); obj != nil {
+        locator := obj.(ServiceLocator)
+        return locator()
+    }
+    return nil
+}
+
+func init() {
+    registry.RegisterService("Widgets", func(env interface{}) interface{} {
+        return NewServiceLocator(env.(*environments.Env))
+    })
+
+    server.RegisterRoutes("widgets", func(apiV1Router *mux.Router, services server.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+        envServices := services.(*environments.Services)
+        widgetHandler := NewWidgetHandler(Service(envServices), generic.Service(envServices))
+
+        widgetsRouter := apiV1Router.PathPrefix("/widgets").Subrouter()
+        widgetsRouter.HandleFunc("", widgetHandler.List).Methods(http.MethodGet)
+        widgetsRouter.HandleFunc("/{id}", widgetHandler.Get).Methods(http.MethodGet)
+        widgetsRouter.HandleFunc("", widgetHandler.Create).Methods(http.MethodPost)
+        widgetsRouter.HandleFunc("/{id}", widgetHandler.Patch).Methods(http.MethodPatch)
+        widgetsRouter.HandleFunc("/{id}", widgetHandler.Delete).Methods(http.MethodDelete)
+        widgetsRouter.Use(authMiddleware.AuthenticateAccountJWT)
+        widgetsRouter.Use(authzMiddleware.AuthorizeApi)
+    })
+
+    server.RegisterController("Widgets", func(manager *controllers.KindControllerManager, services *environments.Services) {
+        widgetServices := Service(services)
+
+        manager.Add(&controllers.ControllerConfig{
+            Source: "Widgets",
+            Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
+                api.CreateEventType: {widgetServices.OnUpsert},
+                api.UpdateEventType: {widgetServices.OnUpsert},
+                api.DeleteEventType: {widgetServices.OnDelete},
+            },
+        })
+    })
+
+    presenters.RegisterPath(Widget{}, "widgets")
+    presenters.RegisterPath(&Widget{}, "widgets")
+    presenters.RegisterKind(Widget{}, "Widget")
+    presenters.RegisterKind(&Widget{}, "Widget")
+}
 ```
 
-This triggers the plugin registration when the application starts.
+**Key patterns in the plugin file:**
+- `ServiceLocator` and `Service()` are **local** types/functions (not from `pkg/services`)
+- Event service accessed via `events.Service(&env.Services)` (not `env.Services.Events()`)
+- Generic service accessed via `generic.Service(envServices)` (not `envServices.Generic()`)
+- Handler created with `NewWidgetHandler()` (local, not `handlers.NewWidgetHandler()`)
+- Presenter registers `Widget{}` (local type, not `api.Widget{}`)
 
-#### 2.10 Test Factory (`test/factories/{entity}s.go`)
+#### 2.8 Test Files
 
-Create factory methods:
-- `New{Entity}(params) (*api.{Entity}, error)` - create single entity
-- `New{Entity}List(prefix, count) ([]*api.{Entity}, error)` - create list
+- `plugins/{entity}s/testmain_test.go` - Test setup (reference: `plugins/dinosaurs/testmain_test.go`)
+- `plugins/{entity}s/factory_test.go` - Test factories (reference: `plugins/dinosaurs/factory_test.go`)
+- `plugins/{entity}s/integration_test.go` - Integration tests (reference: `plugins/dinosaurs/integration_test.go`)
 
-Pattern: See `test/factories/dinosaurs.go`
+#### 2.9 Database Migration (`pkg/db/migrations/{YYYYMMDDHHMM}_add_{entity}s.go`)
 
-#### 2.11 Integration Tests (`test/integration/{entity}s_test.go`)
+Use inline struct definitions. Never import from the plugin package.
 
-Create integration tests:
-- Test{Entity}Get - test GET by ID (200, 404, 401)
-- Test{Entity}Post - test CREATE (201, 400)
-- Test{Entity}Patch - test UPDATE (200, 404, 400)
-- Test{Entity}Paging - test pagination
-- Test{Entity}ListSearch - test search functionality
+Reference: `pkg/db/migrations/201911212019_add_dinosaurs.go`
 
-Pattern: See `test/integration/dinosaurs_test.go`
+#### 2.10 OpenAPI Specification (`openapi/openapi.{entity}s.yaml`)
 
-### Step 3: Update Existing Files
+Reference: `openapi/openapi.dinosaurs.yaml`
 
-**With the plugin system, most manual file updates are ELIMINATED!** Only these files need updates:
+### Step 3: Update Existing Files (only 3)
 
-#### 3.1 Update `cmd/trex/main.go`
-
-Add plugin import (triggers auto-registration):
+#### 3.1 `cmd/trex/main.go` - Add plugin import
 ```go
-import (
-    _ "github.com/openshift-online/rh-trex/plugins/widgets"  // <- Add this
-)
+_ "github.com/openshift-online/rh-trex/plugins/widgets"
 ```
 
-#### 3.2 Update `pkg/db/migrations/migration_structs.go`
-
-Add migration to list:
+#### 3.2 `pkg/db/migrations/migration_structs.go` - Add migration
 ```go
 var MigrationList = []*gormigrate.Migration{
     addDinosaurs(),
     addEvents(),
-    addWidgets(),  // <- Add this
+    addWidgets(),
 }
 ```
 
-#### 3.3 Update `openapi/openapi.yaml`
+#### 3.3 `openapi/openapi.yaml` - Add reference to entity spec
 
-Add reference to entity spec:
-```yaml
-paths:
-  $ref:
-    - 'openapi.dinosaurs.yaml'
-    - 'openapi.widgets.yaml'  # <- Add this
-```
+### Step 4: Generate OpenAPI Client
 
-### Step 4: Generate OpenAPI Client Code
-
-After creating the OpenAPI spec, run:
 ```bash
 make generate
 ```
 
-**IMPORTANT: Wait for completion and verify results**
-
-This command takes 2-3 minutes to complete. You MUST:
-
-1. **Run the command and wait for completion:**
-   ```bash
-   make generate 2>&1 | tee generate.log
-   ```
-
-2. **Verify the generated files exist:**
-   ```bash
-   ls -la pkg/api/openapi/model_{entity}*.go
-   ls -la pkg/api/openapi/docs/{Entity}*.md
-   ```
-
-3. **Check for compilation errors:**
-   ```bash
-   go build ./cmd/trex
-   ```
-
-4. **If generation fails or times out:**
-   - Check the Docker/Podman daemon is running
-   - Review the full output in generate.log
-   - Verify openapi.yaml syntax is valid
-
-**Expected generated files:**
-- `pkg/api/openapi/model_{entity}.go`
-- `pkg/api/openapi/model_{entity}_all_of.go`
-- `pkg/api/openapi/model_{entity}_list.go`
-- `pkg/api/openapi/model_{entity}_list_all_of.go`
-- `pkg/api/openapi/model_{entity}_patch_request.go`
-- `pkg/api/openapi/docs/{Entity}*.md`
-- Updated `pkg/api/openapi/api_default.go` with new endpoints
-
-**Do NOT proceed to Step 5 until:**
-- [ ] All expected files exist
-- [ ] `go build ./cmd/trex` completes without errors
-- [ ] Integration test files compile successfully
-
-### Step 5: Verify Compilation
-
-Before running tests, ensure the code compiles:
-
+Wait for completion (2-3 minutes), then verify:
 ```bash
-# Build the binary to catch any compilation errors
-go build -o /tmp/trex ./cmd/trex
-
-# If this fails, review the errors and fix:
-# - Missing imports
-# - Type mismatches in presenters
-# - Undefined constants or types
+ls pkg/api/openapi/model_{entity}*.go
+make binary
 ```
 
-### Step 6: Test the Implementation
+### Step 5: Test
 
 ```bash
-# Run database migrations
-make db/teardown
-make db/setup
+make db/teardown && make db/setup
 ./trex migrate
-
-# Run integration tests
 make test-integration
-
-# Run specific entity tests
-go test -v ./test/integration -run TestWidget
-
 ```
-#### Step 6.1: Create a test script
-
-Create a shell script to test the new endpoints for Widget using curl commands
-
-### Key Patterns to Follow
-
-1. **Naming Conventions**:
-   - API paths: snake_case plural (e.g., `/widgets`, `/product_categories`)
-   - Go types: PascalCase (e.g., `Widget`, `ProductCategory`)
-   - Go variables: camelCase (e.g., `widget`, `productCategory`)
-   - Database tables: snake_case plural (e.g., `widgets`, `product_categories`)
-
-2. **Event-Driven Architecture**:
-   - Create events for all CREATE, UPDATE, DELETE operations
-   - Implement idempotent OnUpsert and OnDelete handlers
-   - Register handlers in controllers.go
-
-3. **Database Patterns**:
-   - Use advisory locks for concurrent updates
-   - All entities embed the `Meta` struct
-   - Migrations use inline struct definitions
-   - Use GORM for ORM operations
-
-4. **API Patterns**:
-   - Use OpenAPI specs for all endpoints
-   - Follow RESTful conventions
-   - Use presenters to convert between OpenAPI and internal models
-   - Include proper validation in handlers
-
-5. **Testing Patterns**:
-   - Create factory methods for test data
-   - Test all CRUD operations
-   - Test error cases (404, 400, 401)
-   - Test pagination and search
-
-6. **Security**:
-   - All endpoints require JWT authentication
-   - Use authorization middleware
-   - Validate all inputs in handlers
 
 ### Checklist
 
-After completing all steps, verify:
-- [ ] **Plugin file created** (`plugins/{entity}s/plugin.go`)
-- [ ] All 10 other new files created (API model, DAO, service, handlers, presenters, migration, OpenAPI, tests, factories)
-- [ ] **Only 3 existing files updated** (main.go, migration_structs.go, openapi.yaml)
-- [ ] Plugin import added to `cmd/trex/main.go`
-- [ ] OpenAPI client code regenerated (`make generate`)
-- [ ] Generated files verified to exist
-- [ ] Code compiles without errors (`go build ./cmd/trex`)
-- [ ] Database migrations run successfully
-- [ ] Integration tests pass
-- [ ] API endpoints respond correctly
-- [ ] Events are created and processed
-- [ ] **Plugin auto-discovery working** (routes, controllers, presenters registered automatically)
-
-## Example Usage
-
-To generate a new "Widget" entity with fields "name" and "description":
-
-1. User provides entity details
-2. **You create the plugin file first** (`plugins/widgets/plugin.go`) - this is the NEW core integration point
-3. You create all other required files following the patterns
-4. **You update only 3 existing files** (main.go import, migration_structs.go, openapi.yaml)
-5. You run `make generate` to create OpenAPI client code
-6. You verify with tests
-7. Create a script file to test the endpoints
-
-
-Remember to use TodoWrite tool to track progress through all steps!
+- [ ] All plugin files created in `plugins/{entity}s/`
+- [ ] Migration in `pkg/db/migrations/`
+- [ ] OpenAPI spec in `openapi/`
+- [ ] Plugin import in `cmd/trex/main.go`
+- [ ] Migration added to `migration_structs.go`
+- [ ] OpenAPI ref added to `openapi.yaml`
+- [ ] `make generate` completed
+- [ ] `make binary` compiles
+- [ ] `make test-integration` passes

@@ -12,6 +12,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
+var projectRootDir string
+
+func SetProjectRootDir(dir string) { projectRootDir = dir }
+
 type ApplicationConfig struct {
 	Server      *ServerConfig      `json:"server"`
 	Metrics     *MetricsConfig     `json:"metrics"`
@@ -124,9 +128,10 @@ func ReadFile(file string) (string, error) {
 	return string(buf), nil
 }
 
-// GetProjectRootDir Return project root path based on the relative path of this file
 func GetProjectRootDir() string {
+	if projectRootDir != "" {
+		return projectRootDir
+	}
 	_, b, _, _ := runtime.Caller(0)
-	basepath := filepath.Dir(filepath.Join(b, "..", ".."))
-	return basepath
+	return filepath.Dir(filepath.Join(b, "..", ".."))
 }

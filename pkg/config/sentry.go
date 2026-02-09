@@ -21,8 +21,8 @@ func NewSentryConfig() *SentryConfig {
 	return &SentryConfig{
 		Enabled: false,
 		Key:     "",
-		URL:     "glitchtip.devshift.net",
-		Project: "53", // 16 is the ocm-service-dev project for local dev/testing
+		URL:     "",
+		Project: "",
 		Debug:   false,
 		KeyFile: "secrets/sentry.key",
 	}

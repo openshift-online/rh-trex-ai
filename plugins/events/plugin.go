@@ -1,9 +1,10 @@
 package events
 
 import (
-	"github.com/openshift-online/rh-trex/cmd/trex/environments"
-	"github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
 	"github.com/openshift-online/rh-trex/pkg/dao"
+	"github.com/openshift-online/rh-trex/pkg/db"
+	"github.com/openshift-online/rh-trex/pkg/environments"
+	"github.com/openshift-online/rh-trex/pkg/registry"
 	"github.com/openshift-online/rh-trex/pkg/services"
 )
 
@@ -29,8 +30,9 @@ func Service(s *environments.Services) services.EventService {
 }
 
 func init() {
-	// Service registration
 	registry.RegisterService("Events", func(env interface{}) interface{} {
 		return NewServiceLocator(env.(*environments.Env))
 	})
+
+	db.RegisterMigration(migration())
 }

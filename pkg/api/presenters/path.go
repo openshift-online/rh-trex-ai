@@ -26,12 +26,13 @@ func LoadDiscoveredPaths(i interface{}) string {
 	return ""
 }
 
-const (
-	BasePath = "/api/rh-trex/v1"
-)
+var basePath = "/api/rh-trex/v1"
+
+func BasePath() string        { return basePath }
+func SetBasePath(path string) { basePath = path }
 
 func ObjectPath(id string, obj interface{}) *string {
-	return openapi.PtrString(fmt.Sprintf("%s/%s/%s", BasePath, path(obj), id))
+	return openapi.PtrString(fmt.Sprintf("%s/%s/%s", basePath, path(obj), id))
 }
 
 func path(i interface{}) string {

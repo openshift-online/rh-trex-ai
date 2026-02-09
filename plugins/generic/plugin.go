@@ -1,9 +1,9 @@
 package generic
 
 import (
-	"github.com/openshift-online/rh-trex/cmd/trex/environments"
-	"github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
 	"github.com/openshift-online/rh-trex/pkg/dao"
+	"github.com/openshift-online/rh-trex/pkg/environments"
+	"github.com/openshift-online/rh-trex/pkg/registry"
 	"github.com/openshift-online/rh-trex/pkg/services"
 )
 

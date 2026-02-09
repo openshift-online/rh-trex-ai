@@ -149,16 +149,24 @@ func (f *Testcontainer) Close() error {
 }
 
 func (f *Testcontainer) ResetDB() {
-	// For testcontainers, we can just truncate all tables
 	ctx := context.Background()
 	g2 := f.New(ctx)
 
-	tables := []string{"dinosaurs", "events"}
+	var tables []string
+	err := g2.Raw(`
+		SELECT table_name FROM information_schema.tables
+		WHERE table_schema = 'public'
+		AND table_type = 'BASE TABLE'
+		AND table_name != 'migrations'
+	`).Scan(&tables).Error
+	if err != nil {
+		glog.Errorf("Error querying tables: %s", err)
+		return
+	}
+
 	for _, table := range tables {
-		if g2.Migrator().HasTable(table) {
-			if err := g2.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)).Error; err != nil {
-				glog.Errorf("Error truncating table %s: %s", table, err)
-			}
+		if err := g2.Exec(fmt.Sprintf("TRUNCATE TABLE \"%s\" CASCADE", table)).Error; err != nil {
+			glog.Errorf("Error truncating table %s: %s", table, err)
 		}
 	}
 }

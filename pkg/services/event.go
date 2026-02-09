@@ -33,7 +33,7 @@ type sqlEventService struct {
 func (s *sqlEventService) Get(ctx context.Context, id string) (*api.Event, *errors.ServiceError) {
 	event, err := s.eventDao.Get(ctx, id)
 	if err != nil {
-		return nil, handleGetError("Event", "id", id, err)
+		return nil, HandleGetError("Event", "id", id, err)
 	}
 	return event, nil
 }
@@ -41,7 +41,7 @@ func (s *sqlEventService) Get(ctx context.Context, id string) (*api.Event, *erro
 func (s *sqlEventService) Create(ctx context.Context, event *api.Event) (*api.Event, *errors.ServiceError) {
 	event, err := s.eventDao.Create(ctx, event)
 	if err != nil {
-		return nil, handleCreateError("Event", err)
+		return nil, HandleCreateError("Event", err)
 	}
 	return event, nil
 }
@@ -49,14 +49,14 @@ func (s *sqlEventService) Create(ctx context.Context, event *api.Event) (*api.Ev
 func (s *sqlEventService) Replace(ctx context.Context, event *api.Event) (*api.Event, *errors.ServiceError) {
 	event, err := s.eventDao.Replace(ctx, event)
 	if err != nil {
-		return nil, handleUpdateError("Event", err)
+		return nil, HandleUpdateError("Event", err)
 	}
 	return event, nil
 }
 
 func (s *sqlEventService) Delete(ctx context.Context, id string) *errors.ServiceError {
 	if err := s.eventDao.Delete(ctx, id); err != nil {
-		return handleDeleteError("Event", errors.GeneralError("Unable to delete event: %s", err))
+		return HandleDeleteError("Event", errors.GeneralError("Unable to delete event: %s", err))
 	}
 	return nil
 }

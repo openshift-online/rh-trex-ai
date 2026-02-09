@@ -5,35 +5,30 @@ import (
 
 	"github.com/gorilla/mux"
 	"{{.Repo}}/{{.Project}}/cmd/{{.Cmd}}/environments"
-	"{{.Repo}}/{{.Project}}/cmd/{{.Cmd}}/environments/registry"
-	"{{.Repo}}/{{.Project}}/cmd/{{.Cmd}}/server"
+	"{{.Repo}}/{{.Project}}/pkg/registry"
+	pkgserver "{{.Repo}}/{{.Project}}/pkg/server"
 	"{{.Repo}}/{{.Project}}/pkg/api"
 	"{{.Repo}}/{{.Project}}/pkg/api/presenters"
 	"{{.Repo}}/{{.Project}}/pkg/auth"
 	"{{.Repo}}/{{.Project}}/pkg/controllers"
-	"{{.Repo}}/{{.Project}}/pkg/dao"
 	"{{.Repo}}/{{.Project}}/pkg/db"
-	"{{.Repo}}/{{.Project}}/pkg/handlers"
-	"{{.Repo}}/{{.Project}}/pkg/services"
 	"{{.Repo}}/{{.Project}}/plugins/events"
 	"{{.Repo}}/{{.Project}}/plugins/generic"
 )
 
-// ServiceLocator Service Locator
-type ServiceLocator func() services.{{.Kind}}Service
+type ServiceLocator func() {{.Kind}}Service
 
 func NewServiceLocator(env *environments.Env) ServiceLocator {
-	return func() services.{{.Kind}}Service {
-		return services.New{{.Kind}}Service(
+	return func() {{.Kind}}Service {
+		return New{{.Kind}}Service(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-			dao.New{{.Kind}}Dao(&env.Database.SessionFactory),
+			New{{.Kind}}Dao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
 		)
 	}
 }
 
-// Service helper function to get the {{.KindLowerSingular}} service from the registry
-func Service(s *environments.Services) services.{{.Kind}}Service {
+func Service(s *environments.Services) {{.Kind}}Service {
 	if s == nil {
 		return nil
 	}
@@ -45,15 +40,13 @@ func Service(s *environments.Services) services.{{.Kind}}Service {
 }
 
 func init() {
-	// Service registration
 	registry.RegisterService("{{.KindPlural}}", func(env interface{}) interface{} {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	// Routes registration
-	server.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services server.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		{{.KindLowerSingular}}Handler := handlers.New{{.Kind}}Handler(Service(envServices), generic.Service(envServices))
+		{{.KindLowerSingular}}Handler := New{{.Kind}}Handler(Service(envServices), generic.Service(envServices))
 
 		{{.KindLowerPlural}}Router := apiV1Router.PathPrefix("/{{.KindSnakeCasePlural}}").Subrouter()
 		{{.KindLowerPlural}}Router.HandleFunc("", {{.KindLowerSingular}}Handler.List).Methods(http.MethodGet)
@@ -65,9 +58,8 @@ func init() {
 		{{.KindLowerPlural}}Router.Use(authzMiddleware.AuthorizeApi)
 	})
 
-	// Controller registration
-	server.RegisterController("{{.KindPlural}}", func(manager *controllers.KindControllerManager, services *environments.Services) {
-		{{.KindLowerSingular}}Services := Service(services)
+	pkgserver.RegisterController("{{.KindPlural}}", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
+		{{.KindLowerSingular}}Services := Service(services.(*environments.Services))
 
 		manager.Add(&controllers.ControllerConfig{
 			Source: "{{.KindPlural}}",
@@ -79,9 +71,10 @@ func init() {
 		})
 	})
 
-	// Presenter registration
-	presenters.RegisterPath(api.{{.Kind}}{}, "{{.KindSnakeCasePlural}}")
-	presenters.RegisterPath(&api.{{.Kind}}{}, "{{.KindSnakeCasePlural}}")
-	presenters.RegisterKind(api.{{.Kind}}{}, "{{.Kind}}")
-	presenters.RegisterKind(&api.{{.Kind}}{}, "{{.Kind}}")
+	presenters.RegisterPath({{.Kind}}{}, "{{.KindSnakeCasePlural}}")
+	presenters.RegisterPath(&{{.Kind}}{}, "{{.KindSnakeCasePlural}}")
+	presenters.RegisterKind({{.Kind}}{}, "{{.Kind}}")
+	presenters.RegisterKind(&{{.Kind}}{}, "{{.Kind}}")
+
+	db.RegisterMigration(migration())
 }

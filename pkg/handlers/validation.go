@@ -4,11 +4,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/openshift-online/rh-trex/pkg/api/openapi"
 	"github.com/openshift-online/rh-trex/pkg/errors"
 )
 
-func validateNotEmpty(i interface{}, fieldName string, field string) validate {
+func ValidateNotEmpty(i interface{}, fieldName string, field string) Validate {
 	return func() *errors.ServiceError {
 		value := reflect.ValueOf(i).Elem().FieldByName(fieldName)
 		if value.Kind() == reflect.Ptr {
@@ -24,7 +23,7 @@ func validateNotEmpty(i interface{}, fieldName string, field string) validate {
 	}
 }
 
-func validateEmpty(i interface{}, fieldName string, field string) validate {
+func ValidateEmpty(i interface{}, fieldName string, field string) Validate {
 	return func() *errors.ServiceError {
 		value := reflect.ValueOf(i).Elem().FieldByName(fieldName)
 		if value.Kind() == reflect.Ptr {
@@ -41,7 +40,7 @@ func validateEmpty(i interface{}, fieldName string, field string) validate {
 }
 
 // Note that because this uses strings.EqualFold, it is case-insensitive
-func validateInclusionIn(value *string, list []string, category *string) validate {
+func ValidateInclusionIn(value *string, list []string, category *string) Validate {
 	return func() *errors.ServiceError {
 		for _, item := range list {
 			if strings.EqualFold(*value, item) {
@@ -52,17 +51,5 @@ func validateInclusionIn(value *string, list []string, category *string) validat
 			category = &[]string{"value"}[0]
 		}
 		return errors.Validation("%s is not a valid %s", *value, *category)
-	}
-}
-
-func validateDinosaurPatch(patch *openapi.DinosaurPatchRequest) validate {
-	return func() *errors.ServiceError {
-		if patch.Species == nil {
-			return errors.Validation("species cannot be nil")
-		}
-		if len(*patch.Species) == 0 {
-			return errors.Validation("species cannot be empty")
-		}
-		return nil
 	}
 }
