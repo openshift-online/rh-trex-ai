@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/openshift-online/rh-trex/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
 )
 
 var _ DinosaurDao = &dinosaurDaoMock{}

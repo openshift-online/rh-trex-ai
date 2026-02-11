@@ -7,15 +7,15 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/controllers"
-	"github.com/openshift-online/rh-trex/pkg/dao"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/cmd/trex/environments"
-	pkgserver "github.com/openshift-online/rh-trex/pkg/server"
-	"github.com/openshift-online/rh-trex/plugins/dinosaurs"
-	"github.com/openshift-online/rh-trex/plugins/events"
-	"github.com/openshift-online/rh-trex/test"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
+	"github.com/openshift-online/rh-trex-ai/pkg/dao"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/cmd/trex/environments"
+	pkgserver "github.com/openshift-online/rh-trex-ai/pkg/server"
+	"github.com/openshift-online/rh-trex-ai/plugins/dinosaurs"
+	"github.com/openshift-online/rh-trex-ai/plugins/events"
+	"github.com/openshift-online/rh-trex-ai/test"
 )
 
 func TestControllerRacing(t *testing.T) {

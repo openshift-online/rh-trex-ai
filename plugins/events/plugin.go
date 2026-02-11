@@ -1,11 +1,11 @@
 package events
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/dao"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/environments"
-	"github.com/openshift-online/rh-trex/pkg/registry"
-	"github.com/openshift-online/rh-trex/pkg/services"
+	"github.com/openshift-online/rh-trex-ai/pkg/dao"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/pkg/registry"
+	"github.com/openshift-online/rh-trex-ai/pkg/services"
 )
 
 // ServiceLocator Service Locator

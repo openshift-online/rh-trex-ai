@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/dao"
-	"github.com/openshift-online/rh-trex/plugins/dinosaurs"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/dao"
+	"github.com/openshift-online/rh-trex-ai/plugins/dinosaurs"
 
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 
-	"github.com/openshift-online/rh-trex/pkg/api/openapi"
-	"github.com/openshift-online/rh-trex/test"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/openapi"
+	"github.com/openshift-online/rh-trex-ai/test"
 )
 
 func TestDinosaurGet(t *testing.T) {

@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 
-	"github.com/openshift-online/rh-trex/pkg/controllers"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/environments"
-	"github.com/openshift-online/rh-trex/pkg/logger"
-	"github.com/openshift-online/rh-trex/pkg/services"
+	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/services"
 )
 
 type ControllersServer struct {

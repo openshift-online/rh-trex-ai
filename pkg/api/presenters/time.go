@@ -3,7 +3,7 @@ package presenters
 import (
 	"time"
 
-	"github.com/openshift-online/rh-trex/pkg/util"
+	"github.com/openshift-online/rh-trex-ai/pkg/util"
 )
 
 func PresentTime(t time.Time) *time.Time {

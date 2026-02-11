@@ -7,7 +7,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
-	"github.com/openshift-online/rh-trex/pkg/util"
+	"github.com/openshift-online/rh-trex-ai/pkg/util"
 )
 
 type OCMLogger interface {

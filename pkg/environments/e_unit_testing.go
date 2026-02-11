@@ -3,8 +3,8 @@ package environments
 import (
 	"os"
 
-	"github.com/openshift-online/rh-trex/pkg/config"
-	dbmocks "github.com/openshift-online/rh-trex/pkg/db/mocks"
+	"github.com/openshift-online/rh-trex-ai/pkg/config"
+	dbmocks "github.com/openshift-online/rh-trex-ai/pkg/db/mocks"
 )
 
 var _ EnvironmentImpl = &UnitTestingEnvImpl{}

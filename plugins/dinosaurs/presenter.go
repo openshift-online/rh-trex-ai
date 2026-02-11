@@ -1,10 +1,10 @@
 package dinosaurs
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/api/openapi"
-	"github.com/openshift-online/rh-trex/pkg/api/presenters"
-	"github.com/openshift-online/rh-trex/pkg/util"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/openapi"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
+	"github.com/openshift-online/rh-trex-ai/pkg/util"
 )
 
 func ConvertDinosaur(dinosaur openapi.Dinosaur) *Dinosaur {

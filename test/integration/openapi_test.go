@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 
-	"github.com/openshift-online/rh-trex/test"
+	"github.com/openshift-online/rh-trex-ai/test"
 )
 
 func TestOpenAPIGet(t *testing.T) {

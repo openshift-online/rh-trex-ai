@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/openshift-online/rh-trex/test"
+	"github.com/openshift-online/rh-trex-ai/test"
 )
 
 func TestMain(m *testing.M) {

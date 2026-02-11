@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/openshift-online/rh-trex/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
 )
 
 type MockAdvisoryLockFactory struct {

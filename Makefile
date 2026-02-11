@@ -97,7 +97,7 @@ git_sha:=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 git_dirty:=$(shell git diff --quiet 2>/dev/null || echo "-modified")
 build_version:=$(git_sha)$(git_dirty)
 build_time:=$(shell date -u '+%Y-%m-%d %H:%M:%S UTC')
-ldflags=-X github.com/openshift-online/rh-trex/pkg/api.Version=$(build_version) -X 'github.com/openshift-online/rh-trex/pkg/api.BuildTime=$(build_time)'
+ldflags=-X github.com/openshift-online/rh-trex-ai/pkg/api.Version=$(build_version) -X 'github.com/openshift-online/rh-trex-ai/pkg/api.BuildTime=$(build_time)'
 
 ### Envrionment-sourced variables with defaults
 # Can be overriden by setting environment var before running

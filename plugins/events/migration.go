@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/go-gormigrate/gormigrate/v2"
-	"github.com/openshift-online/rh-trex/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
 )
 
 func migration() *gormigrate.Migration {

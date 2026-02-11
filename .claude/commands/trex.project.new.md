@@ -111,7 +111,7 @@ The `templates/new-project/` template includes:
 ## Framework Architecture
 
 The template demonstrates how to use TRex as a framework:
-- **Import TRex library**: Projects import `github.com/openshift-online/rh-trex/pkg/*` packages
+- **Import TRex library**: Projects import `github.com/openshift-online/rh-trex-ai/pkg/*` packages
 - **Use TRex commands**: Leverage `pkgcmd.NewRootCommand`, `pkgcmd.NewMigrateCommand`, etc.
 - **Extend with entities**: Use the generator to add business entities to your project
 - **Independent deployment**: Your service runs independently but uses TRex components

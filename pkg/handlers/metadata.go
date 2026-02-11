@@ -23,7 +23,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
-	"github.com/openshift-online/rh-trex/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
 )
 
 var metadataID = "rh-trex"

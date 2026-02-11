@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/openshift-online/rh-trex/pkg/dao"
+	"github.com/openshift-online/rh-trex-ai/pkg/dao"
 )
 
 var _ dao.GenericDao = &genericDaoMock{}

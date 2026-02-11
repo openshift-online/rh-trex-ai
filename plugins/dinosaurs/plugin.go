@@ -4,16 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/api/presenters"
-	"github.com/openshift-online/rh-trex/pkg/auth"
-	"github.com/openshift-online/rh-trex/pkg/controllers"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/environments"
-	"github.com/openshift-online/rh-trex/pkg/registry"
-	pkgserver "github.com/openshift-online/rh-trex/pkg/server"
-	"github.com/openshift-online/rh-trex/plugins/events"
-	"github.com/openshift-online/rh-trex/plugins/generic"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/pkg/registry"
+	pkgserver "github.com/openshift-online/rh-trex-ai/pkg/server"
+	"github.com/openshift-online/rh-trex-ai/plugins/events"
+	"github.com/openshift-online/rh-trex-ai/plugins/generic"
 )
 
 type ServiceLocator func() DinosaurService

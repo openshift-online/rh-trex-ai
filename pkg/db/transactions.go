@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 
-	"github.com/openshift-online/rh-trex/pkg/db/transaction"
+	"github.com/openshift-online/rh-trex-ai/pkg/db/transaction"
 )
 
 // By default do no roll back transaction.

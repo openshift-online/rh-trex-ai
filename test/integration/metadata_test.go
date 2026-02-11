@@ -26,9 +26,9 @@ import (
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/trex"
-	"github.com/openshift-online/rh-trex/test"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/trex"
+	"github.com/openshift-online/rh-trex-ai/test"
 )
 
 func TestMetadataGet(t *testing.T) {

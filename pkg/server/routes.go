@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 )
 
 type ServicesInterface interface {

@@ -5,8 +5,8 @@ import (
 
 	"gorm.io/gorm/clause"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
 )
 
 type DinosaurDao interface {

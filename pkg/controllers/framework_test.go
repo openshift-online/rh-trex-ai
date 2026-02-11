@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/dao/mocks"
-	dbmocks "github.com/openshift-online/rh-trex/pkg/db/mocks"
-	"github.com/openshift-online/rh-trex/pkg/services"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/dao/mocks"
+	dbmocks "github.com/openshift-online/rh-trex-ai/pkg/db/mocks"
+	"github.com/openshift-online/rh-trex-ai/pkg/services"
 )
 
 func newExampleControllerConfig(ctrl *exampleController) *ControllerConfig {

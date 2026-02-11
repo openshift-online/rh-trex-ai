@@ -6,10 +6,10 @@ import (
 
 	gm "github.com/onsi/gomega"
 
-	dbmocks "github.com/openshift-online/rh-trex/pkg/db/mocks"
-	"github.com/openshift-online/rh-trex/pkg/services"
+	dbmocks "github.com/openshift-online/rh-trex-ai/pkg/db/mocks"
+	"github.com/openshift-online/rh-trex-ai/pkg/services"
 
-	daomocks "github.com/openshift-online/rh-trex/pkg/dao/mocks"
+	daomocks "github.com/openshift-online/rh-trex-ai/pkg/dao/mocks"
 )
 
 func TestDinosaurFindBySpecies(t *testing.T) {
