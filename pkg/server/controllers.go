@@ -7,12 +7,11 @@ import (
 	"github.com/openshift-online/rh-trex/pkg/db"
 	"github.com/openshift-online/rh-trex/pkg/environments"
 	"github.com/openshift-online/rh-trex/pkg/logger"
-	"github.com/openshift-online/rh-trex/plugins/events"
+	"github.com/openshift-online/rh-trex/pkg/services"
 )
 
 type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
-	DB                    db.SessionFactory
 	SessionFactory        db.SessionFactory
 }
 
@@ -23,10 +22,16 @@ func (s ControllersServer) Start() {
 }
 
 func NewDefaultControllersServer(env *environments.Env) *ControllersServer {
+	// Resolve events service through the generic service registry
+	var eventService services.EventService
+	if locator := env.Services.GetService("Events"); locator != nil {
+		eventService = locator.(func() services.EventService)()
+	}
+
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-			events.Service(&env.Services),
+			eventService,
 		),
 		SessionFactory: env.Database.SessionFactory,
 	}
@@ -65,8 +70,7 @@ func RegisterController(name string, registrationFunc ControllerRegistrationFunc
 }
 
 func LoadDiscoveredControllers(manager *controllers.KindControllerManager, services ServicesInterface) {
-	for name, registrationFunc := range controllerRegistry {
+	for _, registrationFunc := range controllerRegistry {
 		registrationFunc(manager, services)
-		_ = name
 	}
 }

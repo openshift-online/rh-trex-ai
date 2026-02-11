@@ -54,6 +54,9 @@ func Init(cfg Config) {
 }
 
 func GetConfig() Config {
+	if !initialized {
+		panic("trex.Init() must be called before GetConfig() - typically in environments package init()")
+	}
 	return globalConfig
 }
 
@@ -82,6 +85,9 @@ var defaultCORSOrigins = []string{
 }
 
 func GetCORSOrigins() []string {
+	if !initialized {
+		panic("trex.Init() must be called before GetCORSOrigins() - typically in environments package init()")
+	}
 	if len(globalConfig.CORSOrigins) > 0 {
 		return globalConfig.CORSOrigins
 	}

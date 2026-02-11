@@ -32,6 +32,7 @@ var (
 	repo                        = "github.com/openshift-online"
 	project                     = "rh-trex"
 	fields                      = ""
+	plural                      = ""
 	openapiEndpointStart        = "# NEW ENDPOINT START"
 	openapiEndpointEnd          = "# NEW ENDPOINT END"
 	openApiSchemaStart          = "# NEW SCHEMA START"
@@ -49,6 +50,49 @@ func init() {
 	flags.StringVar(&repo, "repo", repo, "the name of the repo.  e.g github.com/yourproject")
 	flags.StringVar(&project, "project", project, "the name of the project.  e.g rh-trex")
 	flags.StringVar(&fields, "fields", fields, "comma-separated list of custom fields in format name:type (e.g. 'name:string,age:int,active:bool')")
+	flags.StringVar(&plural, "plural", plural, "the plural form of the kind. If not provided, uses irregular plurals map or adds 's'")
+}
+
+// irregularPlurals maps singular forms to their irregular plural forms
+var irregularPlurals = map[string]string{
+	"registry":   "registries",
+	"category":   "categories", 
+	"company":    "companies",
+	"country":    "countries",
+	"family":     "families",
+	"policy":     "policies",
+	"directory":  "directories",
+	"repository": "repositories",
+	"security":   "securities",
+}
+
+func pluralize(word string) string {
+	if plural != "" {
+		return plural
+	}
+	
+	wordLower := strings.ToLower(word)
+	
+	// Check for irregular plurals by examining word endings  
+	for singular, irregularPlural := range irregularPlurals {
+		if strings.HasSuffix(wordLower, singular) {
+			// Replace the ending with the irregular plural
+			prefix := word[:len(word)-len(singular)]
+			suffix := irregularPlural
+			
+			// Preserve case of the suffix based on the original word's last part
+			originalSuffix := word[len(word)-len(singular):]
+			if originalSuffix == strings.ToUpper(originalSuffix) {
+				suffix = strings.ToUpper(irregularPlural)
+			} else if len(originalSuffix) > 0 && originalSuffix[0] == strings.ToUpper(string(originalSuffix[0]))[0] {
+				suffix = strings.ToUpper(string(irregularPlural[0])) + irregularPlural[1:]
+			}
+			
+			return prefix + suffix
+		}
+	}
+	
+	return word + "s"
 }
 
 func getCmdDir() string {
@@ -104,17 +148,19 @@ func main() {
 		}
 
 		kindLowerCamel := strings.ToLower(string(kind[0])) + kind[1:]
-		kindSnakeCase := toSnakeCase(kind)
+		kindPlural := pluralize(kind)
+		kindPluralLower := pluralize(kindLowerCamel)
+		kindPluralSnake := toSnakeCase(kindPlural)
 		k := myWriter{
 			Project:             project,
 			ProjectPascalCase:   toPascalCase(project),
 			Repo:                repo,
 			Cmd:                 getCmdDir(),
 			Kind:                kind,
-			KindPlural:          fmt.Sprintf("%ss", kind),
-			KindLowerPlural:     kindLowerCamel + "s",
+			KindPlural:          kindPlural,
+			KindLowerPlural:     kindPluralLower,
 			KindLowerSingular:   kindLowerCamel,
-			KindSnakeCasePlural: kindSnakeCase + "s",
+			KindSnakeCasePlural: kindPluralSnake,
 			Fields:              parsedFields,
 		}
 

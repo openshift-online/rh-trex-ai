@@ -94,7 +94,7 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 
 			listArgs := services.NewListArguments(r.URL.Query())
 			var {{.KindLowerPlural}} []{{.Kind}}
-			paging, err := h.generic.List(ctx, "username", listArgs, &{{.KindLowerPlural}})
+			paging, err := h.generic.List(ctx, "id", listArgs, &{{.KindLowerPlural}})
 			if err != nil {
 				return nil, err
 			}

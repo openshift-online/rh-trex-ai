@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift-online/rh-trex/cmd/trex/environments"
+	"github.com/openshift-online/rh-trex/pkg/environments"
 	"github.com/openshift-online/rh-trex/plugins/dinosaurs"
 )
 

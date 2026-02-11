@@ -19,8 +19,7 @@ func RegisterRoutes(name string, registrationFunc RouteRegistrationFunc) {
 }
 
 func LoadDiscoveredRoutes(apiV1Router *mux.Router, services ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
-	for name, registrationFunc := range routeRegistry {
+	for _, registrationFunc := range routeRegistry {
 		registrationFunc(apiV1Router, services, authMiddleware, authzMiddleware)
-		_ = name
 	}
 }
