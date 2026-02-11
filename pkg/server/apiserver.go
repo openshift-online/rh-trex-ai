@@ -16,8 +16,8 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
 
-	"github.com/openshift-online/rh-trex/pkg/environments"
-	"github.com/openshift-online/rh-trex/pkg/trex"
+	"github.com/openshift-online/rh-trex-ai/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/pkg/trex"
 )
 
 type defaultAPIServer struct {

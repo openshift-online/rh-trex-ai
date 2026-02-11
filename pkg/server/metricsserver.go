@@ -8,9 +8,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/handlers"
-	"github.com/openshift-online/rh-trex/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/handlers"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
 )
 
 type metricsServer struct {

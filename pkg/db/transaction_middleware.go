@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/openshift-online/rh-trex/pkg/db/db_context"
+	"github.com/openshift-online/rh-trex-ai/pkg/db/db_context"
 
-	"github.com/openshift-online/rh-trex/pkg/errors"
-	"github.com/openshift-online/rh-trex/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
 )
 
 // TransactionMiddleware creates a new HTTP middleware that begins a database transaction

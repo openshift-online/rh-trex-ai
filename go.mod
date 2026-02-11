@@ -1,4 +1,4 @@
-module github.com/openshift-online/rh-trex
+module github.com/openshift-online/rh-trex-ai
 
 go 1.24.0
 

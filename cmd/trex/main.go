@@ -3,12 +3,12 @@ package main
 import (
 	"github.com/golang/glog"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	pkgcmd "github.com/openshift-online/rh-trex/pkg/cmd"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	pkgcmd "github.com/openshift-online/rh-trex-ai/pkg/cmd"
 
-	_ "github.com/openshift-online/rh-trex/plugins/dinosaurs"
-	_ "github.com/openshift-online/rh-trex/plugins/events"
-	_ "github.com/openshift-online/rh-trex/plugins/generic"
+	_ "github.com/openshift-online/rh-trex-ai/plugins/dinosaurs"
+	_ "github.com/openshift-online/rh-trex-ai/plugins/events"
+	_ "github.com/openshift-online/rh-trex-ai/plugins/generic"
 )
 
 // nolint

@@ -3,11 +3,11 @@ package dinosaurs
 import (
 	"context"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/errors"
-	"github.com/openshift-online/rh-trex/pkg/logger"
-	"github.com/openshift-online/rh-trex/pkg/services"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/services"
 )
 
 const dinosaursLockType db.LockType = "dinosaurs"

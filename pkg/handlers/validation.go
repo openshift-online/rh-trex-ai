@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/openshift-online/rh-trex/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
 )
 
 func ValidateNotEmpty(i interface{}, fieldName string, field string) Validate {

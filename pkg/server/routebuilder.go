@@ -8,14 +8,14 @@ import (
 	gorillahandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex/pkg/api"
-	"github.com/openshift-online/rh-trex/pkg/auth"
-	"github.com/openshift-online/rh-trex/pkg/db"
-	"github.com/openshift-online/rh-trex/pkg/environments"
-	"github.com/openshift-online/rh-trex/pkg/handlers"
-	"github.com/openshift-online/rh-trex/pkg/logger"
-	"github.com/openshift-online/rh-trex/pkg/server/logging"
-	"github.com/openshift-online/rh-trex/pkg/trex"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/pkg/db"
+	"github.com/openshift-online/rh-trex-ai/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/pkg/handlers"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/server/logging"
+	"github.com/openshift-online/rh-trex-ai/pkg/trex"
 )
 
 func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {

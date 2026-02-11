@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/openshift-online/rh-trex/pkg/errors"
-	"github.com/openshift-online/rh-trex/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
 )
 
 func handleError(ctx context.Context, w http.ResponseWriter, code errors.ServiceErrorCode, reason string) {

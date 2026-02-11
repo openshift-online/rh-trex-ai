@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/openshift-online/rh-trex/pkg/config"
+	"github.com/openshift-online/rh-trex-ai/pkg/config"
 )
 
 type SessionFactory interface {

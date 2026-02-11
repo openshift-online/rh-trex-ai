@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: My Service API
+  description: My service built with TRex library
+  version: "1.0.0"
+  contact:
+    email: openshift-online-team@redhat.com
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: https://api.openshift.com
+    description: Production
+  - url: https://api.stage.openshift.com
+    description: Staging
+  - url: http://localhost:8000
+    description: localhost
+  - url: /
+    description: current domain
+tags:
+  - name: default
+    description: Default API operations
+paths:
+  /api/my-service/v1:
+    $ref: './openapi.yaml#/paths/~1api~1my-service~1v1'
+components:
+  schemas:
+    List:
+      allOf:
+        - type: object
+          properties:
+            kind:
+              type: string
+            page:
+              type: integer
+            size:
+              type: integer
+            total:
+              type: integer
+        - $ref: '#/components/schemas/ObjectReference'
+    ObjectReference:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        href:
+          type: string
+    Error:
+      allOf:
+        - $ref: '#/components/schemas/ObjectReference'
+        - type: object
+          properties:
+            code:
+              type: string
+            reason:
+              type: string
+            operation_id:
+              type: string
+  responses:
+    UnauthorizedError:
+      description: Access token is missing or invalid
+    ForbiddenError:
+      description: Access token does not have sufficient privileges
+    InternalServerError:
+      description: Unexpected error occurred
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - Bearer: []

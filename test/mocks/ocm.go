@@ -1,8 +1,8 @@
 package mocks
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/client/ocm"
-	pkgmocks "github.com/openshift-online/rh-trex/pkg/testutil/mocks"
+	"github.com/openshift-online/rh-trex-ai/pkg/client/ocm"
+	pkgmocks "github.com/openshift-online/rh-trex-ai/pkg/testutil/mocks"
 )
 
 type OCMAuthzValidatorMock = pkgmocks.OCMAuthzValidatorMock

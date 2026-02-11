@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/openshift-online/rh-trex/pkg/client/ocm"
+	"github.com/openshift-online/rh-trex-ai/pkg/client/ocm"
 )
 
 var _ ocm.Authorization = &OCMAuthzValidatorMock{}

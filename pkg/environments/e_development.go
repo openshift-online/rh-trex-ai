@@ -1,8 +1,8 @@
 package environments
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/config"
-	"github.com/openshift-online/rh-trex/pkg/db/db_session"
+	"github.com/openshift-online/rh-trex-ai/pkg/config"
+	"github.com/openshift-online/rh-trex-ai/pkg/db/db_session"
 )
 
 type DevEnvImpl struct {

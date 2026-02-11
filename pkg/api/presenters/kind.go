@@ -3,8 +3,8 @@ package presenters
 import (
 	"fmt"
 
-	"github.com/openshift-online/rh-trex/pkg/api/openapi"
-	"github.com/openshift-online/rh-trex/pkg/errors"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/openapi"
+	"github.com/openshift-online/rh-trex-ai/pkg/errors"
 )
 
 type KindMappingFunc func(interface{}) string

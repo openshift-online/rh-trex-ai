@@ -53,7 +53,7 @@ Reference: `plugins/dinosaurs/model.go`
 package widgets
 
 import (
-    "github.com/openshift-online/rh-trex/pkg/api"
+    "github.com/openshift-online/rh-trex-ai/pkg/api"
     "gorm.io/gorm"
 )
 
@@ -117,16 +117,16 @@ import (
     "net/http"
 
     "github.com/gorilla/mux"
-    "github.com/openshift-online/rh-trex/cmd/trex/environments"
-    "github.com/openshift-online/rh-trex/cmd/trex/environments/registry"
-    "github.com/openshift-online/rh-trex/cmd/trex/server"
-    "github.com/openshift-online/rh-trex/pkg/api"
-    "github.com/openshift-online/rh-trex/pkg/api/presenters"
-    "github.com/openshift-online/rh-trex/pkg/auth"
-    "github.com/openshift-online/rh-trex/pkg/controllers"
-    "github.com/openshift-online/rh-trex/pkg/db"
-    "github.com/openshift-online/rh-trex/plugins/events"
-    "github.com/openshift-online/rh-trex/plugins/generic"
+    "github.com/openshift-online/rh-trex-ai/cmd/trex/environments"
+    "github.com/openshift-online/rh-trex-ai/cmd/trex/environments/registry"
+    "github.com/openshift-online/rh-trex-ai/cmd/trex/server"
+    "github.com/openshift-online/rh-trex-ai/pkg/api"
+    "github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
+    "github.com/openshift-online/rh-trex-ai/pkg/auth"
+    "github.com/openshift-online/rh-trex-ai/pkg/controllers"
+    "github.com/openshift-online/rh-trex-ai/pkg/db"
+    "github.com/openshift-online/rh-trex-ai/plugins/events"
+    "github.com/openshift-online/rh-trex-ai/plugins/generic"
 )
 
 type ServiceLocator func() WidgetService
@@ -218,7 +218,7 @@ Reference: `openapi/openapi.dinosaurs.yaml`
 
 #### 3.1 `cmd/trex/main.go` - Add plugin import
 ```go
-_ "github.com/openshift-online/rh-trex/plugins/widgets"
+_ "github.com/openshift-online/rh-trex-ai/plugins/widgets"
 ```
 
 #### 3.2 `pkg/db/migrations/migration_structs.go` - Add migration

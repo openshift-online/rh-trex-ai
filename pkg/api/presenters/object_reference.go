@@ -1,7 +1,7 @@
 package presenters
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/api/openapi"
+	"github.com/openshift-online/rh-trex-ai/pkg/api/openapi"
 )
 
 func PresentReference(id, obj interface{}) openapi.ObjectReference {

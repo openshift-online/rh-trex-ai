@@ -1,7 +1,7 @@
 package dinosaurs
 
 import (
-	"github.com/openshift-online/rh-trex/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/api"
 	"gorm.io/gorm"
 )
 

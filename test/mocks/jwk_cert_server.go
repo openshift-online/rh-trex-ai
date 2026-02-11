@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"testing"
 
-	pkgmocks "github.com/openshift-online/rh-trex/pkg/testutil/mocks"
+	pkgmocks "github.com/openshift-online/rh-trex-ai/pkg/testutil/mocks"
 )
 
 func NewJWKCertServerMock(t *testing.T, pubKey crypto.PublicKey, jwkKID string, jwkAlg string) (url string, teardown func() error) {

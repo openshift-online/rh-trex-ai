@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openshift-online/rh-trex/pkg/logger"
+	"github.com/openshift-online/rh-trex-ai/pkg/logger"
 	"gorm.io/gorm"
 )
 

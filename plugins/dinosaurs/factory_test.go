@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift-online/rh-trex/cmd/trex/environments"
-	"github.com/openshift-online/rh-trex/plugins/dinosaurs"
+	"github.com/openshift-online/rh-trex-ai/cmd/trex/environments"
+	"github.com/openshift-online/rh-trex-ai/plugins/dinosaurs"
 )
 
 func newDinosaur(species string) (*dinosaurs.Dinosaur, error) {
