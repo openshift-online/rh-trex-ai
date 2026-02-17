@@ -33,6 +33,7 @@ var (
 	kind                        = "Asteroid"
 	repo                        = "github.com/openshift-online"
 	project                     = "rh-trex-ai"
+	apiProject                  = "rh-trex-ai"
 	fields                      = ""
 	plural                      = ""
 	library                     = "github.com/openshift-online/rh-trex-ai"
@@ -136,6 +137,9 @@ func main() {
 		"testmain",
 		"handlers",
 		"openapi-kind",
+		"grpc-handler",
+		"grpc-presenter",
+		"proto",
 		"plugin",
 	}
 
@@ -146,7 +150,10 @@ func main() {
 			panic(err)
 		}
 
-		kindTmpl, err := template.New(nm).Parse(string(contents))
+		kindTmpl, err := template.New(nm).Funcs(template.FuncMap{
+			"protoFieldType": protoFieldType,
+			"add":           func(a, b int) int { return a + b },
+		}).Parse(string(contents))
 		if err != nil {
 			panic(err)
 		}
@@ -158,6 +165,7 @@ func main() {
 		k := myWriter{
 			Project:             project,
 			ProjectPascalCase:   toPascalCase(project),
+			ApiProject:          apiProject,
 			Repo:                repo,
 			Library:             library,
 			Cmd:                 getCmdDir(),
@@ -181,6 +189,9 @@ func main() {
 			"generate-migration":      fmt.Sprintf("plugins/%s/migration.go", k.KindLowerPlural),
 			"generate-mock":           fmt.Sprintf("plugins/%s/mock_dao.go", k.KindLowerPlural),
 			"generate-openapi-kind":   fmt.Sprintf("openapi/openapi.%s.yaml", k.KindLowerPlural),
+			"generate-grpc-handler":   fmt.Sprintf("plugins/%s/grpc_handler.go", k.KindLowerPlural),
+			"generate-grpc-presenter": fmt.Sprintf("plugins/%s/grpc_presenter.go", k.KindLowerPlural),
+			"generate-proto":          fmt.Sprintf("proto/rh_trex/v1/%s.proto", k.KindSnakeCasePlural),
 			"generate-test-factories": fmt.Sprintf("plugins/%s/factory_test.go", k.KindLowerPlural),
 			"generate-test":           fmt.Sprintf("plugins/%s/integration_test.go", k.KindLowerPlural),
 			"generate-testmain":       fmt.Sprintf("plugins/%s/testmain_test.go", k.KindLowerPlural),
@@ -231,6 +242,15 @@ func main() {
 			addPluginImport(k)
 		}
 
+	}
+
+	// Run make proto to generate protobuf code
+	fmt.Println("Running make proto to generate protobuf code...")
+	protoCmd := exec.Command("make", "proto")
+	protoCmd.Stdout = os.Stdout
+	protoCmd.Stderr = os.Stderr
+	if err := protoCmd.Run(); err != nil {
+		fmt.Printf("Warning: make proto failed: %v\n", err)
 	}
 
 	// Run make generate to regenerate OpenAPI client
@@ -419,6 +439,7 @@ type myWriter struct {
 	Repo                string
 	Project             string
 	ProjectPascalCase   string
+	ApiProject          string
 	Library             string
 	Cmd                 string
 	Kind                string
@@ -536,5 +557,24 @@ func addPluginImport(k myWriter) {
 	}
 
 	panic("Could not find import block in " + mainFile)
+}
+
+func protoFieldType(field Field) string {
+	switch field.Type {
+	case "string":
+		return "string"
+	case "int":
+		return "int32"
+	case "int64":
+		return "int64"
+	case "bool":
+		return "bool"
+	case "float":
+		return "double"
+	case "time":
+		return "google.protobuf.Timestamp"
+	default:
+		return "string" // fallback
+	}
 }
 

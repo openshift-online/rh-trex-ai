@@ -1,7 +1,7 @@
 /*
-rh-trex Service API
+rh-trex-ai Service API
 
-rh-trex Service API
+rh-trex-ai Service API
 
 API version: 0.0.1
 */
@@ -22,7 +22,7 @@ import (
 // DefaultAPIService DefaultAPI service
 type DefaultAPIService service
 
-type ApiApiRhTrexV1DinosaursGetRequest struct {
+type ApiApiRhTrexAiV1DinosaursGetRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	page       *int32
@@ -33,47 +33,47 @@ type ApiApiRhTrexV1DinosaursGetRequest struct {
 }
 
 // Page number of record list when record list exceeds specified page size
-func (r ApiApiRhTrexV1DinosaursGetRequest) Page(page int32) ApiApiRhTrexV1DinosaursGetRequest {
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) Page(page int32) ApiApiRhTrexAiV1DinosaursGetRequest {
 	r.page = &page
 	return r
 }
 
 // Maximum number of records to return
-func (r ApiApiRhTrexV1DinosaursGetRequest) Size(size int32) ApiApiRhTrexV1DinosaursGetRequest {
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) Size(size int32) ApiApiRhTrexAiV1DinosaursGetRequest {
 	r.size = &size
 	return r
 }
 
 // Specifies the search criteria. The syntax of this parameter is similar to the syntax of the _where_ clause of an SQL statement, using the names of the json attributes / column names of the account.  For example, in order to retrieve all the accounts with a username starting with &#x60;my&#x60;:  &#x60;&#x60;&#x60;sql username like &#39;my%&#39; &#x60;&#x60;&#x60;  The search criteria can also be applied on related resource. For example, in order to retrieve all the subscriptions labeled by &#x60;foo&#x3D;bar&#x60;,  &#x60;&#x60;&#x60;sql subscription_labels.key &#x3D; &#39;foo&#39; and subscription_labels.value &#x3D; &#39;bar&#39; &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then all the accounts that the user has permission to see will be returned.
-func (r ApiApiRhTrexV1DinosaursGetRequest) Search(search string) ApiApiRhTrexV1DinosaursGetRequest {
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) Search(search string) ApiApiRhTrexAiV1DinosaursGetRequest {
 	r.search = &search
 	return r
 }
 
 // Specifies the order by criteria. The syntax of this parameter is similar to the syntax of the _order by_ clause of an SQL statement, but using the names of the json attributes / column of the account. For example, in order to retrieve all accounts ordered by username:  &#x60;&#x60;&#x60;sql username asc &#x60;&#x60;&#x60;  Or in order to retrieve all accounts ordered by username _and_ first name:  &#x60;&#x60;&#x60;sql username asc, firstName asc &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then no explicit ordering will be applied.
-func (r ApiApiRhTrexV1DinosaursGetRequest) OrderBy(orderBy string) ApiApiRhTrexV1DinosaursGetRequest {
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) OrderBy(orderBy string) ApiApiRhTrexAiV1DinosaursGetRequest {
 	r.orderBy = &orderBy
 	return r
 }
 
 // Supplies a comma-separated list of fields to be returned. Fields of sub-structures and of arrays use &lt;structure&gt;.&lt;field&gt; notation. &lt;stucture&gt;.* means all field of a structure Example: For each Subscription to get id, href, plan(id and kind) and labels (all fields)  &#x60;&#x60;&#x60; ocm get subscriptions --parameter fields&#x3D;id,href,plan.id,plan.kind,labels.* --parameter fetchLabels&#x3D;true &#x60;&#x60;&#x60;
-func (r ApiApiRhTrexV1DinosaursGetRequest) Fields(fields string) ApiApiRhTrexV1DinosaursGetRequest {
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) Fields(fields string) ApiApiRhTrexAiV1DinosaursGetRequest {
 	r.fields = &fields
 	return r
 }
 
-func (r ApiApiRhTrexV1DinosaursGetRequest) Execute() (*DinosaurList, *http.Response, error) {
-	return r.ApiService.ApiRhTrexV1DinosaursGetExecute(r)
+func (r ApiApiRhTrexAiV1DinosaursGetRequest) Execute() (*DinosaurList, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1DinosaursGetExecute(r)
 }
 
 /*
-ApiRhTrexV1DinosaursGet Returns a list of dinosaurs
+ApiRhTrexAiV1DinosaursGet Returns a list of dinosaurs
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@return ApiApiRhTrexV1DinosaursGetRequest
+	@return ApiApiRhTrexAiV1DinosaursGetRequest
 */
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursGet(ctx context.Context) ApiApiRhTrexV1DinosaursGetRequest {
-	return ApiApiRhTrexV1DinosaursGetRequest{
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursGet(ctx context.Context) ApiApiRhTrexAiV1DinosaursGetRequest {
+	return ApiApiRhTrexAiV1DinosaursGetRequest{
 		ApiService: a,
 		ctx:        ctx,
 	}
@@ -82,7 +82,7 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursGet(ctx context.Context) ApiApiR
 // Execute executes the request
 //
 //	@return DinosaurList
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursGetExecute(r ApiApiRhTrexV1DinosaursGetRequest) (*DinosaurList, *http.Response, error) {
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursGetExecute(r ApiApiRhTrexAiV1DinosaursGetRequest) (*DinosaurList, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -90,12 +90,12 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursGetExecute(r ApiApiRhTrexV1Dinos
 		localVarReturnValue *DinosaurList
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexV1DinosaursGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1DinosaursGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/rh-trex/v1/dinosaurs"
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/dinosaurs"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -208,25 +208,25 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursGetExecute(r ApiApiRhTrexV1Dinos
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiRhTrexV1DinosaursIdGetRequest struct {
+type ApiApiRhTrexAiV1DinosaursIdGetRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	id         string
 }
 
-func (r ApiApiRhTrexV1DinosaursIdGetRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiRhTrexV1DinosaursIdGetExecute(r)
+func (r ApiApiRhTrexAiV1DinosaursIdGetRequest) Execute() (*Dinosaur, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1DinosaursIdGetExecute(r)
 }
 
 /*
-ApiRhTrexV1DinosaursIdGet Get an dinosaur by id
+ApiRhTrexAiV1DinosaursIdGet Get an dinosaur by id
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
-	@return ApiApiRhTrexV1DinosaursIdGetRequest
+	@return ApiApiRhTrexAiV1DinosaursIdGetRequest
 */
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdGet(ctx context.Context, id string) ApiApiRhTrexV1DinosaursIdGetRequest {
-	return ApiApiRhTrexV1DinosaursIdGetRequest{
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursIdGet(ctx context.Context, id string) ApiApiRhTrexAiV1DinosaursIdGetRequest {
+	return ApiApiRhTrexAiV1DinosaursIdGetRequest{
 		ApiService: a,
 		ctx:        ctx,
 		id:         id,
@@ -236,7 +236,7 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdGet(ctx context.Context, id st
 // Execute executes the request
 //
 //	@return Dinosaur
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdGetExecute(r ApiApiRhTrexV1DinosaursIdGetRequest) (*Dinosaur, *http.Response, error) {
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursIdGetExecute(r ApiApiRhTrexAiV1DinosaursIdGetRequest) (*Dinosaur, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -244,12 +244,12 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdGetExecute(r ApiApiRhTrexV1Din
 		localVarReturnValue *Dinosaur
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexV1DinosaursIdGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1DinosaursIdGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/rh-trex/v1/dinosaurs/{id}"
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/dinosaurs/{id}"
 	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -353,7 +353,7 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdGetExecute(r ApiApiRhTrexV1Din
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiRhTrexV1DinosaursIdPatchRequest struct {
+type ApiApiRhTrexAiV1DinosaursIdPatchRequest struct {
 	ctx                  context.Context
 	ApiService           *DefaultAPIService
 	id                   string
@@ -361,24 +361,24 @@ type ApiApiRhTrexV1DinosaursIdPatchRequest struct {
 }
 
 // Updated dinosaur data
-func (r ApiApiRhTrexV1DinosaursIdPatchRequest) DinosaurPatchRequest(dinosaurPatchRequest DinosaurPatchRequest) ApiApiRhTrexV1DinosaursIdPatchRequest {
+func (r ApiApiRhTrexAiV1DinosaursIdPatchRequest) DinosaurPatchRequest(dinosaurPatchRequest DinosaurPatchRequest) ApiApiRhTrexAiV1DinosaursIdPatchRequest {
 	r.dinosaurPatchRequest = &dinosaurPatchRequest
 	return r
 }
 
-func (r ApiApiRhTrexV1DinosaursIdPatchRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiRhTrexV1DinosaursIdPatchExecute(r)
+func (r ApiApiRhTrexAiV1DinosaursIdPatchRequest) Execute() (*Dinosaur, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1DinosaursIdPatchExecute(r)
 }
 
 /*
-ApiRhTrexV1DinosaursIdPatch Update an dinosaur
+ApiRhTrexAiV1DinosaursIdPatch Update an dinosaur
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
-	@return ApiApiRhTrexV1DinosaursIdPatchRequest
+	@return ApiApiRhTrexAiV1DinosaursIdPatchRequest
 */
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdPatch(ctx context.Context, id string) ApiApiRhTrexV1DinosaursIdPatchRequest {
-	return ApiApiRhTrexV1DinosaursIdPatchRequest{
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursIdPatch(ctx context.Context, id string) ApiApiRhTrexAiV1DinosaursIdPatchRequest {
+	return ApiApiRhTrexAiV1DinosaursIdPatchRequest{
 		ApiService: a,
 		ctx:        ctx,
 		id:         id,
@@ -388,7 +388,7 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdPatch(ctx context.Context, id 
 // Execute executes the request
 //
 //	@return Dinosaur
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdPatchExecute(r ApiApiRhTrexV1DinosaursIdPatchRequest) (*Dinosaur, *http.Response, error) {
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursIdPatchExecute(r ApiApiRhTrexAiV1DinosaursIdPatchRequest) (*Dinosaur, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPatch
 		localVarPostBody    interface{}
@@ -396,12 +396,12 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdPatchExecute(r ApiApiRhTrexV1D
 		localVarReturnValue *Dinosaur
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexV1DinosaursIdPatch")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1DinosaursIdPatch")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/rh-trex/v1/dinosaurs/{id}"
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/dinosaurs/{id}"
 	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -532,30 +532,30 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursIdPatchExecute(r ApiApiRhTrexV1D
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiRhTrexV1DinosaursPostRequest struct {
+type ApiApiRhTrexAiV1DinosaursPostRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	dinosaur   *Dinosaur
 }
 
 // Dinosaur data
-func (r ApiApiRhTrexV1DinosaursPostRequest) Dinosaur(dinosaur Dinosaur) ApiApiRhTrexV1DinosaursPostRequest {
+func (r ApiApiRhTrexAiV1DinosaursPostRequest) Dinosaur(dinosaur Dinosaur) ApiApiRhTrexAiV1DinosaursPostRequest {
 	r.dinosaur = &dinosaur
 	return r
 }
 
-func (r ApiApiRhTrexV1DinosaursPostRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiRhTrexV1DinosaursPostExecute(r)
+func (r ApiApiRhTrexAiV1DinosaursPostRequest) Execute() (*Dinosaur, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1DinosaursPostExecute(r)
 }
 
 /*
-ApiRhTrexV1DinosaursPost Create a new dinosaur
+ApiRhTrexAiV1DinosaursPost Create a new dinosaur
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@return ApiApiRhTrexV1DinosaursPostRequest
+	@return ApiApiRhTrexAiV1DinosaursPostRequest
 */
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursPost(ctx context.Context) ApiApiRhTrexV1DinosaursPostRequest {
-	return ApiApiRhTrexV1DinosaursPostRequest{
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursPost(ctx context.Context) ApiApiRhTrexAiV1DinosaursPostRequest {
+	return ApiApiRhTrexAiV1DinosaursPostRequest{
 		ApiService: a,
 		ctx:        ctx,
 	}
@@ -564,7 +564,7 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursPost(ctx context.Context) ApiApi
 // Execute executes the request
 //
 //	@return Dinosaur
-func (a *DefaultAPIService) ApiRhTrexV1DinosaursPostExecute(r ApiApiRhTrexV1DinosaursPostRequest) (*Dinosaur, *http.Response, error) {
+func (a *DefaultAPIService) ApiRhTrexAiV1DinosaursPostExecute(r ApiApiRhTrexAiV1DinosaursPostRequest) (*Dinosaur, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
@@ -572,12 +572,12 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursPostExecute(r ApiApiRhTrexV1Dino
 		localVarReturnValue *Dinosaur
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexV1DinosaursPost")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1DinosaursPost")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/rh-trex/v1/dinosaurs"
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/dinosaurs"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -605,6 +605,680 @@ func (a *DefaultAPIService) ApiRhTrexV1DinosaursPostExecute(r ApiApiRhTrexV1Dino
 	}
 	// body params
 	localVarPostBody = r.dinosaur
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiApiRhTrexAiV1FossilsGetRequest struct {
+	ctx        context.Context
+	ApiService *DefaultAPIService
+	page       *int32
+	size       *int32
+	search     *string
+	orderBy    *string
+	fields     *string
+}
+
+// Page number of record list when record list exceeds specified page size
+func (r ApiApiRhTrexAiV1FossilsGetRequest) Page(page int32) ApiApiRhTrexAiV1FossilsGetRequest {
+	r.page = &page
+	return r
+}
+
+// Maximum number of records to return
+func (r ApiApiRhTrexAiV1FossilsGetRequest) Size(size int32) ApiApiRhTrexAiV1FossilsGetRequest {
+	r.size = &size
+	return r
+}
+
+// Specifies the search criteria. The syntax of this parameter is similar to the syntax of the _where_ clause of an SQL statement, using the names of the json attributes / column names of the account.  For example, in order to retrieve all the accounts with a username starting with &#x60;my&#x60;:  &#x60;&#x60;&#x60;sql username like &#39;my%&#39; &#x60;&#x60;&#x60;  The search criteria can also be applied on related resource. For example, in order to retrieve all the subscriptions labeled by &#x60;foo&#x3D;bar&#x60;,  &#x60;&#x60;&#x60;sql subscription_labels.key &#x3D; &#39;foo&#39; and subscription_labels.value &#x3D; &#39;bar&#39; &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then all the accounts that the user has permission to see will be returned.
+func (r ApiApiRhTrexAiV1FossilsGetRequest) Search(search string) ApiApiRhTrexAiV1FossilsGetRequest {
+	r.search = &search
+	return r
+}
+
+// Specifies the order by criteria. The syntax of this parameter is similar to the syntax of the _order by_ clause of an SQL statement, but using the names of the json attributes / column of the account. For example, in order to retrieve all accounts ordered by username:  &#x60;&#x60;&#x60;sql username asc &#x60;&#x60;&#x60;  Or in order to retrieve all accounts ordered by username _and_ first name:  &#x60;&#x60;&#x60;sql username asc, firstName asc &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then no explicit ordering will be applied.
+func (r ApiApiRhTrexAiV1FossilsGetRequest) OrderBy(orderBy string) ApiApiRhTrexAiV1FossilsGetRequest {
+	r.orderBy = &orderBy
+	return r
+}
+
+// Supplies a comma-separated list of fields to be returned. Fields of sub-structures and of arrays use &lt;structure&gt;.&lt;field&gt; notation. &lt;stucture&gt;.* means all field of a structure Example: For each Subscription to get id, href, plan(id and kind) and labels (all fields)  &#x60;&#x60;&#x60; ocm get subscriptions --parameter fields&#x3D;id,href,plan.id,plan.kind,labels.* --parameter fetchLabels&#x3D;true &#x60;&#x60;&#x60;
+func (r ApiApiRhTrexAiV1FossilsGetRequest) Fields(fields string) ApiApiRhTrexAiV1FossilsGetRequest {
+	r.fields = &fields
+	return r
+}
+
+func (r ApiApiRhTrexAiV1FossilsGetRequest) Execute() (*FossilList, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1FossilsGetExecute(r)
+}
+
+/*
+ApiRhTrexAiV1FossilsGet Returns a list of fossils
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@return ApiApiRhTrexAiV1FossilsGetRequest
+*/
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsGet(ctx context.Context) ApiApiRhTrexAiV1FossilsGetRequest {
+	return ApiApiRhTrexAiV1FossilsGetRequest{
+		ApiService: a,
+		ctx:        ctx,
+	}
+}
+
+// Execute executes the request
+//
+//	@return FossilList
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsGetExecute(r ApiApiRhTrexAiV1FossilsGetRequest) (*FossilList, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *FossilList
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1FossilsGet")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/fossils"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.page != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "page", r.page, "form", "")
+	} else {
+		var defaultValue int32 = 1
+		r.page = &defaultValue
+	}
+	if r.size != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "size", r.size, "form", "")
+	} else {
+		var defaultValue int32 = 100
+		r.size = &defaultValue
+	}
+	if r.search != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "search", r.search, "form", "")
+	}
+	if r.orderBy != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "orderBy", r.orderBy, "form", "")
+	}
+	if r.fields != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "fields", r.fields, "form", "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiApiRhTrexAiV1FossilsIdGetRequest struct {
+	ctx        context.Context
+	ApiService *DefaultAPIService
+	id         string
+}
+
+func (r ApiApiRhTrexAiV1FossilsIdGetRequest) Execute() (*Fossil, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1FossilsIdGetExecute(r)
+}
+
+/*
+ApiRhTrexAiV1FossilsIdGet Get an fossil by id
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param id The id of record
+	@return ApiApiRhTrexAiV1FossilsIdGetRequest
+*/
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsIdGet(ctx context.Context, id string) ApiApiRhTrexAiV1FossilsIdGetRequest {
+	return ApiApiRhTrexAiV1FossilsIdGetRequest{
+		ApiService: a,
+		ctx:        ctx,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return Fossil
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsIdGetExecute(r ApiApiRhTrexAiV1FossilsIdGetRequest) (*Fossil, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *Fossil
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1FossilsIdGet")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/fossils/{id}"
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiApiRhTrexAiV1FossilsIdPatchRequest struct {
+	ctx                context.Context
+	ApiService         *DefaultAPIService
+	id                 string
+	fossilPatchRequest *FossilPatchRequest
+}
+
+// Updated fossil data
+func (r ApiApiRhTrexAiV1FossilsIdPatchRequest) FossilPatchRequest(fossilPatchRequest FossilPatchRequest) ApiApiRhTrexAiV1FossilsIdPatchRequest {
+	r.fossilPatchRequest = &fossilPatchRequest
+	return r
+}
+
+func (r ApiApiRhTrexAiV1FossilsIdPatchRequest) Execute() (*Fossil, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1FossilsIdPatchExecute(r)
+}
+
+/*
+ApiRhTrexAiV1FossilsIdPatch Update an fossil
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param id The id of record
+	@return ApiApiRhTrexAiV1FossilsIdPatchRequest
+*/
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsIdPatch(ctx context.Context, id string) ApiApiRhTrexAiV1FossilsIdPatchRequest {
+	return ApiApiRhTrexAiV1FossilsIdPatchRequest{
+		ApiService: a,
+		ctx:        ctx,
+		id:         id,
+	}
+}
+
+// Execute executes the request
+//
+//	@return Fossil
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsIdPatchExecute(r ApiApiRhTrexAiV1FossilsIdPatchRequest) (*Fossil, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPatch
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *Fossil
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1FossilsIdPatch")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/fossils/{id}"
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.fossilPatchRequest == nil {
+		return localVarReturnValue, nil, reportError("fossilPatchRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.fossilPatchRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v Error
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiApiRhTrexAiV1FossilsPostRequest struct {
+	ctx        context.Context
+	ApiService *DefaultAPIService
+	fossil     *Fossil
+}
+
+// Fossil data
+func (r ApiApiRhTrexAiV1FossilsPostRequest) Fossil(fossil Fossil) ApiApiRhTrexAiV1FossilsPostRequest {
+	r.fossil = &fossil
+	return r
+}
+
+func (r ApiApiRhTrexAiV1FossilsPostRequest) Execute() (*Fossil, *http.Response, error) {
+	return r.ApiService.ApiRhTrexAiV1FossilsPostExecute(r)
+}
+
+/*
+ApiRhTrexAiV1FossilsPost Create a new fossil
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@return ApiApiRhTrexAiV1FossilsPostRequest
+*/
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsPost(ctx context.Context) ApiApiRhTrexAiV1FossilsPostRequest {
+	return ApiApiRhTrexAiV1FossilsPostRequest{
+		ApiService: a,
+		ctx:        ctx,
+	}
+}
+
+// Execute executes the request
+//
+//	@return Fossil
+func (a *DefaultAPIService) ApiRhTrexAiV1FossilsPostExecute(r ApiApiRhTrexAiV1FossilsPostRequest) (*Fossil, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *Fossil
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiRhTrexAiV1FossilsPost")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/rh-trex-ai/v1/fossils"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.fossil == nil {
+		return localVarReturnValue, nil, reportError("fossil is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.fossil
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

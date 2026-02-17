@@ -13,8 +13,8 @@ import (
 func RegisterIntegration(t *testing.T) (*Helper, *openapi.APIClient) {
 	// Register the test with gomega
 	gm.RegisterTestingT(t)
-	// Create a new helper
-	helper := NewHelper(t)
+	// Create a new helper with dummy T struct for integration testing environment
+	helper := NewHelper(&testing.T{})
 	// Reset the database to a seeded blank state
 	helper.DBFactory.ResetDB()
 	// Create an api client

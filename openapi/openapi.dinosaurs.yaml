@@ -1,6 +1,6 @@
 paths:
   # NEW ENDPOINT START
-  /api/rh-trex/v1/dinosaurs:
+  /api/rh-trex-ai/v1/dinosaurs:
   # NEW ENDPOINT END
     get:
       summary: Returns a list of dinosaurs
@@ -86,7 +86,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
   # NEW ENDPOINT START
-  /api/rh-trex/v1/dinosaurs/{id}:
+  /api/rh-trex-ai/v1/dinosaurs/{id}:
   # NEW ENDPOINT END
     get:
       summary: Get an dinosaur by id
@@ -192,12 +192,6 @@ components:
           properties:
             species:
               type: string
-            created_at:
-              type: string
-              format: date-time
-            updated_at:
-              type: string
-              format: date-time
     # NEW SCHEMA START
     DinosaurList:
     # NEW SCHEMA END

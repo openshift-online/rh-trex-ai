@@ -7,7 +7,7 @@ import (
 
 type Dinosaur struct {
 	api.Meta
-	Species string
+	Species string `json:"species"`
 }
 
 type DinosaurList []*Dinosaur

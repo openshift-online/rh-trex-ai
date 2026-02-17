@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
-  title: rh-trex Service API
-  description: rh-trex Service API
+  title: rh-trex-ai Service API
+  description: rh-trex-ai Service API
   version: 0.0.1
 servers:
   - url: http://localhost:8000
@@ -11,10 +11,14 @@ servers:
   - url: https://api.stage.openshift.com
     description: Staging server
 paths:
-  /api/rh-trex/v1/dinosaurs:
-    $ref: 'openapi.dinosaurs.yaml#/paths/~1api~1rh-trex~1v1~1dinosaurs'
-  /api/rh-trex/v1/dinosaurs/{id}:
-    $ref: 'openapi.dinosaurs.yaml#/paths/~1api~1rh-trex~1v1~1dinosaurs~1{id}'
+  /api/rh-trex-ai/v1/dinosaurs:
+    $ref: 'openapi.dinosaurs.yaml#/paths/~1api~1rh-trex-ai~1v1~1dinosaurs'
+  /api/rh-trex-ai/v1/dinosaurs/{id}:
+    $ref: 'openapi.dinosaurs.yaml#/paths/~1api~1rh-trex-ai~1v1~1dinosaurs~1{id}'
+  /api/rh-trex-ai/v1/fossils:
+    $ref: 'openapi.fossils.yaml#/paths/~1api~1rh-trex-ai~1v1~1fossils'
+  /api/rh-trex-ai/v1/fossils/{id}:
+    $ref: 'openapi.fossils.yaml#/paths/~1api~1rh-trex-ai~1v1~1fossils~1{id}'
   # AUTO-ADD NEW PATHS
 components:
   securitySchemes:
@@ -72,6 +76,12 @@ components:
       $ref: 'openapi.dinosaurs.yaml#/components/schemas/DinosaurList'
     DinosaurPatchRequest:
       $ref: 'openapi.dinosaurs.yaml#/components/schemas/DinosaurPatchRequest'
+    Fossil:
+      $ref: 'openapi.fossils.yaml#/components/schemas/Fossil'
+    FossilList:
+      $ref: 'openapi.fossils.yaml#/components/schemas/FossilList'
+    FossilPatchRequest:
+      $ref: 'openapi.fossils.yaml#/components/schemas/FossilPatchRequest'
     # AUTO-ADD NEW SCHEMAS
   parameters:
     id:

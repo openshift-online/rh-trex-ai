@@ -11,6 +11,9 @@ docs/Dinosaur.md
 docs/DinosaurList.md
 docs/DinosaurPatchRequest.md
 docs/Error.md
+docs/Fossil.md
+docs/FossilList.md
+docs/FossilPatchRequest.md
 docs/List.md
 docs/ObjectReference.md
 git_push.sh
@@ -20,6 +23,9 @@ model_dinosaur.go
 model_dinosaur_list.go
 model_dinosaur_patch_request.go
 model_error.go
+model_fossil.go
+model_fossil_list.go
+model_fossil_patch_request.go
 model_list.go
 model_object_reference.go
 response.go

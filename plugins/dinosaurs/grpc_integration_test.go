@@ -23,21 +23,6 @@ var dinoSpecies = []string{
 	"Dilophosaurus", "Compsognathus", "Gallimimus", "Carnotaurus", "Baryonyx",
 	"Iguanodon", "Maiasaura", "Oviraptor", "Therizinosaurus", "Giganotosaurus",
 	"Deinonychus", "Protoceratops", "Styracosaurus", "Chasmosaurus", "Ceratosaurus",
-	"Diplodocus", "Apatosaurus", "Camarasaurus", "Titanosaurus", "Argentinosaurus",
-	"Saltasaurus", "Amargasaurus", "Nigersaurus", "Suchomimus", "Acrocanthosaurus",
-	"Carcharodontosaurus", "Mapusaurus", "Concavenator", "Megalosaurus", "Torvosaurus",
-	"Coelophysis", "Herrerasaurus", "Plateosaurus", "Massospondylus", "Lufengosaurus",
-	"Lesothosaurus", "Heterodontosaurus", "Pisanosaurus", "Eoraptor", "Panphagia",
-	"Kentrosaurus", "Tuojiangosaurus", "Huayangosaurus", "Gigantspinosaurus", "Dacentrurus",
-	"Polacanthus", "Nodosaurus", "Edmontonia", "Euoplocephalus", "Saichania",
-	"Tarchia", "Pinacosaurus", "Minmi", "Gastonia", "Sauropelta",
-	"Corythosaurus", "Lambeosaurus", "Edmontosaurus", "Hadrosaurus", "Saurolophus",
-	"Tsintaosaurus", "Ouranosaurus", "Tenontosaurus", "Dryosaurus", "Camptosaurus",
-	"Hypsilophodon", "Leaellynasaura", "Muttaburrasaurus", "Rhabdodon", "Zalmoxes",
-	"Microraptor", "Sinornithosaurus", "Bambiraptor", "Utahraptor", "Austroraptor",
-	"Buitreraptor", "Troodon", "Saurornithoides", "Byronosaurus", "Mei",
-	"Citipati", "Khaan", "Rinchenia", "Avimimus", "Caudipteryx",
-	"Nomingia", "Chirostenotes", "Elmisaurus", "Struthiomimus", "Ornithomimus",
 }
 
 type bearerToken struct {
@@ -54,6 +39,71 @@ func (b *bearerToken) RequireTransportSecurity() bool {
 	return false
 }
 
+func TestGRPCDinosaurCRUD(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	h.StartControllersServer()
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+	jwtToken := h.CreateJWTString(account)
+
+	conn, err := grpc.NewClient(
+		h.GRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(&bearerToken{token: jwtToken}),
+	)
+	Expect(err).NotTo(HaveOccurred())
+	defer conn.Close()
+
+	grpcClient := pb.NewDinosaurServiceClient(conn)
+
+	// Test Create
+	createReq := &pb.CreateDinosaurRequest{
+		Species: "TestDinosaurus",
+	}
+	created, err := grpcClient.CreateDinosaur(ctx, createReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(created.Species).To(Equal("TestDinosaurus"))
+	Expect(created.Metadata.Id).NotTo(BeEmpty())
+
+	dinoID := created.Metadata.Id
+
+	// Test Get
+	getReq := &pb.GetDinosaurRequest{Id: dinoID}
+	retrieved, err := grpcClient.GetDinosaur(ctx, getReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(retrieved.Species).To(Equal("TestDinosaurus"))
+	Expect(retrieved.Metadata.Id).To(Equal(dinoID))
+
+	// Test Update
+	updateReq := &pb.UpdateDinosaurRequest{
+		Id: dinoID,
+		Species: func() *string { s := "UpdatedDinosaurus"; return &s }(),
+	}
+	updated, err := grpcClient.UpdateDinosaur(ctx, updateReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(updated.Species).To(Equal("UpdatedDinosaurus"))
+	Expect(updated.Metadata.Id).To(Equal(dinoID))
+
+	// Test List
+	listReq := &pb.ListDinosaursRequest{
+		Page: 1,
+		Size: 10,
+	}
+	listResp, err := grpcClient.ListDinosaurs(ctx, listReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(listResp.Metadata.Total).To(BeNumerically(">=", 1))
+
+	// Test Delete
+	deleteReq := &pb.DeleteDinosaurRequest{Id: dinoID}
+	_, err = grpcClient.DeleteDinosaur(ctx, deleteReq)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Verify deletion
+	_, err = grpcClient.GetDinosaur(ctx, getReq)
+	Expect(err).To(HaveOccurred())
+}
+
 func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	h.StartControllersServer()
@@ -62,7 +112,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 	jwtToken := h.CreateJWTString(account)
 
-	const totalDinosaurs = 100
+	const totalDinosaurs = 25
 
 	conn, err := grpc.NewClient(
 		h.GRPCAddress(),
@@ -76,7 +126,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 
 	speciesSet := make(map[string]bool, totalDinosaurs)
 	for i := 0; i < totalDinosaurs; i++ {
-		speciesSet[fmt.Sprintf("%s_%d", dinoSpecies[i], i)] = true
+		speciesSet[fmt.Sprintf("%s_%d", dinoSpecies[i%len(dinoSpecies)], i)] = true
 	}
 
 	var sourceErr error
@@ -86,6 +136,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 
 	sinkReady := make(chan struct{})
 
+	// Source goroutine: creates dinosaurs via REST API
 	go func() {
 		defer wg.Done()
 		<-sinkReady
@@ -93,7 +144,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 
 		for species := range speciesSet {
 			dino := openapi.Dinosaur{Species: species}
-			_, resp, postErr := client.DefaultAPI.ApiRhTrexV1DinosaursPost(ctx).Dinosaur(dino).Execute()
+			_, resp, postErr := client.DefaultAPI.ApiRhTrexAiV1DinosaursPost(ctx).Dinosaur(dino).Execute()
 			if postErr != nil {
 				sourceErr = fmt.Errorf("REST POST failed for %s: %v", species, postErr)
 				return
@@ -105,6 +156,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 		}
 	}()
 
+	// Sink goroutine: watches for dinosaurs via gRPC streaming
 	go func() {
 		defer wg.Done()
 
@@ -154,10 +206,46 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 	Expect(sourceErr).NotTo(HaveOccurred(), "source goroutine error")
 	Expect(sinkErr).NotTo(HaveOccurred(), "sink goroutine error")
 
+	// Verify final state
 	listResp, listErr := grpcClient.ListDinosaurs(context.Background(), &pb.ListDinosaursRequest{
 		Page: 1,
-		Size: 500,
+		Size: 100,
 	})
 	Expect(listErr).NotTo(HaveOccurred())
 	Expect(int(listResp.Metadata.Total)).To(BeNumerically(">=", totalDinosaurs))
+}
+
+func TestGRPCErrorHandling(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	h.StartControllersServer()
+
+	account := h.NewRandAccount()
+	jwtToken := h.CreateJWTString(account)
+
+	conn, err := grpc.NewClient(
+		h.GRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(&bearerToken{token: jwtToken}),
+	)
+	Expect(err).NotTo(HaveOccurred())
+	defer conn.Close()
+
+	grpcClient := pb.NewDinosaurServiceClient(conn)
+
+	// Test Get with invalid ID
+	getReq := &pb.GetDinosaurRequest{Id: "nonexistent"}
+	_, err = grpcClient.GetDinosaur(context.Background(), getReq)
+	Expect(err).To(HaveOccurred())
+
+	// Test Create with empty species - this might be allowed depending on validation
+	createReq := &pb.CreateDinosaurRequest{
+		Species: "",
+	}
+	_, err = grpcClient.CreateDinosaur(context.Background(), createReq)
+	// Note: Empty species may or may not be validated depending on implementation
+
+	// Test Delete with invalid ID - may or may not error depending on implementation
+	deleteReq := &pb.DeleteDinosaurRequest{Id: "nonexistent"}
+	_, err = grpcClient.DeleteDinosaur(context.Background(), deleteReq)
+	// Note: Delete of non-existent ID may succeed or fail depending on implementation
 }

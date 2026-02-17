@@ -1,0 +1,212 @@
+package {{.KindLowerPlural}}
+
+import (
+	"context"
+
+	"github.com/golang/glog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"{{.Library}}/pkg/api"
+	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	pkgserver "{{.Library}}/pkg/server"
+	"{{.Library}}/pkg/server/grpcutil"
+)
+
+type {{.KindLowerSingular}}GRPCHandler struct {
+	pb.Unimplemented{{.Kind}}ServiceServer
+	service    {{.Kind}}Service
+	brokerFunc func() *pkgserver.EventBroker
+}
+
+func New{{.Kind}}GRPCHandler(svc {{.Kind}}Service, brokerFunc func() *pkgserver.EventBroker) pb.{{.Kind}}ServiceServer {
+	return &{{.KindLowerSingular}}GRPCHandler{service: svc, brokerFunc: brokerFunc}
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) Get{{.Kind}}(ctx context.Context, req *pb.Get{{.Kind}}Request) (*pb.{{.Kind}}, error) {
+	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
+		return nil, err
+	}
+
+	{{.KindLowerSingular}}, svcErr := h.service.Get(ctx, req.Id)
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+	return {{.KindLowerSingular}}ToProto({{.KindLowerSingular}}), nil
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) Create{{.Kind}}(ctx context.Context, req *pb.Create{{.Kind}}Request) (*pb.{{.Kind}}, error) {
+	{{- range .Fields}}
+	{{- if and .Required (eq .Type "string")}}
+	if err := grpcutil.ValidateStringField("{{.NameSnakeCase}}", req.{{.Name}}, true); err != nil {
+		return nil, err
+	}
+	{{- end}}
+	{{- end}}
+
+	{{.KindLowerSingular}} := &{{.Kind}}{
+		{{- range .Fields}}
+		{{- if .Required}}
+		{{- if eq .Type "int"}}
+		{{.Name}}: int(req.{{.Name}}),
+		{{- else}}
+		{{.Name}}: req.{{.Name}},
+		{{- end}}
+		{{- else}}
+		{{- if eq .Type "string"}}
+		{{- if .Nullable}}
+		{{.Name}}: req.{{.Name}},
+		{{- end}}
+		{{- else if eq .Type "int"}}
+		{{- if .Nullable}}
+		{{.Name}}: func() *int { if req.{{.Name}} != nil { v := int(*req.{{.Name}}); return &v }; return nil }(),
+		{{- else}}
+		{{.Name}}: int(req.{{.Name}}),
+		{{- end}}
+		{{- else}}
+		{{.Name}}: req.{{.Name}},
+		{{- end}}
+		{{- end}}
+		{{- end}}
+	}
+	result, svcErr := h.service.Create(ctx, {{.KindLowerSingular}})
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+	return {{.KindLowerSingular}}ToProto(result), nil
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) Update{{.Kind}}(ctx context.Context, req *pb.Update{{.Kind}}Request) (*pb.{{.Kind}}, error) {
+	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
+		return nil, err
+	}
+	{{- range .Fields}}
+	{{- if eq .Type "string"}}
+	if req.{{.Name}} != nil {
+		if err := grpcutil.ValidateStringField("{{.NameSnakeCase}}", *req.{{.Name}}, false); err != nil {
+			return nil, err
+		}
+	}
+	{{- end}}
+	{{- end}}
+
+	{{.KindLowerSingular}}, svcErr := h.service.Get(ctx, req.Id)
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+	{{- $kindLowerSingular := .KindLowerSingular}}
+	{{- range .Fields}}
+	if req.{{.Name}} != nil {
+		{{- if .Nullable}}
+		{{- if eq .Type "int"}}
+		{{$kindLowerSingular}}.{{.Name}} = func() *int { v := int(*req.{{.Name}}); return &v }()
+		{{- else}}
+		{{$kindLowerSingular}}.{{.Name}} = req.{{.Name}}
+		{{- end}}
+		{{- else}}
+		{{- if eq .Type "int"}}
+		{{$kindLowerSingular}}.{{.Name}} = int(*req.{{.Name}})
+		{{- else}}
+		{{$kindLowerSingular}}.{{.Name}} = *req.{{.Name}}
+		{{- end}}
+		{{- end}}
+	}
+	{{- end}}
+	result, svcErr := h.service.Replace(ctx, {{.KindLowerSingular}})
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+	return {{.KindLowerSingular}}ToProto(result), nil
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) Delete{{.Kind}}(ctx context.Context, req *pb.Delete{{.Kind}}Request) (*pb.Delete{{.Kind}}Response, error) {
+	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
+		return nil, err
+	}
+
+	svcErr := h.service.Delete(ctx, req.Id)
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+	return &pb.Delete{{.Kind}}Response{}, nil
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) List{{.KindPlural}}(ctx context.Context, req *pb.List{{.KindPlural}}Request) (*pb.List{{.KindPlural}}Response, error) {
+	page, size := grpcutil.NormalizePagination(req.Page, req.Size)
+
+	all{{.KindPlural}}, svcErr := h.service.All(ctx)
+	if svcErr != nil {
+		return nil, serviceErrorToGRPC(svcErr)
+	}
+
+	total := int32(len(all{{.KindPlural}}))
+	start := (page - 1) * size
+	if start >= total {
+		return &pb.List{{.KindPlural}}Response{
+			Items:    []*pb.{{.Kind}}{},
+			Metadata: &pb.ListMeta{Page: page, Size: size, Total: total},
+		}, nil
+	}
+	end := start + size
+	if end > total {
+		end = total
+	}
+	pageItems := all{{.KindPlural}}[start:end]
+
+	items := make([]*pb.{{.Kind}}, len(pageItems))
+	for i, d := range pageItems {
+		items[i] = {{.KindLowerSingular}}ToProto(d)
+	}
+
+	return &pb.List{{.KindPlural}}Response{
+		Items:    items,
+		Metadata: &pb.ListMeta{Page: page, Size: size, Total: total},
+	}, nil
+}
+
+func (h *{{.KindLowerSingular}}GRPCHandler) Watch{{.KindPlural}}(req *pb.Watch{{.KindPlural}}Request, stream grpc.ServerStreamingServer[pb.{{.Kind}}WatchEvent]) error {
+	broker := h.brokerFunc()
+	if broker == nil {
+		return status.Error(codes.Unavailable, "event broker not available")
+	}
+
+	ctx := stream.Context()
+	sub := broker.Subscribe(ctx)
+	glog.V(4).Infof("Watch{{.KindPlural}}: subscriber %s connected", sub.ID)
+
+	for {
+		select {
+		case <-ctx.Done():
+			glog.V(4).Infof("Watch{{.KindPlural}}: subscriber %s disconnected", sub.ID)
+			return nil
+		case evt, ok := <-sub.Events:
+			if !ok {
+				return nil
+			}
+
+			if evt.Source != "{{.KindPlural}}" {
+				continue
+			}
+
+			watchEvent := &pb.{{.Kind}}WatchEvent{
+				Type:       apiEventTypeToProto(evt.EventType),
+				ResourceId: evt.SourceID,
+			}
+
+			if evt.EventType != api.DeleteEventType {
+				{{.KindLowerSingular}}, svcErr := h.service.Get(ctx, evt.SourceID)
+				if svcErr != nil {
+					glog.Warningf("Watch{{.KindPlural}}: failed to load {{.KindLowerSingular}} %s: %v", evt.SourceID, svcErr)
+					continue
+				}
+				watchEvent.{{.Kind}} = {{.KindLowerSingular}}ToProto({{.KindLowerSingular}})
+			}
+
+			if err := stream.Send(watchEvent); err != nil {
+				glog.V(4).Infof("Watch{{.KindPlural}}: send error for subscriber %s: %v", sub.ID, err)
+				return err
+			}
+		}
+	}
+}

@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+
 	"{{.Library}}/pkg/environments"
 	"{{.Library}}/pkg/registry"
 	pkgserver "{{.Library}}/pkg/server"
@@ -14,6 +16,7 @@ import (
 	"{{.Library}}/pkg/db"
 	"{{.Library}}/plugins/events"
 	"{{.Library}}/plugins/generic"
+	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
 )
 
 type ServiceLocator func() {{.Kind}}Service
@@ -69,6 +72,18 @@ func init() {
 				api.DeleteEventType: {{ "{" }}{{.KindLowerSingular}}Services.OnDelete},
 			},
 		})
+	})
+
+	pkgserver.RegisterGRPCService("{{.KindLowerPlural}}", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
+		envServices := services.(*environments.Services)
+		{{.KindLowerSingular}}Service := Service(envServices)
+		brokerFunc := func() *pkgserver.EventBroker {
+			if obj := envServices.GetService("EventBroker"); obj != nil {
+				return obj.(*pkgserver.EventBroker)
+			}
+			return nil
+		}
+		pb.Register{{.Kind}}ServiceServer(grpcServer, New{{.Kind}}GRPCHandler({{.KindLowerSingular}}Service, brokerFunc))
 	})
 
 	presenters.RegisterPath({{.Kind}}{}, "{{.KindSnakeCasePlural}}")

@@ -9,6 +9,7 @@ import (
 	_ "github.com/openshift-online/rh-trex-ai/cmd/trex/environments"
 	_ "github.com/openshift-online/rh-trex-ai/plugins/dinosaurs"
 	_ "github.com/openshift-online/rh-trex-ai/plugins/events"
+	_ "github.com/openshift-online/rh-trex-ai/plugins/fossils"
 	_ "github.com/openshift-online/rh-trex-ai/plugins/generic"
 )
 

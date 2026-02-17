@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message Fossil {
+  ObjectReference metadata = 1;
+  string discovery_location = 2;
+  optional int32 estimated_age = 3;
+  optional string fossil_type = 4;
+  optional string excavator_name = 5;
+}
+
+message CreateFossilRequest {
+  string discovery_location = 1;
+  optional int32 estimated_age = 2;
+  optional string fossil_type = 3;
+  optional string excavator_name = 4;
+}
+
+message GetFossilRequest {
+  string id = 1;
+}
+
+message UpdateFossilRequest {
+  string id = 1;
+  optional string discovery_location = 2;
+  optional int32 estimated_age = 3;
+  optional string fossil_type = 4;
+  optional string excavator_name = 5;
+}
+
+message DeleteFossilRequest {
+  string id = 1;
+}
+
+message ListFossilsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListFossilsResponse {
+  repeated Fossil items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteFossilResponse {}
+
+message WatchFossilsRequest {}
+
+message FossilWatchEvent {
+  EventType type = 1;
+  Fossil fossil = 2;
+  string resource_id = 3;
+}
+
+service FossilService {
+  rpc GetFossil(GetFossilRequest) returns (Fossil);
+  rpc CreateFossil(CreateFossilRequest) returns (Fossil);
+  rpc UpdateFossil(UpdateFossilRequest) returns (Fossil);
+  rpc DeleteFossil(DeleteFossilRequest) returns (DeleteFossilResponse);
+  rpc ListFossils(ListFossilsRequest) returns (ListFossilsResponse);
+  rpc WatchFossils(WatchFossilsRequest) returns (stream FossilWatchEvent);
+}

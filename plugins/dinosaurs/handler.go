@@ -5,7 +5,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/api"
 	"github.com/openshift-online/rh-trex-ai/pkg/api/openapi"
 	"github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
 	"github.com/openshift-online/rh-trex-ai/pkg/errors"
@@ -33,16 +32,15 @@ func (h dinosaurHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Body: &dinosaur,
 		Validators: []handlers.Validate{
 			handlers.ValidateEmpty(&dinosaur, "Id", "id"),
-			handlers.ValidateNotEmpty(&dinosaur, "Species", "species"),
 		},
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			dino := ConvertDinosaur(dinosaur)
-			dino, err := h.dinosaur.Create(ctx, dino)
+			dinosaurModel := ConvertDinosaur(dinosaur)
+			dinosaurModel, err := h.dinosaur.Create(ctx, dinosaurModel)
 			if err != nil {
 				return nil, err
 			}
-			return PresentDinosaur(dino), nil
+			return PresentDinosaur(dinosaurModel), nil
 		},
 		ErrorHandler: handlers.HandleError,
 	}
@@ -54,21 +52,25 @@ func (h dinosaurHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	var patch openapi.DinosaurPatchRequest
 
 	cfg := &handlers.HandlerConfig{
-		Body: &patch,
-		Validators: []handlers.Validate{
-			validateDinosaurPatch(&patch),
-		},
+		Body:       &patch,
+		Validators: []handlers.Validate{},
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			dino, err := h.dinosaur.Replace(ctx, &Dinosaur{
-				Meta:    api.Meta{ID: id},
-				Species: *patch.Species,
-			})
+			found, err := h.dinosaur.Get(ctx, id)
 			if err != nil {
 				return nil, err
 			}
-			return PresentDinosaur(dino), nil
+
+			if patch.Species != nil {
+				found.Species = *patch.Species
+			}
+
+			dinosaurModel, err := h.dinosaur.Replace(ctx, found)
+			if err != nil {
+				return nil, err
+			}
+			return PresentDinosaur(dinosaurModel), nil
 		},
 		ErrorHandler: handlers.HandleError,
 	}
@@ -83,11 +85,11 @@ func (h dinosaurHandler) List(w http.ResponseWriter, r *http.Request) {
 
 			listArgs := services.NewListArguments(r.URL.Query())
 			var dinosaurs []Dinosaur
-			paging, err := h.generic.List(ctx, "username", listArgs, &dinosaurs)
+			paging, err := h.generic.List(ctx, "id", listArgs, &dinosaurs)
 			if err != nil {
 				return nil, err
 			}
-			dinoList := openapi.DinosaurList{
+			dinosaurList := openapi.DinosaurList{
 				Kind:  "DinosaurList",
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
@@ -95,18 +97,18 @@ func (h dinosaurHandler) List(w http.ResponseWriter, r *http.Request) {
 				Items: []openapi.Dinosaur{},
 			}
 
-			for _, dino := range dinosaurs {
-				converted := PresentDinosaur(&dino)
-				dinoList.Items = append(dinoList.Items, converted)
+			for _, dinosaur := range dinosaurs {
+				converted := PresentDinosaur(&dinosaur)
+				dinosaurList.Items = append(dinosaurList.Items, converted)
 			}
 			if listArgs.Fields != nil {
-				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinoList.Items)
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinosaurList.Items)
 				if err != nil {
 					return nil, err
 				}
 				return filteredItems, nil
 			}
-			return dinoList, nil
+			return dinosaurList, nil
 		},
 	}
 
@@ -128,18 +130,6 @@ func (h dinosaurHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handlers.HandleGet(w, r, cfg)
-}
-
-func validateDinosaurPatch(patch *openapi.DinosaurPatchRequest) handlers.Validate {
-	return func() *errors.ServiceError {
-		if patch.Species == nil {
-			return errors.Validation("species cannot be nil")
-		}
-		if len(*patch.Species) == 0 {
-			return errors.Validation("species cannot be empty")
-		}
-		return nil
-	}
 }
 
 func (h dinosaurHandler) Delete(w http.ResponseWriter, r *http.Request) {

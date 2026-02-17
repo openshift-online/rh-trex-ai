@@ -13,10 +13,10 @@ func init() {
 	projectRoot := filepath.Join(filepath.Dir(filename), "../../..")
 
 	trex.Init(trex.Config{
-		ServiceName:    "rh-trex",
-		BasePath:       "/api/rh-trex/v1",
-		ErrorHref:      "/api/rh-trex/v1/errors/",
-		MetadataID:     "rh-trex",
+		ServiceName:    "rh-trex-ai",
+		BasePath:       "/api/rh-trex-ai/v1",
+		ErrorHref:      "/api/rh-trex-ai/v1/errors/",
+		MetadataID:     "rh-trex-ai",
 		ProjectRootDir: projectRoot,
 		CORSOrigins:    []string{"https://console.redhat.com", "https://console.stage.redhat.com"},
 	})

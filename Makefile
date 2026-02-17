@@ -270,7 +270,7 @@ run-no-auth: binary
 # Run Swagger nd host the api docs
 run/docs:
 	@echo "Please open http://localhost/"
-	docker run -d -p 80:8080 -e SWAGGER_JSON=/trex.yaml -v $(PWD)/openapi/rh-trex.yaml:/trex.yaml swaggerapi/swagger-ui
+	docker run -d -p 80:8080 -e SWAGGER_JSON=/trex.yaml -v $(PWD)/openapi/rh-trex-ai.yaml:/trex.yaml swaggerapi/swagger-ui
 .PHONY: run/docs
 
 # Delete temporary files

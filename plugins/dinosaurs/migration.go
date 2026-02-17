@@ -10,11 +10,11 @@ import (
 func migration() *gormigrate.Migration {
 	type Dinosaur struct {
 		db.Model
-		Species string `gorm:"index"`
+		Species string
 	}
 
 	return &gormigrate.Migration{
-		ID: "201911212019",
+		ID: "2026021622418228",
 		Migrate: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(&Dinosaur{})
 		},

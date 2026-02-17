@@ -26,7 +26,7 @@ func LoadDiscoveredPaths(i interface{}) string {
 	return ""
 }
 
-var basePath = "/api/rh-trex/v1"
+var basePath = "/api/rh-trex-ai/v1"
 
 func BasePath() string        { return basePath }
 func SetBasePath(path string) { basePath = path }

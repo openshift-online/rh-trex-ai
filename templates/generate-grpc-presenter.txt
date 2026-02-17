@@ -1,0 +1,91 @@
+package {{.KindLowerPlural}}
+
+import (
+	"net/http"
+
+	"{{.Library}}/pkg/api"
+	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	"{{.Library}}/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+func {{.KindLowerSingular}}ToProto(d *{{.Kind}}) *pb.{{.Kind}} {
+	return &pb.{{.Kind}}{
+		Metadata: &pb.ObjectReference{
+			Id:        d.ID,
+			CreatedAt: timestamppb.New(d.CreatedAt),
+			UpdatedAt: timestamppb.New(d.UpdatedAt),
+			Kind:      "{{.Kind}}",
+			Href:      "/api/{{.ApiProject}}/v1/{{.KindSnakeCasePlural}}/" + d.ID,
+		},
+		{{- range .Fields}}
+		{{- if .Nullable}}
+		{{- if eq .Type "int"}}
+		{{.Name}}: func() *int32 { if d.{{.Name}} != nil { v := int32(*d.{{.Name}}); return &v }; return nil }(),
+		{{- else if eq .Type "int64"}}
+		{{.Name}}: d.{{.Name}},
+		{{- else if eq .Type "time"}}
+		{{.Name}}: func() *timestamppb.Timestamp { if d.{{.Name}} != nil { return timestamppb.New(*d.{{.Name}}) }; return nil }(),
+		{{- else}}
+		{{.Name}}: d.{{.Name}},
+		{{- end}}
+		{{- else}}
+		{{- if eq .Type "time"}}
+		{{.Name}}: timestamppb.New(d.{{.Name}}),
+		{{- else if eq .Type "int"}}
+		{{.Name}}: int32(d.{{.Name}}),
+		{{- else}}
+		{{.Name}}: d.{{.Name}},
+		{{- end}}
+		{{- end}}
+		{{- end}}
+	}
+}
+
+func serviceErrorToGRPC(svcErr *errors.ServiceError) error {
+	code := httpStatusToGRPCCode(svcErr.HttpCode)
+	return status.Error(code, svcErr.Reason)
+}
+
+func httpStatusToGRPCCode(httpCode int) codes.Code {
+	switch httpCode {
+	case http.StatusBadRequest:
+		return codes.InvalidArgument
+	case http.StatusUnauthorized:
+		return codes.Unauthenticated
+	case http.StatusForbidden:
+		return codes.PermissionDenied
+	case http.StatusNotFound:
+		return codes.NotFound
+	case http.StatusConflict:
+		return codes.AlreadyExists
+	case http.StatusUnprocessableEntity:
+		return codes.InvalidArgument
+	case http.StatusTooManyRequests:
+		return codes.ResourceExhausted
+	case http.StatusServiceUnavailable:
+		return codes.Unavailable
+	case http.StatusGatewayTimeout:
+		return codes.DeadlineExceeded
+	default:
+		if httpCode >= 400 && httpCode < 500 {
+			return codes.InvalidArgument
+		}
+		return codes.Internal
+	}
+}
+
+func apiEventTypeToProto(et api.EventType) pb.EventType {
+	switch et {
+	case api.CreateEventType:
+		return pb.EventType_EVENT_TYPE_CREATED
+	case api.UpdateEventType:
+		return pb.EventType_EVENT_TYPE_UPDATED
+	case api.DeleteEventType:
+		return pb.EventType_EVENT_TYPE_DELETED
+	default:
+		return pb.EventType_EVENT_TYPE_UNSPECIFIED
+	}
+}

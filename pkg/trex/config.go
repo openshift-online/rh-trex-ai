@@ -27,10 +27,10 @@ var (
 func Init(cfg Config) {
 	once.Do(func() {
 		if cfg.ServiceName == "" {
-			cfg.ServiceName = "rh-trex"
+			cfg.ServiceName = "rh-trex-ai"
 		}
 		if cfg.BasePath == "" {
-			cfg.BasePath = "/api/rh-trex/v1"
+			cfg.BasePath = "/api/rh-trex-ai/v1"
 		}
 		if cfg.ErrorHref == "" {
 			cfg.ErrorHref = cfg.BasePath + "/errors/"

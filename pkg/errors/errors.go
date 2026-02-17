@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	errorCodePrefix = "rh-trex"
-	errorHref       = "/api/rh-trex/v1/errors/"
+	errorCodePrefix = "rh-trex-ai"
+	errorHref       = "/api/rh-trex-ai/v1/errors/"
 )
 
 func ErrorCodePrefix() string { return errorCodePrefix }

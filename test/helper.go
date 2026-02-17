@@ -50,6 +50,9 @@ type Helper struct {
 func NewHelper(t *testing.T) *Helper {
 	once.Do(func() {
 		env := environments.Environment()
+		
+		// Force integration testing environment for all test helpers
+		env.Name = "integration_testing"
 		err := env.AddFlags(pflag.CommandLine)
 		if err != nil {
 			glog.Fatalf("Unable to add environment flags: %s", err.Error())

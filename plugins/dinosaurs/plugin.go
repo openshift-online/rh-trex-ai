@@ -6,8 +6,8 @@ import (
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
-	pb "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	pb "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
 	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
@@ -62,28 +62,28 @@ func init() {
 	})
 
 	pkgserver.RegisterController("Dinosaurs", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
-		dinoServices := Service(services.(*environments.Services))
+		dinosaurServices := Service(services.(*environments.Services))
 
 		manager.Add(&controllers.ControllerConfig{
 			Source: "Dinosaurs",
 			Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-				api.CreateEventType: {dinoServices.OnUpsert},
-				api.UpdateEventType: {dinoServices.OnUpsert},
-				api.DeleteEventType: {dinoServices.OnDelete},
+				api.CreateEventType: {dinosaurServices.OnUpsert},
+				api.UpdateEventType: {dinosaurServices.OnUpsert},
+				api.DeleteEventType: {dinosaurServices.OnDelete},
 			},
 		})
 	})
 
 	pkgserver.RegisterGRPCService("dinosaurs", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
-		dinoService := Service(envServices)
+		dinosaurService := Service(envServices)
 		brokerFunc := func() *pkgserver.EventBroker {
 			if obj := envServices.GetService("EventBroker"); obj != nil {
 				return obj.(*pkgserver.EventBroker)
 			}
 			return nil
 		}
-		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinoService, brokerFunc))
+		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinosaurService, brokerFunc))
 	})
 
 	presenters.RegisterPath(Dinosaur{}, "dinosaurs")

@@ -18,7 +18,7 @@ func dinosaurToProto(d *Dinosaur) *pb.Dinosaur {
 			CreatedAt: timestamppb.New(d.CreatedAt),
 			UpdatedAt: timestamppb.New(d.UpdatedAt),
 			Kind:      "Dinosaur",
-			Href:      "/api/rh-trex/v1/dinosaurs/" + d.ID,
+			Href:      "/api/rh-trex-ai/v1/dinosaurs/" + d.ID,
 		},
 		Species: d.Species,
 	}

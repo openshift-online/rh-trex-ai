@@ -15,7 +15,6 @@ type DinosaurDao interface {
 	Replace(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, error)
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (DinosaurList, error)
-	FindBySpecies(ctx context.Context, species string) (DinosaurList, error)
 	All(ctx context.Context) (DinosaurList, error)
 }
 
@@ -69,15 +68,6 @@ func (d *sqlDinosaurDao) FindByIDs(ctx context.Context, ids []string) (DinosaurL
 	g2 := (*d.sessionFactory).New(ctx)
 	dinosaurs := DinosaurList{}
 	if err := g2.Where("id in (?)", ids).Find(&dinosaurs).Error; err != nil {
-		return nil, err
-	}
-	return dinosaurs, nil
-}
-
-func (d *sqlDinosaurDao) FindBySpecies(ctx context.Context, species string) (DinosaurList, error) {
-	g2 := (*d.sessionFactory).New(ctx)
-	dinosaurs := DinosaurList{}
-	if err := g2.Where("species = ?", species).Find(&dinosaurs).Error; err != nil {
 		return nil, err
 	}
 	return dinosaurs, nil

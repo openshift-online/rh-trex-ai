@@ -26,7 +26,7 @@ import (
 	"github.com/openshift-online/rh-trex-ai/pkg/api"
 )
 
-var metadataID = "rh-trex"
+var metadataID = "rh-trex-ai"
 
 func SetMetadataID(id string) { metadataID = id }
 

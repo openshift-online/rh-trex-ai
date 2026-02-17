@@ -29,11 +29,11 @@ func (h *dinosaurGRPCHandler) GetDinosaur(ctx context.Context, req *pb.GetDinosa
 		return nil, err
 	}
 
-	dino, svcErr := h.service.Get(ctx, req.Id)
+	dinosaur, svcErr := h.service.Get(ctx, req.Id)
 	if svcErr != nil {
 		return nil, serviceErrorToGRPC(svcErr)
 	}
-	return dinosaurToProto(dino), nil
+	return dinosaurToProto(dinosaur), nil
 }
 
 func (h *dinosaurGRPCHandler) CreateDinosaur(ctx context.Context, req *pb.CreateDinosaurRequest) (*pb.Dinosaur, error) {
@@ -41,8 +41,10 @@ func (h *dinosaurGRPCHandler) CreateDinosaur(ctx context.Context, req *pb.Create
 		return nil, err
 	}
 
-	dino := &Dinosaur{Species: req.Species}
-	result, svcErr := h.service.Create(ctx, dino)
+	dinosaur := &Dinosaur{
+		Species: req.Species,
+	}
+	result, svcErr := h.service.Create(ctx, dinosaur)
 	if svcErr != nil {
 		return nil, serviceErrorToGRPC(svcErr)
 	}
@@ -59,14 +61,14 @@ func (h *dinosaurGRPCHandler) UpdateDinosaur(ctx context.Context, req *pb.Update
 		}
 	}
 
-	dino, svcErr := h.service.Get(ctx, req.Id)
+	dinosaur, svcErr := h.service.Get(ctx, req.Id)
 	if svcErr != nil {
 		return nil, serviceErrorToGRPC(svcErr)
 	}
 	if req.Species != nil {
-		dino.Species = *req.Species
+		dinosaur.Species = *req.Species
 	}
-	result, svcErr := h.service.Replace(ctx, dino)
+	result, svcErr := h.service.Replace(ctx, dinosaur)
 	if svcErr != nil {
 		return nil, serviceErrorToGRPC(svcErr)
 	}
@@ -88,12 +90,12 @@ func (h *dinosaurGRPCHandler) DeleteDinosaur(ctx context.Context, req *pb.Delete
 func (h *dinosaurGRPCHandler) ListDinosaurs(ctx context.Context, req *pb.ListDinosaursRequest) (*pb.ListDinosaursResponse, error) {
 	page, size := grpcutil.NormalizePagination(req.Page, req.Size)
 
-	allDinos, svcErr := h.service.All(ctx)
+	allDinosaurs, svcErr := h.service.All(ctx)
 	if svcErr != nil {
 		return nil, serviceErrorToGRPC(svcErr)
 	}
 
-	total := int32(len(allDinos))
+	total := int32(len(allDinosaurs))
 	start := (page - 1) * size
 	if start >= total {
 		return &pb.ListDinosaursResponse{
@@ -105,7 +107,7 @@ func (h *dinosaurGRPCHandler) ListDinosaurs(ctx context.Context, req *pb.ListDin
 	if end > total {
 		end = total
 	}
-	pageItems := allDinos[start:end]
+	pageItems := allDinosaurs[start:end]
 
 	items := make([]*pb.Dinosaur, len(pageItems))
 	for i, d := range pageItems {
@@ -148,12 +150,12 @@ func (h *dinosaurGRPCHandler) WatchDinosaurs(req *pb.WatchDinosaursRequest, stre
 			}
 
 			if evt.EventType != api.DeleteEventType {
-				dino, svcErr := h.service.Get(ctx, evt.SourceID)
+				dinosaur, svcErr := h.service.Get(ctx, evt.SourceID)
 				if svcErr != nil {
 					glog.Warningf("WatchDinosaurs: failed to load dinosaur %s: %v", evt.SourceID, svcErr)
 					continue
 				}
-				watchEvent.Dinosaur = dinosaurToProto(dino)
+				watchEvent.Dinosaur = dinosaurToProto(dinosaur)
 			}
 
 			if err := stream.Send(watchEvent); err != nil {

@@ -8,12 +8,19 @@ import (
 )
 
 func ConvertDinosaur(dinosaur openapi.Dinosaur) *Dinosaur {
-	return &Dinosaur{
+	c := &Dinosaur{
 		Meta: api.Meta{
 			ID: util.NilToEmptyString(dinosaur.Id),
 		},
-		Species: dinosaur.Species,
 	}
+	c.Species = dinosaur.Species
+
+	if dinosaur.CreatedAt != nil {
+		c.CreatedAt = *dinosaur.CreatedAt
+		c.UpdatedAt = *dinosaur.UpdatedAt
+	}
+
+	return c
 }
 
 func PresentDinosaur(dinosaur *Dinosaur) openapi.Dinosaur {
@@ -22,8 +29,8 @@ func PresentDinosaur(dinosaur *Dinosaur) openapi.Dinosaur {
 		Id:        reference.Id,
 		Kind:      reference.Kind,
 		Href:      reference.Href,
-		Species:   dinosaur.Species,
 		CreatedAt: openapi.PtrTime(dinosaur.CreatedAt),
 		UpdatedAt: openapi.PtrTime(dinosaur.UpdatedAt),
+		Species:   dinosaur.Species,
 	}
 }

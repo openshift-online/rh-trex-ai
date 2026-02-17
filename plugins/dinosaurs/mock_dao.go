@@ -19,9 +19,9 @@ func NewMockDinosaurDao() *dinosaurDaoMock {
 }
 
 func (d *dinosaurDaoMock) Get(ctx context.Context, id string) (*Dinosaur, error) {
-	for _, dino := range d.dinosaurs {
-		if dino.ID == id {
-			return dino, nil
+	for _, dinosaur := range d.dinosaurs {
+		if dinosaur.ID == id {
+			return dinosaur, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
@@ -42,16 +42,6 @@ func (d *dinosaurDaoMock) Delete(ctx context.Context, id string) error {
 
 func (d *dinosaurDaoMock) FindByIDs(ctx context.Context, ids []string) (DinosaurList, error) {
 	return nil, errors.NotImplemented("Dinosaur").AsError()
-}
-
-func (d *dinosaurDaoMock) FindBySpecies(ctx context.Context, species string) (DinosaurList, error) {
-	var dinos DinosaurList
-	for _, dino := range d.dinosaurs {
-		if dino.Species == species {
-			dinos = append(dinos, dino)
-		}
-	}
-	return dinos, nil
 }
 
 func (d *dinosaurDaoMock) All(ctx context.Context) (DinosaurList, error) {

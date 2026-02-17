@@ -12,6 +12,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	
 	flag.Parse()
 	glog.Infof("Starting dinosaurs integration test using go version %s", runtime.Version())
 	helper := test.NewHelper(&testing.T{})
