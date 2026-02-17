@@ -43,3 +43,6 @@
 
 # Don't push the testing password file
 secrets/db.password
+
+# Generated protobuf Go code
+pkg/api/grpc/

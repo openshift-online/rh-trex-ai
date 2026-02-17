@@ -12,27 +12,36 @@ import (
 
 type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
+	Broker                *EventBroker
 	SessionFactory        db.SessionFactory
 }
 
 func (s ControllersServer) Start() {
 	log := logger.NewOCMLogger(context.Background())
 	log.Infof("Kind controller listening for events")
-	s.SessionFactory.NewListener(context.Background(), "events", s.KindControllerManager.Handle)
+	s.SessionFactory.NewListener(context.Background(), "events", func(id string) {
+		s.KindControllerManager.Handle(id)
+		if s.Broker != nil {
+			s.Broker.Publish(id)
+		}
+	})
 }
 
 func NewDefaultControllersServer(env *environments.Env) *ControllersServer {
-	// Resolve events service through the generic service registry
 	var eventService services.EventService
 	if locator := env.Services.GetService("Events"); locator != nil {
 		eventService = locator.(services.EventServiceLocator)()
 	}
+
+	broker := NewEventBroker(256, eventService)
+	env.Services.SetService("EventBroker", broker)
 
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			eventService,
 		),
+		Broker:         broker,
 		SessionFactory: env.Database.SessionFactory,
 	}
 

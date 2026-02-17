@@ -4,6 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
+
+	pb "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/pkg/api"
 	"github.com/openshift-online/rh-trex-ai/pkg/api/presenters"
 	"github.com/openshift-online/rh-trex-ai/pkg/auth"
@@ -69,6 +72,18 @@ func init() {
 				api.DeleteEventType: {dinoServices.OnDelete},
 			},
 		})
+	})
+
+	pkgserver.RegisterGRPCService("dinosaurs", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
+		envServices := services.(*environments.Services)
+		dinoService := Service(envServices)
+		brokerFunc := func() *pkgserver.EventBroker {
+			if obj := envServices.GetService("EventBroker"); obj != nil {
+				return obj.(*pkgserver.EventBroker)
+			}
+			return nil
+		}
+		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinoService, brokerFunc))
 	})
 
 	presenters.RegisterPath(Dinosaur{}, "dinosaurs")

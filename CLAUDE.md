@@ -4,14 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TRex is a Go-based REST API template for Red Hat TAP (Trusted Application Pipeline) that serves as a full-featured foundation for building new microservices. It provides CRUD operations for "dinosaurs" as example business logic to be replaced.
+TRex is a Go-based REST and gRPC API template for Red Hat TAP (Trusted Application Pipeline) that serves as a full-featured foundation for building new microservices. It provides CRUD operations for "dinosaurs" as example business logic to be replaced.
 
 ## Development Commands
 
 ### Building and Running
+- `make proto` - Generate protobuf Go stubs (required before `make binary`)
 - `make binary` - Build the trex binary
 - `make install` - Build and install binary to GOPATH/bin
-- `make run` - Run migrations and start the server (runs on localhost:8000)
+- `make run` - Run migrations and start the server (REST on localhost:8000, gRPC on localhost:9000)
 
 ### Testing
 - `make test` - Run unit tests
@@ -31,10 +32,10 @@ TRex is a Go-based REST API template for Red Hat TAP (Trusted Application Pipeli
 
 ### TRex CLI Commands
 
-The `trex` binary provides three main subcommands for different operational tasks:
+The `trex` binary provides two main subcommands:
 
 #### `trex serve` - Start the API Server
-Serves the rh-trex REST API with full authentication, database connectivity, and monitoring capabilities.
+Serves the rh-trex REST and gRPC APIs with full authentication, database connectivity, and monitoring capabilities.
 
 **Basic Usage:**
 ```bash
@@ -89,6 +90,13 @@ Serves the rh-trex REST API with full authentication, database connectivity, and
   - `--sentry-project` - Sentry project ID (default: "53")
   - `--sentry-timeout` - Sentry request timeout (default: 5s)
 
+- **gRPC Server:**
+  - `--enable-grpc` - Enable gRPC server (default: true)
+  - `--grpc-server-bindaddress` - gRPC server bind address (default: "localhost:9000")
+  - `--grpc-enable-tls` - Enable TLS for gRPC server
+  - `--grpc-tls-cert-file` - gRPC TLS certificate file
+  - `--grpc-tls-key-file` - gRPC TLS key file
+
 - **Performance Tuning:**
   - `--http-read-timeout` - HTTP server read timeout (default: 5s)
   - `--http-write-timeout` - HTTP server write timeout (default: 30s)
@@ -116,28 +124,6 @@ Executes database schema migrations to set up or update the database structure.
 - Idempotent - safe to run multiple times
 - Logs each migration applied
 
-#### `trex clone` - Clone New TRex Instance
-Creates a new microservice project based on the TRex template, replacing template content with new service details.
-
-**Basic Usage:**
-```bash
-./trex clone --name my-service                           # Clone with custom name
-./trex clone --name my-service --destination ./my-proj   # Custom destination
-./trex clone --repo-base github.com/myorg --name my-service   # Custom git repo
-```
-
-**Configuration Options:**
-- `--name` - Name of the new service (default: "rh-trex")
-- `--destination` - Target directory for new instance (default: "/tmp/clone-test")
-- `--repo-base` - Git Repository base URL (default: "github.com/openshift-online")
-
-**Clone Process:**
-- Creates new directory structure
-- Replaces template strings throughout codebase
-- Updates Go module paths and imports
-- Renames files and directories as needed
-- Maintains Git history and structure
-
 #### Common Global Flags
 All subcommands support these logging flags:
 - `--logtostderr` - Log to stderr instead of files (default: true)
@@ -161,6 +147,12 @@ All subcommands support these logging flags:
   --disable-ocm-mock
 ```
 
+### Protobuf / gRPC Operations
+- `make proto` - Generate Go stubs from `.proto` files via `buf`
+- `make proto-lint` - Lint proto files
+- `make proto-breaking` - Check for breaking proto changes against main branch
+- `make proto-clean` - Remove generated proto Go code (`pkg/api/grpc/`)
+
 ### Development Workflow
 - `make generate` - Regenerate OpenAPI client and models
 - `make clean` - Remove temporary generated files
@@ -177,7 +169,7 @@ All subcommands support these logging flags:
 ### Core Components
 
 **Main Application (`cmd/trex/main.go`):**
-- CLI tool with subcommands: `migrate`, `serve`, `clone`
+- CLI tool with subcommands: `migrate`, `serve`
 - Uses Cobra for command structure
 
 **Environment Framework (`cmd/trex/environments/`):**
@@ -204,6 +196,14 @@ All subcommands support these logging flags:
 - REST API endpoints
 - Authentication/authorization middleware
 - OpenAPI specification compliance
+
+**gRPC Layer (`pkg/server/`, `plugins/*/grpc_handler.go`):**
+- gRPC server with unary and streaming RPCs
+- Interceptors for auth, logging, metrics, transactions, and recovery
+- Server-streaming via `WatchDinosaurs` for real-time event notifications
+- EventBroker (`pkg/server/event_broker.go`) for fan-out from PostgreSQL LISTEN/NOTIFY to gRPC stream subscribers
+- Proto definitions in `proto/rh_trex/v1/`, generated Go stubs in `pkg/api/grpc/`
+- Plugin-based gRPC service registration via `RegisterGRPCService()` / `LoadDiscoveredGRPCServices()`
 
 **Infrastructure:**
 - **Authentication** (`pkg/auth/`): OIDC integration with Red Hat SSO

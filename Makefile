@@ -232,6 +232,23 @@ test-integration: install
 			./plugins/...
 .PHONY: test-integration
 
+# Generate protobuf Go code from .proto files via buf
+.PHONY: proto
+proto:
+	cd proto && buf generate
+
+.PHONY: proto-lint
+proto-lint:
+	cd proto && buf lint
+
+.PHONY: proto-breaking
+proto-breaking:
+	cd proto && buf breaking --against '.git#subdir=proto'
+
+.PHONY: proto-clean
+proto-clean:
+	rm -rf pkg/api/grpc/
+
 # Regenerate openapi client and models
 generate:
 	rm -rf pkg/api/openapi

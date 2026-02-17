@@ -6,7 +6,7 @@ TRex
 ![Trexxy](rhtap-trex_sm.png)
 
 
-TRex is a full-featured REST API that persists _dinosaurs_, making it a solid foundation from which developers can quickly bootstrap new services.
+TRex is a full-featured REST and gRPC API that persists _dinosaurs_, making it a solid foundation from which developers can quickly bootstrap new services.
 
 Some of the features included are:
 
@@ -18,6 +18,8 @@ Some of the features included are:
 * OIDC authentication
 * Responsive control plane
 * Blocking and Non-blocking locks
+* gRPC transport with server-streaming (WatchDinosaurs)
+* Event-driven architecture with PostgreSQL LISTEN/NOTIFY
 
 When looking through the code, anything talking about dinosaurs is business logic, which you
 will replace with your business logic. The rest is infrastructure that you will probably want to preserve without change.
@@ -38,6 +40,7 @@ Before running TRex for the first time, ensure the prerequisites are installed. 
 # 1. build the project
 
 $ go install gotest.tools/gotestsum@latest
+$ make proto
 $ make binary
 
 # 2. run a postgres database locally in docker
@@ -93,7 +96,7 @@ make test-integration
 
 ### Running the Service
 
-The service will be available at `http://localhost:8000`
+The REST API will be available at `http://localhost:8000` and the gRPC server at `localhost:9000`.
 
 #### Option 1: Run Without Authentication (Recommended for Local Development)
 
@@ -105,7 +108,7 @@ make run-no-auth
 
 This starts the service with `--enable-authz=false --enable-jwt=false`, allowing you to test the API without tokens.
 
-**Test the API:**
+**Test the REST API:**
 
 ```shell
 # List all dinosaurs
@@ -118,6 +121,27 @@ curl -X POST http://localhost:8000/api/rh-trex/v1/dinosaurs \
 
 # Get a specific dinosaur (replace {id} with actual ID)
 curl http://localhost:8000/api/rh-trex/v1/dinosaurs/{id} | jq
+```
+
+**Test the gRPC API:**
+
+```shell
+# Install grpcurl if you haven't already
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+# List available services
+grpcurl -plaintext localhost:9000 list
+
+# Create a dinosaur
+grpcurl -plaintext -d '{"species": "Velociraptor"}' \
+  localhost:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+
+# List dinosaurs
+grpcurl -plaintext -d '{"page": 1, "size": 10}' \
+  localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
+
+# Watch for real-time events (server-streaming)
+grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 ```
 
 #### Option 2: Run With Authentication (Production-like)
@@ -237,70 +261,7 @@ EOF
 
 ## Run your own service
 
-To create your own service based on TRex, you can use the `clone` command to copy and customize the entire codebase with your service name.
-
-### Clone the code
-
-The clone command will:
-- Copy the entire TRex project to a new destination directory
-- Replace all occurrences of "trex", "rh-trex", and "TRex" with your new service name
-- Update import paths to point to your new repository
-
-```shell
-# Build the trex binary first if you haven't built
-make binary
-
-# Clone the codebase to create a new service
-./trex clone --name my-service --destination /path/to/my-service --repo-base github.com/my-org
-
-# Example:
-./trex clone --name rh-birds --destination /tmp/rh-birds --repo-base github.com/openshift-online
-```
-
-**Parameters:**
-- `--name`: Name of your new service (e.g., "rh-birds", "my-service")
-- `--destination`: Directory where the new service code will be created
-- `--repo-base`: Your git repository base URL (e.g., "github.com/my-org")
-
-After the clone completes, you'll see a checklist of next steps. Follow these commands to get your new service running:
-
-```shell
-# 1. Navigate to your new service directory
-cd /path/to/your/new-service
-
-# 2. Install dependencies
-go mod tidy
-
-# 3. Build the project
-go install gotest.tools/gotestsum@latest
-make binary
-
-# 4. Set up the database
-make db/setup
-
-# 5. Run database migrations
-./your-service-name migrate
-
-# 6. Test the application
-make test
-make test-integration
-
-# 7. Run your service without authentication required
-make run-no-auth
-
-# 8. Verify the service is running
-curl http://localhost:8000/api/your-service-name/v1/dinosaurs | jq
-
-# OR 
-# 9. Run your service with authentication required
-make run
-
-# 10. Verify your application is running with authentication required
-curl http://localhost:8000/api/your-service-name/v1/dinosaurs | jq
-```
-
-
-The clone command will output these steps with the correct paths and service names for your convenience.
+To create your own service based on TRex, import it as a Go library. See [the_big_refactor.md](./the_big_refactor.md) for the full architecture of TRex as an importable library.
 
 ### Make a new Kind
 

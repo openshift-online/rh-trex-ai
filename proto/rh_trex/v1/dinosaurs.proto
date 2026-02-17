@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message Dinosaur {
+  ObjectReference metadata = 1;
+  string species = 2;
+}
+
+message CreateDinosaurRequest {
+  string species = 1;
+}
+
+message GetDinosaurRequest {
+  string id = 1;
+}
+
+message UpdateDinosaurRequest {
+  string id = 1;
+  optional string species = 2;
+}
+
+message DeleteDinosaurRequest {
+  string id = 1;
+}
+
+message ListDinosaursRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListDinosaursResponse {
+  repeated Dinosaur items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteDinosaurResponse {}
+
+message WatchDinosaursRequest {}
+
+message DinosaurWatchEvent {
+  EventType type = 1;
+  Dinosaur dinosaur = 2;
+  string resource_id = 3;
+}
+
+service DinosaurService {
+  rpc GetDinosaur(GetDinosaurRequest) returns (Dinosaur);
+  rpc CreateDinosaur(CreateDinosaurRequest) returns (Dinosaur);
+  rpc UpdateDinosaur(UpdateDinosaurRequest) returns (Dinosaur);
+  rpc DeleteDinosaur(DeleteDinosaurRequest) returns (DeleteDinosaurResponse);
+  rpc ListDinosaurs(ListDinosaursRequest) returns (ListDinosaursResponse);
+  rpc WatchDinosaurs(WatchDinosaursRequest) returns (stream DinosaurWatchEvent);
+}

@@ -109,6 +109,16 @@ parameters:
   description: Health check server bind adddress
   value: :8083
 
+- name: GRPC_SERVER_BINDADDRESS
+  displayName: gRPC Server Bindaddress
+  description: gRPC server bind address
+  value: :9000
+
+- name: ENABLE_GRPC
+  displayName: Enable gRPC
+  description: Enable gRPC server
+  value: "true"
+
 - name: API_SERVER_HOSTNAME
   displayName: API Server Hostname
   description: Server's public hostname
@@ -297,6 +307,8 @@ objects:
             - --http-read-timeout=${HTTP_READ_TIMEOUT}
             - --http-write-timeout=${HTTP_WRITE_TIMEOUT}
             - --label-metrics-inclusion-duration=${LABEL_METRICS_INCLUSION_DURATION}
+            - --enable-grpc=${ENABLE_GRPC}
+            - --grpc-server-bindaddress=${GRPC_SERVER_BINDADDRESS}
             - --alsologtostderr
             - -v=${GLOG_V}
             resources:
@@ -375,3 +387,21 @@ objects:
       ports:
       - port: 8083
         targetPort: 8083
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: trex-grpc
+      labels:
+        app: trex
+        port: grpc
+      annotations:
+        description: Exposes and load balances the rh-trex gRPC pods
+    spec:
+      selector:
+        app: trex
+      ports:
+      - port: 9000
+        targetPort: 9000
+        name: grpc
+        protocol: TCP
