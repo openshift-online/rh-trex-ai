@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,13 +51,11 @@ type wrappedServerStream struct {
 
 func (w *wrappedServerStream) Context() context.Context { return w.ctx }
 
-func RecoveryUnaryInterceptor(sentryTimeout time.Duration) grpc.UnaryServerInterceptor {
+func RecoveryUnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				glog.Errorf("gRPC panic in %s: %v\n%s", info.FullMethod, r, debug.Stack())
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(sentryTimeout)
 				err = status.Error(codes.Internal, "internal server error")
 			}
 		}()
@@ -131,13 +128,11 @@ func AuthUnaryInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPro
 	}
 }
 
-func RecoveryStreamInterceptor(sentryTimeout time.Duration) grpc.StreamServerInterceptor {
+func RecoveryStreamInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				glog.Errorf("gRPC stream panic in %s: %v\n%s", info.FullMethod, r, debug.Stack())
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(sentryTimeout)
 				err = status.Error(codes.Internal, "internal server error")
 			}
 		}()

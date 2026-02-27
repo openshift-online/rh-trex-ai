@@ -38,6 +38,5 @@ func (e *ProductionEnvImpl) Flags() map[string]string {
 		"v":               "1",
 		"debug":           "false",
 		"enable-mock":     "false",
-		"enable-sentry":   "true",
 	}
 }

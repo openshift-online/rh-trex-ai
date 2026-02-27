@@ -46,7 +46,6 @@ func (s HealthCheckServer) Start() {
 			Check(
 				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
-				s.config.SentryTimeout,
 			)
 		}
 
@@ -56,7 +55,7 @@ func (s HealthCheckServer) Start() {
 		glog.Infof("Serving HealthCheck without TLS at %s", s.config.BindAddress)
 		err = s.httpServer.ListenAndServe()
 	}
-	Check(err, "HealthCheck server terminated with errors", s.config.SentryTimeout)
+	Check(err, "HealthCheck server terminated with errors")
 	glog.Infof("HealthCheck server terminated")
 }
 

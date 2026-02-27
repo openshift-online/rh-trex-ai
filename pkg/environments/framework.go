@@ -1,12 +1,10 @@
 package environments
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"sync"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 
@@ -70,8 +68,6 @@ func (e *Env) Initialize() error {
 
 	messages := globalEnv.Config.ReadFiles()
 	if len(messages) != 0 {
-		err := fmt.Errorf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
-		sentry.CaptureException(err)
 		glog.Fatalf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}
 
@@ -90,11 +86,6 @@ func (e *Env) Initialize() error {
 	e.LoadServices()
 	if err := envImpl.OverrideServices(&e.Services); err != nil {
 		glog.Fatalf("Failed to configure Services: %s", err)
-	}
-
-	err = e.InitializeSentry()
-	if err != nil {
-		return err
 	}
 
 	seedErr := e.Seed()
@@ -142,41 +133,6 @@ func (e *Env) LoadClients() error {
 		return err
 	}
 
-	return nil
-}
-
-func (e *Env) InitializeSentry() error {
-	options := sentry.ClientOptions{}
-
-	if e.Config.Sentry.Enabled {
-		key := e.Config.Sentry.Key
-		url := e.Config.Sentry.URL
-		project := e.Config.Sentry.Project
-		glog.Infof("Sentry error reporting enabled to %s on project %s", url, project)
-		options.Dsn = fmt.Sprintf("https://%s@%s/%s", key, url, project)
-	} else {
-		glog.Infof("Disabling Sentry error reporting")
-		options.Dsn = ""
-	}
-
-	transport := sentry.NewHTTPTransport()
-	transport.Timeout = e.Config.Sentry.Timeout
-	transport.BufferSize = 10
-	options.Transport = transport
-	options.Debug = e.Config.Sentry.Debug
-	options.AttachStacktrace = true
-	options.Environment = e.Name
-
-	hostname, err := os.Hostname()
-	if err != nil && hostname != "" {
-		options.ServerName = hostname
-	}
-
-	err = sentry.Init(options)
-	if err != nil {
-		glog.Errorf("Unable to initialize sentry integration: %s", err.Error())
-		return err
-	}
 	return nil
 }
 

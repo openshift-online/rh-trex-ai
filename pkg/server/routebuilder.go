@@ -29,11 +29,11 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 		var err error
 		authMiddleware, err = auth.NewAuthMiddleware()
 		if err != nil {
-			Check(err, "Unable to create auth middleware", env.Config.Sentry.Timeout)
+			Check(err, "Unable to create auth middleware")
 		}
 	}
 	if authMiddleware == nil {
-		Check(fmt.Errorf("auth middleware is nil"), "Unable to create auth middleware: missing middleware", env.Config.Sentry.Timeout)
+		Check(fmt.Errorf("auth middleware is nil"), "Unable to create auth middleware: missing middleware")
 	}
 
 	authzMiddleware := auth.NewAuthzMiddlewareMock() //nolint:staticcheck // placeholder for real authz middleware
@@ -51,7 +51,7 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	openapiHandler, err := handlers.NewOpenAPIHandler(specData)
 	if err != nil {
-		Check(err, "Unable to create OpenAPI handler", env.Config.Sentry.Timeout)
+		Check(err, "Unable to create OpenAPI handler")
 	}
 	apiV1Router.HandleFunc("/openapi.html", openapiHandler.GetOpenAPIUI).Methods(http.MethodGet)
 	apiV1Router.HandleFunc("/openapi", openapiHandler.GetOpenAPI).Methods(http.MethodGet)

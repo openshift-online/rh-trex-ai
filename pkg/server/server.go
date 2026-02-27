@@ -5,9 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
 )
 
@@ -23,7 +21,6 @@ type ServerConfig struct {
 	EnableHTTPS   bool
 	HTTPSCertFile string
 	HTTPSKeyFile  string
-	SentryTimeout time.Duration
 }
 
 func RemoveTrailingSlash(next http.Handler) http.Handler {
@@ -33,11 +30,9 @@ func RemoveTrailingSlash(next http.Handler) http.Handler {
 	})
 }
 
-func Check(err error, msg string, sentryTimeout time.Duration) {
+func Check(err error, msg string) {
 	if err != nil && err != http.ErrServerClosed {
 		glog.Errorf("%s: %s", msg, err)
-		sentry.CaptureException(err)
-		sentry.Flush(sentryTimeout)
 		os.Exit(1)
 	}
 }

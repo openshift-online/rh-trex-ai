@@ -52,7 +52,6 @@ func (s metricsServer) Start() {
 			Check(
 				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
-				s.config.SentryTimeout,
 			)
 		}
 
@@ -62,7 +61,7 @@ func (s metricsServer) Start() {
 		log.Infof("Serving Metrics without TLS at %s", s.config.BindAddress)
 		err = s.httpServer.ListenAndServe()
 	}
-	Check(err, "Metrics server terminated with errors", s.config.SentryTimeout)
+	Check(err, "Metrics server terminated with errors")
 	log.Infof("Metrics server terminated")
 }
 

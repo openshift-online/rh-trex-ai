@@ -9,7 +9,6 @@ import (
 	"time"
 
 	_ "github.com/auth0/go-jwt-middleware"
-	sentryhttp "github.com/getsentry/sentry-go/http"
 	_ "github.com/golang-jwt/jwt/v4"
 	"github.com/golang/glog"
 	gorillahandlers "github.com/gorilla/handlers"
@@ -38,16 +37,6 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 
 	mainRouter := BuildDefaultRoutes(env, specData)
 
-	if env.Config.Sentry.Enabled {
-		sentryhttpOptions := sentryhttp.Options{
-			Repanic:         true,
-			WaitForDelivery: false,
-			Timeout:         env.Config.Sentry.Timeout,
-		}
-		sentryMW := sentryhttp.New(sentryhttpOptions)
-		mainRouter.Use(sentryMW.Handle)
-	}
-
 	var mainHandler http.Handler = mainRouter
 
 	for _, mw := range preAuthMiddlewares {
@@ -59,7 +48,7 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 			InfoV(glog.Level(1)).
 			DebugV(glog.Level(5)).
 			Build()
-		Check(err, "Unable to create authentication logger", env.Config.Sentry.Timeout)
+		Check(err, "Unable to create authentication logger")
 
 		mainHandler, err = authentication.NewHandler().
 			Logger(authnLogger).
@@ -73,7 +62,7 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 			Public("^" + trex.GetConfig().BasePath + "/errors(/.*)?$").
 			Next(mainHandler).
 			Build()
-		Check(err, "Unable to create authentication handler", env.Config.Sentry.Timeout)
+		Check(err, "Unable to create authentication handler")
 	}
 
 	corsOrigins := trex.GetCORSOrigins()
@@ -119,7 +108,6 @@ func (s defaultAPIServer) Serve(listener net.Listener) {
 			Check(
 				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
-				s.env.Config.Sentry.Timeout,
 			)
 		}
 
@@ -130,7 +118,7 @@ func (s defaultAPIServer) Serve(listener net.Listener) {
 		err = s.httpServer.Serve(listener)
 	}
 
-	Check(err, "Web server terminated with errors", s.env.Config.Sentry.Timeout)
+	Check(err, "Web server terminated with errors")
 	glog.Info("Web server terminated")
 }
 

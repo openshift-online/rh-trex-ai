@@ -29,14 +29,14 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(
-			RecoveryUnaryInterceptor(env.Config.Sentry.Timeout),
+			RecoveryUnaryInterceptor(),
 			LoggingUnaryInterceptor(),
 			MetricsUnaryInterceptor(),
 			TransactionUnaryInterceptor(env.Database.SessionFactory),
 			AuthUnaryInterceptor(env, keyProvider),
 		),
 		grpc.ChainStreamInterceptor(
-			RecoveryStreamInterceptor(env.Config.Sentry.Timeout),
+			RecoveryStreamInterceptor(),
 			LoggingStreamInterceptor(),
 			MetricsStreamInterceptor(),
 			AuthStreamInterceptor(env, keyProvider),
@@ -84,7 +84,7 @@ func (s *grpcAPIServer) Listen() (net.Listener, error) {
 
 func (s *grpcAPIServer) Serve(listener net.Listener) {
 	if err := s.grpcServer.Serve(listener); err != nil {
-		Check(err, "gRPC server terminated with errors", s.env.Config.Sentry.Timeout)
+		Check(err, "gRPC server terminated with errors")
 	}
 	glog.Info("gRPC server terminated")
 }

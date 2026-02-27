@@ -75,7 +75,6 @@ func NewDefaultHealthCheckServer(env *environments.Env) *HealthCheckServer {
 		EnableHTTPS:   env.Config.HealthCheck.EnableHTTPS,
 		HTTPSCertFile: env.Config.Server.HTTPSCertFile,
 		HTTPSKeyFile:  env.Config.Server.HTTPSKeyFile,
-		SentryTimeout: env.Config.Sentry.Timeout,
 	})
 }
 
@@ -85,7 +84,6 @@ func NewDefaultMetricsServer(env *environments.Env) Server {
 		EnableHTTPS:   env.Config.Metrics.EnableHTTPS,
 		HTTPSCertFile: env.Config.Server.HTTPSCertFile,
 		HTTPSKeyFile:  env.Config.Server.HTTPSKeyFile,
-		SentryTimeout: env.Config.Sentry.Timeout,
 	})
 }
 
