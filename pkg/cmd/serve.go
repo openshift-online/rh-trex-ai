@@ -47,7 +47,7 @@ func runServe(getSpecData func() ([]byte, error)) {
 	var servers []pkgserver.Server
 
 	controllersServer := pkgserver.NewDefaultControllersServer(env)
-	go controllersServer.Start()
+	controllersServer.Start()
 
 	apiServer := pkgserver.NewDefaultAPIServer(env, specData)
 	servers = append(servers, apiServer)
@@ -74,6 +74,9 @@ func runServe(getSpecData func() ([]byte, error)) {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	controllersServer.Stop()
+	glog.Info("Controllers server stopped")
 
 	var wg sync.WaitGroup
 	for _, s := range servers {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
 	"github.com/openshift-online/rh-trex-ai/pkg/db"
@@ -14,17 +15,43 @@ type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
 	Broker                *EventBroker
 	SessionFactory        db.SessionFactory
+	cancel                context.CancelFunc
+	done                  chan struct{}
+	startOnce             sync.Once
 }
 
-func (s ControllersServer) Start() {
-	log := logger.NewLogger(context.Background())
-	log.Infof("Kind controller listening for events")
-	s.SessionFactory.NewListener(context.Background(), "events", func(id string) {
-		s.KindControllerManager.Handle(id)
-		if s.Broker != nil {
-			s.Broker.Publish(id)
-		}
+func (s *ControllersServer) Start() {
+	s.startOnce.Do(func() {
+		log := logger.NewLogger(context.Background())
+		log.Infof("Kind controller listening for events")
+		ctx, cancel := context.WithCancel(context.Background())
+		s.cancel = cancel
+		s.done = make(chan struct{})
+		go func() {
+			defer close(s.done)
+			s.SessionFactory.NewListener(ctx, "events", func(id string) {
+				s.KindControllerManager.Handle(id)
+				if s.Broker != nil {
+					s.Broker.Publish(id)
+				}
+			})
+		}()
 	})
+}
+
+func (s *ControllersServer) Stop() {
+	log := logger.NewLogger(context.Background())
+	log.Infof("Stopping controllers server")
+	if s.Broker != nil {
+		s.Broker.Close()
+	}
+	if s.cancel != nil {
+		s.cancel()
+	}
+	if s.done != nil {
+		<-s.done
+	}
+	log.Infof("Controllers server stopped")
 }
 
 func NewDefaultControllersServer(env *environments.Env) *ControllersServer {

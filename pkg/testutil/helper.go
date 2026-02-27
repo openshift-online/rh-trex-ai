@@ -231,7 +231,7 @@ func ParseJWTKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 		return nil, nil, fmt.Errorf("unable to decode JWT public key: %s", err)
 	}
 
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEMWithPassword(privateBytes, "passwd")
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEMWithPassword(privateBytes, "passwd") //nolint:staticcheck // no stdlib alternative yet (golang/go#8860), test-only key
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to parse JWT private key: %s", err)
 	}

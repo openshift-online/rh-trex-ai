@@ -97,21 +97,25 @@ func (f *Default) DirectDB() *sql.DB {
 	return f.db
 }
 
-func waitForNotification(l *pq.Listener, callback func(id string)) {
-	logger := trexlogger.NewLogger(context.Background())
-	for {
-		select {
-		case n := <-l.Notify:
+func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id string)) bool {
+	logger := trexlogger.NewLogger(ctx)
+	select {
+	case <-ctx.Done():
+		return false
+	case n := <-l.Notify:
+		if n != nil {
 			logger.Infof("Received data from channel [%s] : %s", n.Channel, n.Extra)
 			callback(n.Extra)
-			return
-		case <-time.After(10 * time.Second):
-			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
-			go func() {
-				l.Ping()
-			}()
-			return
 		}
+		return true
+	case <-time.After(10 * time.Second):
+		logger.V(10).Infof("Received no events on channel during interval. Pinging source")
+		go func() {
+			if err := l.Ping(); err != nil {
+				logger.V(5).Infof("Listener ping error: %v", err)
+			}
+		}()
+		return true
 	}
 }
 
@@ -131,8 +135,15 @@ func newListener(ctx context.Context, connstr, channel string, callback func(id 
 
 	logger.Infof("Starting channeling monitor for %s", channel)
 	for {
-		waitForNotification(listener, callback)
+		if !waitForNotification(ctx, listener, callback) {
+			break
+		}
 	}
+
+	if err := listener.Close(); err != nil {
+		logger.V(5).Infof("Error closing listener: %v", err)
+	}
+	logger.Infof("Stopped channeling monitor for %s", channel)
 }
 
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) {

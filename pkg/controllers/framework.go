@@ -31,6 +31,10 @@ consumers for the lock will fail fast on redundant messages.
 
 */
 
+type contextKey string
+
+const contextKeyEvent contextKey = "event"
+
 type ControllerHandlerFunc func(ctx context.Context, id string) error
 
 type ControllerConfig struct {
@@ -67,9 +71,7 @@ func (km *KindControllerManager) add(source string, ev api.EventType, fns []Cont
 		km.controllers[source][ev] = []ControllerHandlerFunc{}
 	}
 
-	for _, fn := range fns {
-		km.controllers[source][ev] = append(km.controllers[source][ev], fn)
-	}
+	km.controllers[source][ev] = append(km.controllers[source][ev], fns...)
 }
 
 func (km *KindControllerManager) Handle(id string) {
@@ -91,7 +93,7 @@ func (km *KindControllerManager) Handle(id string) {
 		logger.Infof("Event %s is processed by another worker, continue to process the next", id)
 		return
 	}
-	threadContext := context.WithValue(ctx, "event", id)
+	threadContext := context.WithValue(ctx, contextKeyEvent, id)
 
 	km.handle(threadContext, id)
 }
