@@ -18,6 +18,8 @@ func SetProjectRootDir(dir string) { projectRootDir = dir }
 type ApplicationConfig struct {
 	Server      *ServerConfig      `json:"server"`
 	GRPC        *GRPCConfig        `json:"grpc"`
+	Auth        *AuthConfig        `json:"auth"`
+	TLS         *TLSConfig         `json:"tls"`
 	Metrics     *MetricsConfig     `json:"metrics"`
 	HealthCheck *HealthCheckConfig `json:"health_check"`
 	Database    *DatabaseConfig    `json:"database"`
@@ -28,6 +30,8 @@ func NewApplicationConfig() *ApplicationConfig {
 	return &ApplicationConfig{
 		Server:      NewServerConfig(),
 		GRPC:        NewGRPCConfig(),
+		Auth:        NewAuthConfig(),
+		TLS:         NewTLSConfig(),
 		Metrics:     NewMetricsConfig(),
 		HealthCheck: NewHealthCheckConfig(),
 		Database:    NewDatabaseConfig(),
@@ -39,6 +43,8 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	flagset.AddGoFlagSet(flag.CommandLine)
 	c.Server.AddFlags(flagset)
 	c.GRPC.AddFlags(flagset)
+	c.Auth.AddFlags(flagset)
+	c.TLS.AddFlags(flagset, "")
 	c.Metrics.AddFlags(flagset)
 	c.HealthCheck.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
@@ -52,6 +58,8 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	}{
 		{c.Server.ReadFiles, "Server"},
 		{c.GRPC.ReadFiles, "GRPC"},
+		{c.Auth.ReadFiles, "Auth"},
+		{c.TLS.ReadFiles, "TLS"},
 		{c.Database.ReadFiles, "Database"},
 		{c.APIClient.ReadFiles, "APIClient"},
 		{c.Metrics.ReadFiles, "Metrics"},

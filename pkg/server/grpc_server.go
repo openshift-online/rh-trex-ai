@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"net"
 
 	"github.com/golang/glog"
@@ -10,6 +11,7 @@ import (
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/environments"
 	"github.com/openshift-online/rh-trex-ai/pkg/server/grpcutil"
 )
@@ -39,9 +41,21 @@ type grpcAPIServer struct {
 var _ Server = &grpcAPIServer{}
 
 func NewDefaultGRPCServer(env *environments.Env) Server {
+	// Set up authentication based on configuration
+	authConfig := env.Config.GetEffectiveAuthConfig()
 	var keyProvider *grpcutil.JWKKeyProvider
-	if env.Config.Server.EnableJWT {
-		keyProvider = grpcutil.NewJWKKeyProvider(env.Config.Server.JwkCertURL, env.Config.Server.JwkCertFile)
+	
+	if authConfig.EnableJWT {
+		keyProvider = grpcutil.NewJWKKeyProvider(authConfig.JwkCertURL, authConfig.JwkCertFile)
+	}
+	
+	// Auto-register bearer token interceptors if configured
+	if authConfig.EnableBearer && authConfig.BearerToken != "" {
+		bearerUnary := auth.BearerTokenUnaryInterceptor(authConfig.BearerToken, authConfig.BypassMethods)
+		bearerStream := auth.BearerTokenStreamInterceptor(authConfig.BearerToken, authConfig.BypassMethods)
+		
+		RegisterPreAuthGRPCUnaryInterceptor(bearerUnary)
+		RegisterPreAuthGRPCStreamInterceptor(bearerStream)
 	}
 
 	// Build interceptor chains with pre-auth interceptors running BEFORE JWT auth
@@ -69,15 +83,38 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 		grpc.ChainStreamInterceptor(streamChain...),
 	}
 
-	if env.Config.GRPC.EnableTLS {
-		creds, err := credentials.NewServerTLSFromFile(
-			env.Config.GRPC.TLSCertFile,
-			env.Config.GRPC.TLSKeyFile,
-		)
+	// Apply TLS configuration using the new TLS framework
+	if env.Config.TLS.EnableTLS || env.Config.GRPC.EnableTLS {
+		// Use new TLS framework for server configuration
+		tlsConfig, err := env.Config.TLS.BuildServerTLSConfig()
 		if err != nil {
-			glog.Fatalf("Failed to load gRPC TLS credentials: %v", err)
+			// Fall back to legacy gRPC TLS configuration if new framework fails
+			if env.Config.GRPC.EnableTLS {
+				creds, err := credentials.NewServerTLSFromFile(
+					env.Config.GRPC.TLSCertFile,
+					env.Config.GRPC.TLSKeyFile,
+				)
+				if err != nil {
+					glog.Fatalf("Failed to load gRPC TLS credentials: %v", err)
+				}
+				opts = append(opts, grpc.Creds(creds))
+				glog.Info("Using legacy gRPC TLS configuration")
+			}
+		} else if tlsConfig != nil {
+			creds := credentials.NewTLS(tlsConfig)
+			opts = append(opts, grpc.Creds(creds))
+			glog.Infof("Using enhanced TLS configuration with minimum version %s", 
+				func() string {
+					switch tlsConfig.MinVersion {
+					case tls.VersionTLS12:
+						return "TLS 1.2"
+					case tls.VersionTLS13:
+						return "TLS 1.3"
+					default:
+						return "unknown"
+					}
+				}())
 		}
-		opts = append(opts, grpc.Creds(creds))
 	}
 
 	s := &grpcAPIServer{

@@ -1,0 +1,308 @@
+# TLS Hardening Template for Generated Services
+
+This template shows how to integrate TLS security hardening into your generated service.
+
+## Server Configuration (main.go or serve command)
+
+```go
+import (
+    "crypto/tls"
+    "log"
+    
+    "github.com/openshift-online/rh-trex-ai/pkg/config"
+    tlsutil "github.com/openshift-online/rh-trex-ai/pkg/tls"
+)
+
+// Configure TLS in your serve command
+func configureTLS(env *environments.Env) *tls.Config {
+    // Option 1: Auto-configure for Kubernetes/OpenShift
+    if tlsConfig, err := tlsutil.AutoConfigureTLS("{{.Kind}}-service"); err == nil {
+        log.Printf("Auto-configured TLS for Kubernetes environment")
+        return tlsConfig
+    }
+    
+    // Option 2: Manual configuration with secure defaults
+    tlsConfig := tlsutil.SecureTLSConfig()
+    
+    // Load certificates if available
+    if env.Config.TLS.EnableTLS {
+        serverConfig, err := env.Config.TLS.BuildServerTLSConfig()
+        if err != nil {
+            log.Fatalf("Failed to configure TLS: %v", err)
+        }
+        return serverConfig
+    }
+    
+    return nil
+}
+
+// Apply TLS to HTTP server
+func (s *{{.Kind}}APIServer) configureHTTPSServer() {
+    tlsConfig := configureTLS(s.env)
+    if tlsConfig != nil {
+        s.httpServer.TLSConfig = tlsConfig
+        
+        // Print TLS info for debugging
+        tlsInfo := tlsutil.PrintTLSInfo(tlsConfig, "TLS: ")
+        for _, info := range tlsInfo {
+            log.Printf(info)
+        }
+        
+        // Validate TLS security
+        if warnings := tlsutil.ValidateTLSConfig(tlsConfig); len(warnings) > 0 {
+            log.Printf("TLS Security warnings: %v", warnings)
+        }
+    }
+}
+```
+
+## gRPC Server TLS Configuration
+
+```go
+import (
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+    
+    tlsutil "github.com/openshift-online/rh-trex-ai/pkg/tls"
+)
+
+func (s *{{.Kind}}GRPCServer) configureGRPCTLS() []grpc.ServerOption {
+    var opts []grpc.ServerOption
+    
+    tlsConfig := configureTLS(s.env)
+    if tlsConfig != nil {
+        creds := credentials.NewTLS(tlsConfig)
+        opts = append(opts, grpc.Creds(creds))
+        
+        log.Printf("gRPC TLS enabled with %s", tlsutil.GetTLSVersionString(tlsConfig.MinVersion))
+    }
+    
+    return opts
+}
+
+// Create gRPC server with TLS
+func NewSecure{{.Kind}}GRPCServer(env *environments.Env) *{{.Kind}}GRPCServer {
+    opts := s.configureGRPCTLS()
+    
+    // Add other interceptors...
+    opts = append(opts, grpc.ChainUnaryInterceptor(...))
+    
+    server := grpc.NewServer(opts...)
+    return &{{.Kind}}GRPCServer{
+        server: server,
+        env:    env,
+    }
+}
+```
+
+## Client TLS Configuration
+
+```go
+import (
+    "context"
+    "crypto/tls"
+    "net/http"
+    
+    tlsutil "github.com/openshift-online/rh-trex-ai/pkg/tls"
+)
+
+// HTTP Client with TLS
+func New{{.Kind}}HTTPClient(serverURL string) *http.Client {
+    tlsConfig, err := tlsutil.NewClientTLSConfig(serverURL, "", false)
+    if err != nil {
+        log.Fatalf("Failed to configure client TLS: %v", err)
+    }
+    
+    // Apply security settings
+    tlsConfig = tlsutil.SecureTLSConfig()
+    tlsConfig.ServerName = extractHostFromURL(serverURL)
+    
+    transport := &http.Transport{
+        TLSClientConfig: tlsConfig,
+    }
+    
+    return &http.Client{
+        Transport: transport,
+        Timeout:   30 * time.Second,
+    }
+}
+
+// gRPC Client with TLS
+func New{{.Kind}}GRPCClient(serverAddr string) ({{.Kind}}ServiceClient, error) {
+    tlsConfig, err := tlsutil.NewClientTLSConfig(serverAddr, "", false)
+    if err != nil {
+        return nil, fmt.Errorf("failed to configure gRPC client TLS: %w", err)
+    }
+    
+    creds := credentials.NewTLS(tlsConfig)
+    conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(creds))
+    if err != nil {
+        return nil, fmt.Errorf("failed to connect: %w", err)
+    }
+    
+    return New{{.Kind}}ServiceClient(conn), nil
+}
+```
+
+## Configuration Integration
+
+Add TLS configuration to your service config:
+
+```go
+// In pkg/config/config.go
+type {{.Kind}}Config struct {
+    // ... existing config fields ...
+    
+    // TLS Configuration
+    TLS    *TLSConfig `json:"tls"`
+}
+
+func New{{.Kind}}Config() *{{.Kind}}Config {
+    return &{{.Kind}}Config{
+        // ... existing defaults ...
+        TLS: NewTLSConfig(),
+    }
+}
+
+// Add flags for TLS configuration
+func (c *{{.Kind}}Config) AddFlags(fs *pflag.FlagSet) {
+    // ... existing flags ...
+    
+    // Add TLS flags with service-specific prefix
+    c.TLS.AddFlags(fs, "{{.KindLowerSingular}}")
+}
+```
+
+## Environment Detection
+
+```go
+import (
+    tlsutil "github.com/openshift-online/rh-trex-ai/pkg/tls"
+)
+
+func {{.Kind}}EnvironmentInfo() {
+    envInfo := tlsutil.GetTLSEnvironmentInfo()
+    
+    log.Printf("{{.Kind}} TLS Environment:")
+    log.Printf("  Running in Kubernetes: %v", envInfo["running_in_kubernetes"])
+    log.Printf("  Running in OpenShift: %v", envInfo["running_in_openshift"])
+    log.Printf("  Service CA available: %v", envInfo["service_ca_available"])
+    log.Printf("  Serving cert available: %v", envInfo["serving_cert_available"])
+    
+    if namespace, ok := envInfo["namespace"].(string); ok {
+        log.Printf("  Namespace: %s", namespace)
+    }
+}
+```
+
+## Security Best Practices
+
+1. **Always use TLS 1.2+** in production:
+   ```go
+   tlsConfig.MinVersion = tls.VersionTLS12
+   ```
+
+2. **Validate TLS configuration** at startup:
+   ```go
+   if warnings := tlsutil.ValidateTLSConfig(tlsConfig); len(warnings) > 0 {
+       for _, warning := range warnings {
+           log.Printf("TLS Security Warning: %s", warning)
+       }
+   }
+   ```
+
+3. **Use Kubernetes Service CA** when available:
+   ```go
+   loader := tlsutil.NewKubernetesCALoader()
+   if loader.IsRunningInKubernetes() {
+       tlsConfig, _ := tlsutil.NewKubernetesServerTLSConfig()
+   }
+   ```
+
+4. **Implement proper certificate rotation**:
+   ```go
+   // Monitor certificate files for changes
+   go watchCertificateFiles(certFile, keyFile, func() {
+       // Reload TLS configuration
+       newConfig, err := tlsutil.NewServerTLSConfig(certFile, keyFile)
+       if err == nil {
+           server.UpdateTLSConfig(newConfig)
+       }
+   })
+   ```
+
+5. **Log TLS information** for debugging:
+   ```go
+   info := tlsutil.PrintTLSInfo(tlsConfig, "{{.Kind}} TLS: ")
+   for _, line := range info {
+       log.Printf(line)
+   }
+   ```
+
+## Testing TLS Configuration
+
+```go
+func Test{{.Kind}}TLSConfig(t *testing.T) {
+    // Test secure defaults
+    config := tlsutil.SecureTLSConfig()
+    
+    // Validate security settings
+    assert.Equal(t, tls.VersionTLS12, config.MinVersion)
+    assert.Equal(t, tls.VersionTLS13, config.MaxVersion)
+    assert.True(t, config.PreferServerCipherSuites)
+    
+    // Test validation
+    warnings := tlsutil.ValidateTLSConfig(config)
+    assert.Empty(t, warnings, "Secure config should have no warnings")
+}
+
+func Test{{.Kind}}KubernetesTLS(t *testing.T) {
+    // Test Kubernetes auto-detection
+    loader := tlsutil.NewKubernetesCALoader()
+    
+    if loader.IsRunningInKubernetes() {
+        config, err := tlsutil.NewKubernetesServerTLSConfig()
+        assert.NoError(t, err)
+        assert.NotNil(t, config)
+    }
+}
+```
+
+## Production Deployment
+
+For production deployments, ensure:
+
+1. **OpenShift serving certificates**:
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     annotations:
+       service.beta.openshift.io/serving-cert-secret-name: {{.KindLowerSingular}}-tls
+   ```
+
+2. **Kubernetes TLS secrets**:
+   ```yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: {{.KindLowerSingular}}-tls
+   type: kubernetes.io/tls
+   data:
+     tls.crt: <base64-cert>
+     tls.key: <base64-key>
+   ```
+
+3. **Mount certificates** in deployment:
+   ```yaml
+   volumeMounts:
+   - name: serving-certs
+     mountPath: /etc/serving-certs
+     readOnly: true
+   volumes:
+   - name: serving-certs
+     secret:
+       secretName: {{.KindLowerSingular}}-tls
+   ```
+
+This template provides a complete TLS hardening implementation for your {{.Kind}} service.
