@@ -18,7 +18,7 @@ func (e *DevEnvImpl) OverrideDatabase(c *pkgenv.Database) error {
 }
 
 func (e *DevEnvImpl) OverrideConfig(c *config.ApplicationConfig) error {
-	c.Server.EnableJWT = false
+	c.Auth.EnableJWT = false
 	c.Server.EnableHTTPS = false
 	return nil
 }

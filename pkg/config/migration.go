@@ -6,10 +6,7 @@ func MigrateServerConfigToAuthConfig(serverConfig *ServerConfig, authConfig *Aut
 	// Only migrate if the auth config hasn't been explicitly configured
 	// (i.e., it's still at default values)
 	
-	// Migrate JWT settings if they differ from defaults
-	if serverConfig.EnableJWT != authConfig.EnableJWT {
-		authConfig.EnableJWT = serverConfig.EnableJWT
-	}
+	// EnableJWT migration removed - ServerConfig.EnableJWT no longer exists
 	
 	if serverConfig.EnableAuthz != authConfig.EnableAuthz {
 		authConfig.EnableAuthz = serverConfig.EnableAuthz

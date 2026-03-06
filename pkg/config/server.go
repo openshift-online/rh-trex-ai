@@ -14,7 +14,6 @@ type ServerConfig struct {
 	HTTPSCertFile      string        `json:"https_cert_file"`
 	HTTPSKeyFile       string        `json:"https_key_file"`
 	EnableHTTPS        bool          `json:"enable_https"`
-	EnableJWT          bool          `json:"enable_jwt"`
 	EnableAuthz        bool          `json:"enable_authz"`
 	JwkCertFile        string        `json:"jwk_cert_file"`
 	JwkCertURL         string        `json:"jwk_cert_url"`
@@ -30,7 +29,6 @@ func NewServerConfig() *ServerConfig {
 		ReadTimeout:   5 * time.Second,
 		WriteTimeout:  30 * time.Second,
 		EnableHTTPS:   false,
-		EnableJWT:     true,
 		EnableAuthz:   true,
 		JwkCertFile:   "",
 		JwkCertURL:    "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs", // Default to Red Hat SSO, configurable for other OIDC providers
