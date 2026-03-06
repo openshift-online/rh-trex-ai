@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.PluginName}}
+  labels:
+    app: {{.PluginName}}
+    app.kubernetes.io/name: {{.PluginName}}
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{.PluginName}}
+  template:
+    metadata:
+      labels:
+        app: {{.PluginName}}
+    spec:
+      serviceAccountName: {{.PluginName}}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{.PluginName}}
+          image: REPLACE_WITH_IMAGE
+          ports:
+            - containerPort: 9443
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9443
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: plugin-serving-cert
+              readOnly: true
+              mountPath: /var/cert
+            - name: nginx-conf
+              readOnly: true
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: plugin-serving-cert
+          secret:
+            secretName: {{.PluginName}}-cert
+            defaultMode: 420
+        - name: nginx-conf
+          configMap:
+            name: {{.PluginName}}-nginx
+            defaultMode: 420

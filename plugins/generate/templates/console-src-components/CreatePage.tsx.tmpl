@@ -1,0 +1,124 @@
+import * as React from 'react';
+import { useHistory } from 'react-router-dom';
+import {
+  ActionGroup,
+  Alert,
+  Breadcrumb,
+  BreadcrumbItem,
+  Button,
+  Form,
+  FormGroup,
+  PageSection,
+{{- range .Resource.WritableFields}}
+{{- if eq .FieldType "boolean"}}
+  Switch,
+{{- else}}
+  TextInput,
+{{- end}}
+{{- end}}
+  Title,
+} from '@patternfly/react-core';
+import { createAPIClient } from '../utils/api';
+
+const {{.Resource.Name}}CreatePage: React.FC = () => {
+  const history = useHistory();
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+{{range .Resource.WritableFields}}
+{{- if eq .TSType "number"}}
+  const [{{.Name}}, set{{.Name | title}}] = React.useState<number>(0);
+{{- else if eq .TSType "boolean"}}
+  const [{{.Name}}, set{{.Name | title}}] = React.useState<boolean>(false);
+{{- else}}
+  const [{{.Name}}, set{{.Name | title}}] = React.useState('');
+{{- end}}
+{{- end}}
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    const body: Record<string, unknown> = {};
+{{- range .Resource.WritableFields}}
+{{- if eq .TSType "number"}}
+    if ({{.Name}} !== 0) body['{{.JSONName}}'] = {{.Name}};
+{{- else if eq .TSType "boolean"}}
+    body['{{.JSONName}}'] = {{.Name}};
+{{- else}}
+    if ({{.Name}}) body['{{.JSONName}}'] = {{.Name}};
+{{- end}}
+{{- end}}
+
+    try {
+      const api = createAPIClient();
+      const created = await api.{{.Resource.PluralLower}}.create(body);
+      history.push(`/{{$.PluginName}}/{{.Resource.PluralKebab}}/${created.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <PageSection variant="light">
+        <Breadcrumb>
+          <BreadcrumbItem
+            onClick={() => history.push('/{{$.PluginName}}/{{.Resource.PluralKebab}}')}
+            component="button"
+          >
+            {{.Resource.Plural}}
+          </BreadcrumbItem>
+          <BreadcrumbItem isActive>Create</BreadcrumbItem>
+        </Breadcrumb>
+        <Title headingLevel="h1">Create {{.Resource.Name}}</Title>
+      </PageSection>
+      <PageSection>
+        {error && <Alert variant="danger" title="Error" isInline>{error}</Alert>}
+        <Form onSubmit={handleSubmit} style={{"{{"}} maxWidth: 600 {{"}}"}}>
+{{- range .Resource.WritableFields}}
+{{- if eq .FieldType "boolean"}}
+          <FormGroup label="{{.Label}}" fieldId="field-{{.JSONName}}">
+            <Switch
+              id="field-{{.JSONName}}"
+              isChecked={ {{.Name}}}
+              onChange={(_e, val) => set{{.Name | title}}(val)}
+            />
+          </FormGroup>
+{{- else}}
+          <FormGroup
+            label="{{.Label}}"
+            fieldId="field-{{.JSONName}}"
+            isRequired={ {{.Required}}}
+          >
+            <TextInput
+              id="field-{{.JSONName}}"
+              type="{{.FieldType | patternFlyInputType}}"
+              value={ {{.Name}}}
+              onChange={(_e, val) => set{{.Name | title}}({{if eq .TSType "number"}}Number(val){{else}}val{{end}})}
+              placeholder="{{.Placeholder}}"
+              isRequired={ {{.Required}}}
+            />
+          </FormGroup>
+{{- end}}
+{{- end}}
+          <ActionGroup>
+            <Button type="submit" variant="primary" isLoading={submitting} isDisabled={submitting}>
+              Create
+            </Button>
+            <Button
+              variant="link"
+              onClick={() => history.push('/{{$.PluginName}}/{{.Resource.PluralKebab}}')}
+            >
+              Cancel
+            </Button>
+          </ActionGroup>
+        </Form>
+      </PageSection>
+    </>
+  );
+};
+
+export default {{.Resource.Name}}CreatePage;

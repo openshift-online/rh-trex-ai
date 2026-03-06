@@ -144,6 +144,22 @@ grpcurl -plaintext -d '{"page": 1, "size": 10}' \
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 ```
 
+**For production with TLS:**
+
+```shell
+# List services with TLS
+grpcurl localhost:9000 list
+
+# Create a dinosaur with TLS
+grpcurl -d '{"species": "Velociraptor"}' \
+  localhost:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+
+# With custom CA certificate
+grpcurl -cacert /path/to/ca.pem \
+  -d '{"species": "Velociraptor"}' \
+  your-server.com:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+```
+
 #### Option 2: Run With Authentication (Production-like)
 
 Start the service with authentication enabled:

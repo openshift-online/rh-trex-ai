@@ -1,0 +1,165 @@
+import * as React from 'react';
+import { Link, useHistory } from 'react-router-dom';
+import {
+  Button,
+  EmptyState,
+  EmptyStateBody,
+  EmptyStateIcon,
+  PageSection,
+  Pagination,
+  SearchInput,
+  Title,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+} from '@patternfly/react-core';
+import { PlusCircleIcon, CubesIcon } from '@patternfly/react-icons';
+import {
+  Table,
+  Thead,
+  Tr,
+  Th,
+  Tbody,
+  Td,
+} from '@patternfly/react-table';
+import { createAPIClient } from '../utils/api';
+
+type {{.Resource.Name}}Row = Record<string, unknown>;
+
+const PAGE_SIZE = 20;
+
+function formatDate(value: unknown): string {
+  if (!value) return '';
+  const d = new Date(String(value));
+  return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+}
+
+function cellValue(row: {{.Resource.Name}}Row, key: string, fieldType: string): string {
+  const val = row[key];
+  if (val === null || val === undefined) return '';
+  if (fieldType === 'date-time') return formatDate(val);
+  return String(val);
+}
+
+const {{.Resource.Name}}ListPage: React.FC = () => {
+  const history = useHistory();
+  const [items, setItems] = React.useState<{{.Resource.Name}}Row[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [page, setPage] = React.useState(1);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState('');
+
+  const fetchData = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const api = createAPIClient();
+      const resp = await api.{{.Resource.PluralLower}}.list({ page, size: PAGE_SIZE, search: search || undefined });
+      setItems(resp.items);
+      setTotal(resp.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search]);
+
+  React.useEffect(() => { fetchData(); }, [fetchData]);
+
+  return (
+    <>
+      <PageSection variant="light">
+        <Title headingLevel="h1">{{.Resource.Plural}}</Title>
+      </PageSection>
+      <PageSection>
+        <Toolbar>
+          <ToolbarContent>
+            <ToolbarItem>
+              <SearchInput
+                placeholder="Search {{.Resource.PluralLower}}..."
+                value={search}
+                onChange={(_e, val) => setSearch(val)}
+                onSearch={() => { setPage(1); fetchData(); }}
+                onClear={() => { setSearch(''); setPage(1); }}
+              />
+            </ToolbarItem>
+            <ToolbarItem>
+              <Button
+                variant="primary"
+                icon={<PlusCircleIcon />}
+                onClick={() => history.push('/{{$.PluginName}}/{{.Resource.PluralKebab}}/create')}
+              >
+                Create {{.Resource.Name}}
+              </Button>
+            </ToolbarItem>
+            <ToolbarItem variant="pagination">
+              <Pagination
+                itemCount={total}
+                perPage={PAGE_SIZE}
+                page={page}
+                onSetPage={(_e, p) => setPage(p)}
+                isCompact
+              />
+            </ToolbarItem>
+          </ToolbarContent>
+        </Toolbar>
+
+        {error && (
+          <EmptyState>
+            <EmptyStateBody>{error}</EmptyStateBody>
+          </EmptyState>
+        )}
+
+        {!loading && !error && items.length === 0 && (
+          <EmptyState>
+            <EmptyStateIcon icon={CubesIcon} />
+            <Title headingLevel="h4" size="lg">No {{.Resource.PluralLower}} found</Title>
+            <EmptyStateBody>
+              Create a {{.Resource.NameLower}} to get started.
+            </EmptyStateBody>
+            <Button
+              variant="primary"
+              onClick={() => history.push('/{{$.PluginName}}/{{.Resource.PluralKebab}}/create')}
+            >
+              Create {{.Resource.Name}}
+            </Button>
+          </EmptyState>
+        )}
+
+        {items.length > 0 && (
+          <Table aria-label="{{.Resource.Plural}} table" variant="compact">
+            <Thead>
+              <Tr>
+{{- range .Resource.Columns}}
+                <Th>{{.Header}}</Th>
+{{- end}}
+              </Tr>
+            </Thead>
+            <Tbody>
+              {items.map((row) => (
+                <Tr key={String(row.id)}>
+{{- range $i, $col := .Resource.Columns}}
+{{- if eq $col.Name "id"}}
+                  <Td dataLabel="{{$col.Header}}">
+                    <Link to={`/{{$.PluginName}}/{{$.Resource.PluralKebab}}/${row.id}`}>
+                      {String(row.id)}
+                    </Link>
+                  </Td>
+{{- else}}
+                  <Td dataLabel="{{$col.Header}}">
+                    {cellValue(row, '{{$col.JSONPath}}', '{{$col.FieldType}}')}
+                  </Td>
+{{- end}}
+{{- end}}
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        )}
+      </PageSection>
+    </>
+  );
+};
+
+export default {{.Resource.Name}}ListPage;

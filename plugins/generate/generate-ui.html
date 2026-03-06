@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRex Code Generator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:20px;font-weight:600;color:#58a6ff}
+header span{color:#8b949e;font-size:14px}
+.container{display:grid;grid-template-columns:1fr 1fr;gap:0;height:calc(100vh - 57px)}
+.panel{display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:12px 16px;background:#161b22;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.panel-header h2{font-size:14px;font-weight:600;color:#c9d1d9}
+.panel-header .badge{font-size:11px;background:#1f6feb;color:#fff;padding:2px 8px;border-radius:10px}
+.editor{flex:1;display:flex;flex-direction:column;border-right:1px solid #30363d}
+textarea{flex:1;background:#0d1117;color:#c9d1d9;border:none;padding:16px;font-family:"JetBrains Mono","Fira Code","SF Mono",Consolas,monospace;font-size:13px;line-height:1.6;resize:none;outline:none;tab-size:4}
+textarea::placeholder{color:#484f58}
+.preview{flex:1;overflow:auto;background:#0d1117}
+.preview .mermaid-container{padding:24px;display:flex;justify-content:center;min-height:200px}
+.preview .mermaid-container svg{max-width:100%}
+.preview .parse-error{padding:16px;color:#f85149;font-family:monospace;font-size:13px;white-space:pre-wrap}
+.toolbar{padding:12px 16px;background:#161b22;border-top:1px solid #30363d;display:flex;gap:8px;align-items:center}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid #30363d;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn-primary{background:#238636;border-color:#238636;color:#fff}
+.btn-primary:hover{background:#2ea043}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:#21262d;color:#c9d1d9}
+.btn-secondary:hover{background:#30363d}
+.status{font-size:12px;color:#8b949e;margin-left:auto}
+.results{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:100;justify-content:center;align-items:center}
+.results.visible{display:flex}
+.results-panel{background:#161b22;border:1px solid #30363d;border-radius:12px;width:90%;max-width:900px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.results-header{padding:16px 20px;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.results-header h2{font-size:16px;color:#58a6ff}
+.results-close{background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;padding:4px 8px}
+.results-close:hover{color:#c9d1d9}
+.results-body{flex:1;overflow:auto;padding:0}
+.results-summary{padding:16px 20px;background:#0d1117;border-bottom:1px solid #30363d;display:flex;gap:20px}
+.results-stat{text-align:center}
+.results-stat .num{font-size:24px;font-weight:700;color:#58a6ff}
+.results-stat .label{font-size:11px;color:#8b949e;text-transform:uppercase}
+.file-tree{padding:8px 0}
+.file-group{border-bottom:1px solid #21262d}
+.file-group-header{padding:8px 20px;font-size:12px;font-weight:600;color:#8b949e;background:#0d1117;cursor:pointer;display:flex;align-items:center;gap:8px}
+.file-group-header:hover{background:#161b22}
+.file-group-header .arrow{transition:transform .15s}
+.file-group-header.collapsed .arrow{transform:rotate(-90deg)}
+.file-item{padding:6px 20px 6px 36px;font-size:13px;font-family:monospace;cursor:pointer;display:flex;align-items:center;gap:8px}
+.file-item:hover{background:#1c2128}
+.file-item .icon{width:16px;color:#8b949e}
+.file-item a{color:#58a6ff;text-decoration:none}
+.file-item a:hover{text-decoration:underline}
+.file-viewer{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:200;justify-content:center;align-items:center}
+.file-viewer.visible{display:flex}
+.file-viewer-panel{background:#0d1117;border:1px solid #30363d;border-radius:12px;width:90%;max-width:1000px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.file-viewer-header{padding:12px 20px;background:#161b22;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.file-viewer-header span{font-family:monospace;font-size:13px;color:#58a6ff}
+.file-viewer-body{flex:1;overflow:auto;padding:16px;font-family:monospace;font-size:13px;line-height:1.6;white-space:pre;color:#c9d1d9}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;right:24px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 20px;font-size:13px;z-index:300;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.error{border-color:#f85149;color:#f85149}
+.toast.success{border-color:#238636;color:#3fb950}
+</style>
+</head>
+<body>
+
+<header>
+<h1>TRex Generator</h1>
+<span>Paste a Mermaid ERD, preview it, generate code</span>
+</header>
+
+<div class="container">
+<div class="editor panel">
+<div class="panel-header">
+<h2>ERD Editor</h2>
+<span class="badge" id="entityCount">0 entities</span>
+</div>
+<textarea id="erdInput" placeholder="Paste your Mermaid erDiagram here...
+
+erDiagram
+    User {
+        uuid id PK
+        string email
+        string username
+        timestamp created_at
+    }
+
+    Role {
+        uuid id PK
+        string name
+        string description
+    }
+
+    User ||--o{ Role : &quot;has&quot;"
+spellcheck="false"></textarea>
+<div class="toolbar">
+<button class="btn btn-primary" id="generateBtn" onclick="submitERD()">Generate Code</button>
+<button class="btn btn-secondary" onclick="loadExample()">Load Example</button>
+<span class="status" id="statusText"></span>
+</div>
+</div>
+
+<div class="preview panel">
+<div class="panel-header">
+<h2>Diagram Preview</h2>
+</div>
+<div class="mermaid-container" id="mermaidOutput">
+<p style="color:#484f58;padding:40px">Diagram will render here as you type...</p>
+</div>
+<div class="parse-error" id="parseError" style="display:none"></div>
+</div>
+</div>
+
+<div class="results" id="resultsModal">
+<div class="results-panel">
+<div class="results-header">
+<h2 id="resultsTitle">Generation Results</h2>
+<button class="results-close" onclick="closeResults()">&times;</button>
+</div>
+<div class="results-body">
+<div class="results-summary" id="resultsSummary"></div>
+<div class="file-tree" id="fileTree"></div>
+</div>
+</div>
+</div>
+
+<div class="file-viewer" id="fileViewer">
+<div class="file-viewer-panel">
+<div class="file-viewer-header">
+<span id="fileViewerPath"></span>
+<button class="results-close" onclick="closeFileViewer()">&times;</button>
+</div>
+<div class="file-viewer-body" id="fileViewerContent"></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:false,theme:'dark',securityLevel:'loose'});
+window._mermaid=mermaid;
+</script>
+
+<script>
+const erdInput=document.getElementById('erdInput');
+const mermaidOutput=document.getElementById('mermaidOutput');
+const parseError=document.getElementById('parseError');
+const entityCount=document.getElementById('entityCount');
+let renderTimer=null;
+
+erdInput.addEventListener('input',()=>{
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(renderPreview,400);
+});
+
+erdInput.addEventListener('keydown',(e)=>{
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const s=erdInput.selectionStart;
+    const end=erdInput.selectionEnd;
+    erdInput.value=erdInput.value.substring(0,s)+'    '+erdInput.value.substring(end);
+    erdInput.selectionStart=erdInput.selectionEnd=s+4;
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(renderPreview,400);
+  }
+});
+
+async function renderPreview(){
+  const erd=erdInput.value.trim();
+  if(!erd){
+    mermaidOutput.innerHTML='<p style="color:#484f58;padding:40px">Diagram will render here as you type...</p>';
+    parseError.style.display='none';
+    entityCount.textContent='0 entities';
+    return;
+  }
+  const count=(erd.match(/^\s*\w+\s*\{/gm)||[]).length;
+  entityCount.textContent=count+' entit'+(count===1?'y':'ies');
+  try{
+    const id='mermaid-'+Date.now();
+    const{svg}=await window._mermaid.render(id,erd);
+    mermaidOutput.innerHTML=svg;
+    parseError.style.display='none';
+  }catch(err){
+    parseError.textContent=err.message||'Mermaid parse error';
+    parseError.style.display='block';
+  }
+}
+
+async function submitERD(){
+  const erd=erdInput.value.trim();
+  if(!erd){showToast('Paste an ERD first','error');return;}
+  const btn=document.getElementById('generateBtn');
+  const status=document.getElementById('statusText');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Generating...';
+  status.textContent='';
+  try{
+    const resp=await fetch('/generate/erd',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({erd:erd})
+    });
+    const data=await resp.json();
+    if(!resp.ok){
+      showToast(data.reason||'Generation failed','error');
+      return;
+    }
+    showResults(data);
+  }catch(err){
+    showToast('Request failed: '+err.message,'error');
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='Generate Code';
+  }
+}
+
+function showResults(data){
+  const modal=document.getElementById('resultsModal');
+  const summary=document.getElementById('resultsSummary');
+  const tree=document.getElementById('fileTree');
+  const kinds=data.kinds||[];
+  const files=data.files||[];
+  document.getElementById('resultsTitle').textContent='Generated '+files.length+' files';
+  summary.innerHTML=
+    '<div class="results-stat"><div class="num">'+kinds.length+'</div><div class="label">Kinds</div></div>'+
+    '<div class="results-stat"><div class="num">'+files.length+'</div><div class="label">Files</div></div>'+
+    '<div class="results-stat"><div class="num">'+data.id.substring(0,8)+'</div><div class="label">Generation ID</div></div>';
+  const groups={};
+  files.forEach(f=>{
+    const dir=f.path.substring(0,f.path.lastIndexOf('/'));
+    if(!groups[dir])groups[dir]=[];
+    groups[dir].push(f);
+  });
+  let html='';
+  Object.keys(groups).sort().forEach(dir=>{
+    html+='<div class="file-group">';
+    html+='<div class="file-group-header" onclick="toggleGroup(this)"><span class="arrow">&#9660;</span> '+dir+' ('+groups[dir].length+')</div>';
+    html+='<div class="file-group-files">';
+    groups[dir].forEach(f=>{
+      const name=f.path.substring(f.path.lastIndexOf('/')+1);
+      const ext=name.split('.').pop();
+      const icon=ext==='go'?'&#128736;':ext==='yaml'||ext==='proto'?'&#128196;':'&#128196;';
+      html+='<div class="file-item">'+
+        '<span class="icon">'+icon+'</span>'+
+        '<a href="javascript:void(0)" onclick="viewFile(\''+f.href+'\',\''+f.path+'\')">'+name+'</a>'+
+        '</div>';
+    });
+    html+='</div></div>';
+  });
+  tree.innerHTML=html;
+  modal.classList.add('visible');
+}
+
+function closeResults(){document.getElementById('resultsModal').classList.remove('visible');}
+
+function toggleGroup(el){
+  el.classList.toggle('collapsed');
+  const files=el.nextElementSibling;
+  files.style.display=files.style.display==='none'?'':'none';
+}
+
+async function viewFile(href,path){
+  const viewer=document.getElementById('fileViewer');
+  const content=document.getElementById('fileViewerContent');
+  const pathEl=document.getElementById('fileViewerPath');
+  pathEl.textContent=path;
+  content.textContent='Loading...';
+  viewer.classList.add('visible');
+  try{
+    const resp=await fetch(href);
+    content.textContent=await resp.text();
+  }catch(err){
+    content.textContent='Error: '+err.message;
+  }
+}
+
+function closeFileViewer(){document.getElementById('fileViewer').classList.remove('visible');}
+
+function showToast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast '+type;
+  t.style.display='block';
+  setTimeout(()=>{t.style.display='none';},4000);
+}
+
+function loadExample(){
+  erdInput.value=`erDiagram
+    User ||--o{ RoleBinding : "assigned via"
+    Role ||--o{ RoleBinding : "applied in"
+    Role ||--o{ RolePermission : "contains"
+    Permission ||--o{ RolePermission : "defined in"
+    Workspace ||--o{ Session : "contains"
+    Workspace ||--o{ RoleBinding : "scoped to"
+    Session ||--o{ RoleBinding : "scoped to"
+
+    User {
+        uuid id PK
+        string email
+        string username
+        timestamp created_at
+    }
+
+    Role {
+        uuid id PK
+        string name
+        string description
+        string level "Global | Workspace | Session"
+    }
+
+    Permission {
+        uuid id PK
+        string action "e.g., trex.reboot, session.create"
+        string resource "e.g., api, paddock"
+    }
+
+    RolePermission {
+        uuid role_id FK
+        uuid permission_id FK
+    }
+
+    RoleBinding {
+        uuid id PK
+        uuid user_id FK
+        uuid role_id FK
+        string scope_type "Global | Workspace | Session"
+        uuid scope_id "FK to Workspace or Session"
+    }
+
+    Workspace {
+        uuid id PK
+        string name
+        string k8s_namespace
+        timestamp created_at
+    }
+
+    Session {
+        uuid id PK
+        uuid workspace_id FK
+        string agent_id "Claude-3.5-Sonnet"
+        string status
+    }`;
+  renderPreview();
+}
+
+window.submitERD=submitERD;
+window.loadExample=loadExample;
+window.toggleGroup=toggleGroup;
+window.viewFile=viewFile;
+window.closeResults=closeResults;
+window.closeFileViewer=closeFileViewer;
+</script>
+</body>
+</html>

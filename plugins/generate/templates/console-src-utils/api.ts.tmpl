@@ -1,0 +1,84 @@
+import { consoleFetch } from '@openshift-console/dynamic-plugin-sdk';
+
+const PROXY_BASE = '/api/proxy/plugin/{{.PluginName}}/api{{.APIPrefix}}';
+
+type ListResponse<T> = {
+  kind: string;
+  page: number;
+  size: number;
+  total: number;
+  items: T[];
+};
+
+type ListOptions = {
+  page?: number;
+  size?: number;
+  search?: string;
+  orderBy?: string;
+};
+
+async function apiFetch<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const opts: RequestInit = {
+    method,
+    headers: {
+      Accept: 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  };
+
+  const resp = await consoleFetch(path, opts);
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText);
+    throw new Error(`API ${method} ${path} failed (${resp.status}): ${text}`);
+  }
+
+  if (resp.status === 204) {
+    return undefined as T;
+  }
+
+  return resp.json();
+}
+
+function buildQuery(opts?: ListOptions): string {
+  if (!opts) return '';
+  const params = new URLSearchParams();
+  if (opts.page !== undefined) params.set('page', String(opts.page));
+  if (opts.size !== undefined) params.set('size', String(opts.size));
+  if (opts.search) params.set('search', opts.search);
+  if (opts.orderBy) params.set('orderBy', opts.orderBy);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function createAPIClient() {
+  const base = PROXY_BASE;
+
+  return {
+{{- range .Resources}}
+    {{.PluralLower}}: {
+      list: (opts?: ListOptions) =>
+        apiFetch<ListResponse<Record<string, unknown>>>('GET', `${base}/{{.PathSegment}}${buildQuery(opts)}`),
+      get: (id: string) =>
+        apiFetch<Record<string, unknown>>('GET', `${base}/{{.PathSegment}}/${id}`),
+      create: (data: Record<string, unknown>) =>
+        apiFetch<Record<string, unknown>>('POST', `${base}/{{.PathSegment}}`, data),
+{{- if .HasPatch}}
+      update: (id: string, data: Record<string, unknown>) =>
+        apiFetch<Record<string, unknown>>('PATCH', `${base}/{{.PathSegment}}/${id}`, data),
+{{- end}}
+{{- if .HasDelete}}
+      delete: (id: string) =>
+        apiFetch<void>('DELETE', `${base}/{{.PathSegment}}/${id}`),
+{{- end}}
+    },
+{{- end}}
+  };
+}
+
+export type APIClient = ReturnType<typeof createAPIClient>;

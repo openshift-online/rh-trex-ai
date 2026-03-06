@@ -1,0 +1,39 @@
+package {{.KindLowerPlural}}
+
+import (
+	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+func {{.KindLowerSingular}}ToProto(d *{{.Kind}}) *pb.{{.Kind}} {
+	return &pb.{{.Kind}}{
+		Metadata: &pb.ObjectReference{
+			Id:        d.ID,
+			CreatedAt: timestamppb.New(d.CreatedAt),
+			UpdatedAt: timestamppb.New(d.UpdatedAt),
+			Kind:      "{{.Kind}}",
+			Href:      "/api/{{.ApiProject}}/v1/{{.KindSnakeCasePlural}}/" + d.ID,
+		},
+		{{- range .Fields}}
+		{{- if .Nullable}}
+		{{- if eq .Type "int"}}
+		{{.Name}}: func() *int32 { if d.{{.Name}} != nil { v := int32(*d.{{.Name}}); return &v }; return nil }(),
+		{{- else if eq .Type "int64"}}
+		{{.Name}}: d.{{.Name}},
+		{{- else if eq .Type "time"}}
+		{{.Name}}: func() *timestamppb.Timestamp { if d.{{.Name}} != nil { return timestamppb.New(*d.{{.Name}}) }; return nil }(),
+		{{- else}}
+		{{.Name}}: d.{{.Name}},
+		{{- end}}
+		{{- else}}
+		{{- if eq .Type "time"}}
+		{{.Name}}: timestamppb.New(d.{{.Name}}),
+		{{- else if eq .Type "int"}}
+		{{.Name}}: int32(d.{{.Name}}),
+		{{- else}}
+		{{.Name}}: d.{{.Name}},
+		{{- end}}
+		{{- end}}
+		{{- end}}
+	}
+}
