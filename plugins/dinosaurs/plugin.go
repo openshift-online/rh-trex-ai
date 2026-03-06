@@ -47,7 +47,7 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
 		dinosaurHandler := NewDinosaurHandler(Service(envServices), generic.Service(envServices))
 

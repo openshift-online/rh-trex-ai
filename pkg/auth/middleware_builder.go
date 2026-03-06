@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/openshift-online/rh-trex-ai/pkg/config"
-	"github.com/openshift-online/rh-trex-ai/pkg/environments"
 	"google.golang.org/grpc"
 )
 
@@ -26,8 +25,7 @@ type AuthMiddlewareBuilder struct {
 }
 
 // NewAuthMiddlewareBuilder creates a new authentication middleware builder
-func NewAuthMiddlewareBuilder(env *environments.Env) *AuthMiddlewareBuilder {
-	authConfig := env.Config.GetEffectiveAuthConfig()
+func NewAuthMiddlewareBuilder(authConfig *config.AuthConfig) *AuthMiddlewareBuilder {
 	
 	var strategy AuthenticationStrategy
 	if authConfig.EnableJWT && authConfig.EnableBearer {

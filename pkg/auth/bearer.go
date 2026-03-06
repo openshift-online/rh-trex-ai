@@ -40,7 +40,7 @@ func BearerTokenMiddleware(expectedToken string, bypassPaths []string) func(http
 			// Constant-time comparison to prevent timing attacks
 			if subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 				log := logger.NewLogger(r.Context())
-				log.Warningf("Invalid bearer token provided, length: %d", len(token))
+				log.Infof("Invalid bearer token provided, length: %d", len(token))
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}

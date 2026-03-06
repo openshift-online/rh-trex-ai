@@ -71,7 +71,7 @@ func validateBearerToken(ctx context.Context, expectedToken string) error {
 	// Constant-time comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 		log := logger.NewLogger(ctx)
-		log.Warningf("Invalid bearer token provided in gRPC call, length: %d", len(token))
+		log.Infof("Invalid bearer token provided in gRPC call, length: %d", len(token))
 		return status.Error(codes.Unauthenticated, "invalid token")
 	}
 

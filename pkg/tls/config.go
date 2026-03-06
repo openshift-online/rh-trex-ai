@@ -31,8 +31,7 @@ func SecureTLSConfig() *tls.Config {
 		// Prefer server cipher suite order
 		PreferServerCipherSuites: true,
 		
-		// Disable compression to prevent CRIME attacks
-		DisableSessionTickets: false, // Session tickets are OK with TLS 1.2+
+		// Session tickets are OK with TLS 1.2+ but not configurable in this field
 		
 		// Use only secure curves
 		CurvePreferences: []tls.CurveID{

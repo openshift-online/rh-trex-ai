@@ -1,9 +1,9 @@
 package environments
 
 import (
+	"net/http"
 	"sync"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/client/apiclient"
 	"github.com/openshift-online/rh-trex-ai/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/pkg/db"
@@ -36,8 +36,13 @@ type Database struct {
 	SessionFactory db.SessionFactory
 }
 
+// JWTMiddleware interface for JWT authentication - avoiding import cycle
+type JWTMiddleware interface {
+	AuthenticateAccountJWT(next http.Handler) http.Handler
+}
+
 type Handlers struct {
-	AuthMiddleware auth.JWTMiddleware
+	AuthMiddleware JWTMiddleware
 }
 
 type Services struct {

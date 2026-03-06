@@ -24,21 +24,22 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	metadataHandler := handlers.NewMetadataHandler()
 
 	// Build authentication middleware based on configuration
-	authBuilder := auth.NewAuthMiddlewareBuilder(env)
+	authConfig := env.Config.GetEffectiveAuthConfig()
+	authBuilder := auth.NewAuthMiddlewareBuilder(authConfig)
 	httpAuthMiddleware, err := authBuilder.BuildHTTPMiddleware()
 	if err != nil {
 		Check(err, "Unable to create HTTP auth middleware")
 	}
 	
 	// For backward compatibility, also create JWT middleware for plugins that expect it
-	var authMiddleware auth.JWTMiddleware
-	authConfig := env.Config.GetEffectiveAuthConfig()
+	var authMiddleware environments.JWTMiddleware
 	if authConfig.EnableJWT {
 		var err error
-		authMiddleware, err = auth.NewAuthMiddleware()
+		middleware, err := auth.NewAuthMiddleware()
 		if err != nil {
 			Check(err, "Unable to create JWT middleware")
 		}
+		authMiddleware = middleware
 	} else {
 		authMiddleware = &auth.MiddlewareMock{}
 	}
