@@ -12,10 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// BearerTokenUnaryInterceptor creates a unary gRPC interceptor for bearer token authentication
 func BearerTokenUnaryInterceptor(expectedToken string, bypassMethods []string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Skip authentication for bypass methods
 		for _, method := range bypassMethods {
 			if strings.HasPrefix(info.FullMethod, method) {
 				return handler(ctx, req)
@@ -30,10 +28,8 @@ func BearerTokenUnaryInterceptor(expectedToken string, bypassMethods []string) g
 	}
 }
 
-// BearerTokenStreamInterceptor creates a stream gRPC interceptor for bearer token authentication
 func BearerTokenStreamInterceptor(expectedToken string, bypassMethods []string) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		// Skip authentication for bypass methods
 		for _, method := range bypassMethods {
 			if strings.HasPrefix(info.FullMethod, method) {
 				return handler(srv, stream)
@@ -48,7 +44,6 @@ func BearerTokenStreamInterceptor(expectedToken string, bypassMethods []string) 
 	}
 }
 
-// validateBearerToken extracts and validates the bearer token from gRPC metadata
 func validateBearerToken(ctx context.Context, expectedToken string) error {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -60,15 +55,13 @@ func validateBearerToken(ctx context.Context, expectedToken string) error {
 		return status.Error(codes.Unauthenticated, "authorization token required")
 	}
 
-	// Extract bearer token from first authorization header
 	token := strings.TrimPrefix(authHeader[0], "Bearer ")
 	token = strings.TrimPrefix(token, "bearer ")
 
-	if token == authHeader[0] { // No "Bearer " prefix found
+	if token == authHeader[0] {
 		return status.Error(codes.Unauthenticated, "bearer token required")
 	}
 
-	// Constant-time comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 		log := logger.NewLogger(ctx)
 		log.Infof("Invalid bearer token provided in gRPC call, length: %d", len(token))
@@ -78,7 +71,6 @@ func validateBearerToken(ctx context.Context, expectedToken string) error {
 	return nil
 }
 
-// DefaultBypassMethods returns the standard list of gRPC methods that should bypass authentication
 func DefaultBypassMethods() []string {
 	return []string{
 		"/grpc.health.v1.Health/",
@@ -86,7 +78,6 @@ func DefaultBypassMethods() []string {
 	}
 }
 
-// ExtendBypassMethods adds additional methods to the default bypass list
 func ExtendBypassMethods(additionalMethods ...string) []string {
 	methods := DefaultBypassMethods()
 	return append(methods, additionalMethods...)

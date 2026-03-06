@@ -8,23 +8,20 @@ import (
 	"google.golang.org/grpc"
 )
 
-// AuthenticationStrategy defines the strategy for authentication
 type AuthenticationStrategy int
 
 const (
 	AuthStrategyNone AuthenticationStrategy = iota
 	AuthStrategyJWT
 	AuthStrategyBearer
-	AuthStrategyBoth // Both JWT and Bearer are accepted
+	AuthStrategyBoth
 )
 
-// AuthMiddlewareBuilder creates authentication middleware based on configuration
 type AuthMiddlewareBuilder struct {
 	authConfig *config.AuthConfig
 	strategy   AuthenticationStrategy
 }
 
-// NewAuthMiddlewareBuilder creates a new authentication middleware builder
 func NewAuthMiddlewareBuilder(authConfig *config.AuthConfig) *AuthMiddlewareBuilder {
 	var strategy AuthenticationStrategy
 	if authConfig.EnableJWT && authConfig.EnableBearer {
@@ -43,7 +40,6 @@ func NewAuthMiddlewareBuilder(authConfig *config.AuthConfig) *AuthMiddlewareBuil
 	}
 }
 
-// BuildHTTPMiddleware creates HTTP authentication middleware based on the configured strategy
 func (b *AuthMiddlewareBuilder) BuildHTTPMiddleware() (func(http.Handler) http.Handler, error) {
 	switch b.strategy {
 	case AuthStrategyNone:
@@ -63,7 +59,6 @@ func (b *AuthMiddlewareBuilder) BuildHTTPMiddleware() (func(http.Handler) http.H
 		return BearerTokenMiddleware(b.authConfig.BearerToken, b.authConfig.BypassPaths), nil
 
 	case AuthStrategyBoth:
-		// Create a middleware that accepts both JWT and Bearer tokens
 		if err := b.authConfig.Validate(); err != nil {
 			return nil, fmt.Errorf("bearer token configuration invalid: %w", err)
 		}
@@ -80,14 +75,12 @@ func (b *AuthMiddlewareBuilder) BuildHTTPMiddleware() (func(http.Handler) http.H
 	}
 }
 
-// BuildGRPCInterceptors creates gRPC authentication interceptors based on the configured strategy
 func (b *AuthMiddlewareBuilder) BuildGRPCInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
 	switch b.strategy {
 	case AuthStrategyNone:
 		return nil, nil, nil
 
 	case AuthStrategyJWT:
-		// JWT for gRPC is handled by the existing AuthUnaryInterceptor in grpc_server.go
 		return nil, nil, nil
 
 	case AuthStrategyBearer:
@@ -99,8 +92,6 @@ func (b *AuthMiddlewareBuilder) BuildGRPCInterceptors() (grpc.UnaryServerInterce
 			nil
 
 	case AuthStrategyBoth:
-		// For gRPC, we currently support either JWT or Bearer, not both simultaneously
-		// This could be enhanced in the future to support dual auth
 		return nil, nil, fmt.Errorf("dual authentication (JWT + Bearer) not yet supported for gRPC")
 
 	default:
@@ -108,11 +99,9 @@ func (b *AuthMiddlewareBuilder) BuildGRPCInterceptors() (grpc.UnaryServerInterce
 	}
 }
 
-// buildDualAuthMiddleware creates middleware that accepts both JWT and Bearer tokens
 func (b *AuthMiddlewareBuilder) buildDualAuthMiddleware(jwtMiddleware JWTMiddleware, bearerToken string, bypassPaths []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if this path should bypass authentication
 			for _, path := range bypassPaths {
 				if r.URL.Path == path || (len(r.URL.Path) > len(path) && r.URL.Path[:len(path)] == path) {
 					next.ServeHTTP(w, r)
@@ -126,21 +115,17 @@ func (b *AuthMiddlewareBuilder) buildDualAuthMiddleware(jwtMiddleware JWTMiddlew
 				return
 			}
 
-			// Try Bearer token first (simpler validation)
 			if bearerToken != "" && (len(authHeader) > 7 && (authHeader[:7] == "Bearer " || authHeader[:7] == "bearer ")) {
-				// Use bearer token middleware
 				bearerMiddleware := BearerTokenMiddleware(bearerToken, bypassPaths)
 				bearerMiddleware(next).ServeHTTP(w, r)
 				return
 			}
 
-			// Fall back to JWT authentication
 			jwtMiddleware.AuthenticateAccountJWT(next).ServeHTTP(w, r)
 		})
 	}
 }
 
-// GetStrategy returns the current authentication strategy
 func (b *AuthMiddlewareBuilder) GetStrategy() AuthenticationStrategy {
 	return b.strategy
 }
