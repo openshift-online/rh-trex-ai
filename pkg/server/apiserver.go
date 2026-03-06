@@ -96,16 +96,51 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 
 func (s defaultAPIServer) Serve(listener net.Listener) {
 	var err error
-	if s.env.Config.Server.EnableHTTPS {
-		if s.env.Config.Server.HTTPSCertFile == "" || s.env.Config.Server.HTTPSKeyFile == "" {
-			Check(
-				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
-				"Can't start https server",
-			)
+	
+	// Apply TLS configuration using the new TLS framework (mirrors gRPC server pattern)
+	if s.env.Config.TLS.EnableTLS || s.env.Config.Server.EnableHTTPS {
+		// Use new TLS framework for server configuration
+		tlsConfig, tlsErr := s.env.Config.TLS.BuildServerTLSConfig()
+		if tlsErr != nil {
+			// Fall back to legacy HTTPS configuration if new framework fails
+			if s.env.Config.Server.EnableHTTPS {
+				if s.env.Config.Server.HTTPSCertFile == "" || s.env.Config.Server.HTTPSKeyFile == "" {
+					Check(
+						fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
+						"Can't start HTTPS server",
+					)
+				}
+				
+				glog.Info("Using legacy HTTPS configuration")
+				glog.Infof("Serving with TLS (legacy) at %s", s.env.Config.Server.BindAddress)
+				err = s.httpServer.ServeTLS(listener, s.env.Config.Server.HTTPSCertFile, s.env.Config.Server.HTTPSKeyFile)
+			} else {
+				glog.Infof("TLS configuration failed: %v", tlsErr)
+				glog.Infof("Serving without TLS at %s", s.env.Config.Server.BindAddress)
+				err = s.httpServer.Serve(listener)
+			}
+		} else if tlsConfig != nil {
+			// Use enhanced TLS configuration
+			s.httpServer.TLSConfig = tlsConfig
+			glog.Infof("Using enhanced TLS configuration with minimum version %s", 
+				func() string {
+					switch tlsConfig.MinVersion {
+					case 0x0303: // tls.VersionTLS12
+						return "TLS 1.2"
+					case 0x0304: // tls.VersionTLS13
+						return "TLS 1.3"
+					default:
+						return "unknown"
+					}
+				}())
+			glog.Infof("Serving with enhanced TLS at %s", s.env.Config.Server.BindAddress)
+			
+			// Serve with TLS configuration applied to the server
+			err = s.httpServer.ServeTLS(listener, "", "")
+		} else {
+			glog.Infof("Serving without TLS at %s", s.env.Config.Server.BindAddress)
+			err = s.httpServer.Serve(listener)
 		}
-
-		glog.Infof("Serving with TLS at %s", s.env.Config.Server.BindAddress)
-		err = s.httpServer.ServeTLS(listener, s.env.Config.Server.HTTPSCertFile, s.env.Config.Server.HTTPSKeyFile)
 	} else {
 		glog.Infof("Serving without TLS at %s", s.env.Config.Server.BindAddress)
 		err = s.httpServer.Serve(listener)
