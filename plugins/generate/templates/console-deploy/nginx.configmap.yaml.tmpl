@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.PluginName}}-nginx
+  labels:
+    app: {{.PluginName}}
+    app.kubernetes.io/name: {{.PluginName}}
+    app.kubernetes.io/part-of: {{.Project}}
+data:
+  nginx.conf: |
+    error_log /dev/stdout info;
+    events {}
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      sendfile on;
+      keepalive_timeout 65;
+
+      server {
+        listen 9443 ssl;
+        ssl_certificate /var/cert/tls.crt;
+        ssl_certificate_key /var/cert/tls.key;
+        root /usr/share/nginx/html;
+
+        location /health {
+          access_log off;
+          return 200 'OK';
+          add_header Content-Type text/plain;
+        }
+      }
+    }

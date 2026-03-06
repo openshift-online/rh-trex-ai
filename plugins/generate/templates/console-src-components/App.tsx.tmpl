@@ -1,0 +1,20 @@
+import * as React from 'react';
+import { Redirect, Route, Switch } from 'react-router-dom';
+{{range .Resources}}
+import {{.Name}}ListPage from './{{.Name}}ListPage';
+import {{.Name}}DetailsPage from './{{.Name}}DetailsPage';
+import {{.Name}}CreatePage from './{{.Name}}CreatePage';
+{{- end}}
+
+const App: React.FC = () => (
+  <Switch>
+{{- range .Resources}}
+    <Route exact path="/{{$.PluginName}}/{{.PluralKebab}}" component={ {{.Name}}ListPage} />
+    <Route exact path="/{{$.PluginName}}/{{.PluralKebab}}/create" component={ {{.Name}}CreatePage} />
+    <Route exact path="/{{$.PluginName}}/{{.PluralKebab}}/:id" component={ {{.Name}}DetailsPage} />
+{{- end}}
+    <Redirect to="/{{.PluginName}}/{{(index .Resources 0).PluralKebab}}" />
+  </Switch>
+);
+
+export default App;

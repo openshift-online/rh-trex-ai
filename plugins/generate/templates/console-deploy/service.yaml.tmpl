@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.PluginName}}
+  labels:
+    app: {{.PluginName}}
+    app.kubernetes.io/name: {{.PluginName}}
+    app.kubernetes.io/part-of: {{.Project}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: {{.PluginName}}-cert
+spec:
+  ports:
+    - name: 9443-tcp
+      protocol: TCP
+      port: 9443
+      targetPort: 9443
+  selector:
+    app: {{.PluginName}}
+  type: ClusterIP

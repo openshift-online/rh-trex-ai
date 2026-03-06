@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "{{.Repo}}/{{.Project}}/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+{{- range .Fields}}
+{{- if eq .Type "time"}}
+import "google/protobuf/timestamp.proto";
+{{- end}}
+{{- end}}
+
+message {{.Kind}} {
+  ObjectReference metadata = 1;
+  {{- $fieldIndex := 2}}
+  {{- range .Fields}}
+  {{- if .Required}}
+  {{protoFieldType .}} {{.NameSnakeCase}} = {{$fieldIndex}};
+  {{- else}}
+  optional {{protoFieldType .}} {{.NameSnakeCase}} = {{$fieldIndex}};
+  {{- end}}
+  {{- $fieldIndex = add $fieldIndex 1}}
+  {{- end}}
+}
+
+message Create{{.Kind}}Request {
+  {{- $fieldIndex := 1}}
+  {{- range .Fields}}
+  {{- if .Required}}
+  {{protoFieldType .}} {{.NameSnakeCase}} = {{$fieldIndex}};
+  {{- else}}
+  optional {{protoFieldType .}} {{.NameSnakeCase}} = {{$fieldIndex}};
+  {{- end}}
+  {{- $fieldIndex = add $fieldIndex 1}}
+  {{- end}}
+}
+
+message Get{{.Kind}}Request {
+  string id = 1;
+}
+
+message Update{{.Kind}}Request {
+  string id = 1;
+  {{- $fieldIndex := 2}}
+  {{- range .Fields}}
+  optional {{protoFieldType .}} {{.NameSnakeCase}} = {{$fieldIndex}};
+  {{- $fieldIndex = add $fieldIndex 1}}
+  {{- end}}
+}
+
+message Delete{{.Kind}}Request {
+  string id = 1;
+}
+
+message List{{.KindPlural}}Request {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message List{{.KindPlural}}Response {
+  repeated {{.Kind}} items = 1;
+  ListMeta metadata = 2;
+}
+
+message Delete{{.Kind}}Response {}
+
+message Watch{{.KindPlural}}Request {}
+
+message {{.Kind}}WatchEvent {
+  EventType type = 1;
+  {{.Kind}} {{.KindLowerSingular}} = 2;
+  string resource_id = 3;
+}
+
+service {{.Kind}}Service {
+  rpc Get{{.Kind}}(Get{{.Kind}}Request) returns ({{.Kind}});
+  rpc Create{{.Kind}}(Create{{.Kind}}Request) returns ({{.Kind}});
+  rpc Update{{.Kind}}(Update{{.Kind}}Request) returns ({{.Kind}});
+  rpc Delete{{.Kind}}(Delete{{.Kind}}Request) returns (Delete{{.Kind}}Response);
+  rpc List{{.KindPlural}}(List{{.KindPlural}}Request) returns (List{{.KindPlural}}Response);
+  rpc Watch{{.KindPlural}}(Watch{{.KindPlural}}Request) returns (stream {{.Kind}}WatchEvent);
+}

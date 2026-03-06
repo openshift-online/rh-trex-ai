@@ -1,0 +1,53 @@
+{
+  "name": "{{.PluginName}}",
+  "version": "0.0.1",
+  "description": "OpenShift Console plugin for {{.DisplayName}}",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "yarn clean && NODE_ENV=production yarn webpack",
+    "build-dev": "yarn clean && yarn webpack",
+    "start": "yarn webpack serve --progress",
+    "lint": "yarn eslint src --fix",
+    "webpack": "node -r ts-node/register ./node_modules/.bin/webpack"
+  },
+  "devDependencies": {
+    "@openshift-console/dynamic-plugin-sdk": "4.19.0",
+    "@openshift-console/dynamic-plugin-sdk-webpack": "4.19.0",
+    "@patternfly/react-core": "^5.4.0",
+    "@patternfly/react-icons": "^5.4.0",
+    "@patternfly/react-table": "^5.4.0",
+    "@types/react": "^17.0.40",
+    "@types/react-dom": "^17.0.13",
+    "@types/react-router-dom": "^5.3.3",
+    "copy-webpack-plugin": "^12.0.0",
+    "css-loader": "^7.0.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-router-dom": "^5.3.4",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.0",
+    "webpack-dev-server": "^5.0.0"
+  },
+  "consolePlugin": {
+    "name": "{{.PluginName}}",
+    "version": "0.0.1",
+    "displayName": "{{.DisplayName}}",
+    "description": "OpenShift Console plugin for managing {{.Project}} resources",
+    "exposedModules": {
+{{- range $i, $r := .Resources}}{{if $i}},{{end}}
+      "{{$r.Name}}ListPage": "./components/{{$r.Name}}ListPage",
+      "{{$r.Name}}DetailsPage": "./components/{{$r.Name}}DetailsPage",
+      "{{$r.Name}}CreatePage": "./components/{{$r.Name}}CreatePage"
+{{- end}}
+    },
+    "dependencies": {
+      "@console/pluginAPI": "*"
+    }
+  }
+}

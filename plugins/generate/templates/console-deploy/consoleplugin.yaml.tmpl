@@ -1,0 +1,22 @@
+apiVersion: console.openshift.io/v1
+kind: ConsolePlugin
+metadata:
+  name: {{.PluginName}}
+spec:
+  displayName: "{{.DisplayName}}"
+  backend:
+    type: Service
+    service:
+      name: {{.PluginName}}
+      namespace: REPLACE_WITH_NAMESPACE
+      port: 9443
+      basePath: /
+  proxy:
+    - alias: api
+      authorization: UserToken
+      endpoint:
+        type: Service
+        service:
+          name: REPLACE_WITH_API_SERVICE
+          namespace: REPLACE_WITH_NAMESPACE
+          port: REPLACE_WITH_API_PORT

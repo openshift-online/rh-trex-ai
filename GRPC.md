@@ -1368,6 +1368,8 @@ protoc-gen-go-grpc                      # Go gRPC service code generator
 - Test transaction rollback on handler errors
 
 ### Manual Testing
+
+#### Local Development (no TLS)
 ```bash
 go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
@@ -1392,6 +1394,34 @@ grpcurl -plaintext -d '{}' \
 
 # Watch for events (streaming)
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
+```
+
+#### Production with TLS
+```bash
+# Start server with TLS enabled
+./trex serve --grpc-enable-tls --grpc-tls-cert-file server.crt --grpc-tls-key-file server.key
+
+# List services with TLS (uses system CA)
+grpcurl localhost:9000 list
+
+# Create a dinosaur with TLS
+grpcurl -d '{"species": "velociraptor"}' \
+  localhost:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+
+# With custom CA certificate
+grpcurl -cacert ca.pem \
+  -d '{"species": "velociraptor"}' \
+  your-server.com:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+
+# Skip certificate verification (testing only)
+grpcurl -insecure \
+  -d '{"species": "velociraptor"}' \
+  untrusted.server.com:9000 rh_trex.v1.DinosaurService/CreateDinosaur
+
+# With client certificate authentication
+grpcurl -cert client.crt -key client.key -cacert ca.pem \
+  -d '{"species": "velociraptor"}' \
+  mtls.server.com:9000 rh_trex.v1.DinosaurService/CreateDinosaur
 ```
 
 ## Implementation Order
