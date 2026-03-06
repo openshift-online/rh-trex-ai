@@ -26,7 +26,6 @@ type AuthMiddlewareBuilder struct {
 
 // NewAuthMiddlewareBuilder creates a new authentication middleware builder
 func NewAuthMiddlewareBuilder(authConfig *config.AuthConfig) *AuthMiddlewareBuilder {
-	
 	var strategy AuthenticationStrategy
 	if authConfig.EnableJWT && authConfig.EnableBearer {
 		strategy = AuthStrategyBoth
