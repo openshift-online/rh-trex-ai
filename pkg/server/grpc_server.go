@@ -10,6 +10,7 @@ import (
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/environments"
 	"github.com/openshift-online/rh-trex-ai/pkg/server/grpcutil"
 )
@@ -39,9 +40,21 @@ type grpcAPIServer struct {
 var _ Server = &grpcAPIServer{}
 
 func NewDefaultGRPCServer(env *environments.Env) Server {
+	// Set up authentication based on configuration
+	authConfig := env.Config.GetEffectiveAuthConfig()
 	var keyProvider *grpcutil.JWKKeyProvider
-	if env.Config.Server.EnableJWT {
-		keyProvider = grpcutil.NewJWKKeyProvider(env.Config.Server.JwkCertURL, env.Config.Server.JwkCertFile)
+	
+	if authConfig.EnableJWT {
+		keyProvider = grpcutil.NewJWKKeyProvider(authConfig.JwkCertURL, authConfig.JwkCertFile)
+	}
+	
+	// Auto-register bearer token interceptors if configured
+	if authConfig.EnableBearer && authConfig.BearerToken != "" {
+		bearerUnary := auth.BearerTokenUnaryInterceptor(authConfig.BearerToken, authConfig.BypassMethods)
+		bearerStream := auth.BearerTokenStreamInterceptor(authConfig.BearerToken, authConfig.BypassMethods)
+		
+		RegisterPreAuthGRPCUnaryInterceptor(bearerUnary)
+		RegisterPreAuthGRPCStreamInterceptor(bearerStream)
 	}
 
 	// Build interceptor chains with pre-auth interceptors running BEFORE JWT auth
