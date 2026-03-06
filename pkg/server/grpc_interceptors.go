@@ -108,7 +108,8 @@ func TransactionUnaryInterceptor(sessionFactory db.SessionFactory) grpc.UnarySer
 
 func AuthUnaryInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyProvider) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		if !env.Config.Server.EnableJWT {
+		authConfig := env.Config.GetEffectiveAuthConfig()
+		if !authConfig.EnableJWT {
 			return handler(ctx, req)
 		}
 
@@ -174,7 +175,8 @@ func MetricsStreamInterceptor() grpc.StreamServerInterceptor {
 
 func AuthStreamInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyProvider) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if !env.Config.Server.EnableJWT {
+		authConfig := env.Config.GetEffectiveAuthConfig()
+		if !authConfig.EnableJWT {
 			return handler(srv, ss)
 		}
 

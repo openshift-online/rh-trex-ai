@@ -40,7 +40,8 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 		mainHandler = mw(mainHandler)
 	}
 
-	if env.Config.Server.EnableJWT {
+	authConfig := env.Config.GetEffectiveAuthConfig()
+	if authConfig.EnableJWT {
 		glog.Info("Enabling JWT authentication middleware")
 
 		jwtHandler, err := auth.NewJWTHandler().
@@ -96,6 +97,7 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 
 func (s defaultAPIServer) Serve(listener net.Listener) {
 	var err error
+	
 	
 	// Apply TLS configuration using the new TLS framework (mirrors gRPC server pattern)
 	if s.env.Config.TLS.EnableTLS || s.env.Config.Server.EnableHTTPS {
