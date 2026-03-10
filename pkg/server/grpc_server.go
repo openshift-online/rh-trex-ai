@@ -42,7 +42,7 @@ var _ Server = &grpcAPIServer{}
 
 func NewDefaultGRPCServer(env *environments.Env) Server {
 	// Set up authentication based on configuration
-	authConfig := env.Config.GetEffectiveAuthConfig()
+	authConfig := env.Config.GetAuthConfig()
 	var keyProvider *grpcutil.JWKKeyProvider
 
 	if authConfig.EnableJWT {

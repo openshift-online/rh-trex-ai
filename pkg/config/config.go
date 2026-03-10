@@ -39,6 +39,10 @@ func NewApplicationConfig() *ApplicationConfig {
 	}
 }
 
+func (c *ApplicationConfig) GetAuthConfig() *AuthConfig {
+	return c.Auth
+}
+
 func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	flagset.AddGoFlagSet(flag.CommandLine)
 	c.Server.AddFlags(flagset)

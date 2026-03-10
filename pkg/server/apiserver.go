@@ -40,13 +40,13 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 		mainHandler = mw(mainHandler)
 	}
 
-	authConfig := env.Config.GetEffectiveAuthConfig()
+	authConfig := env.Config.GetAuthConfig()
 	if authConfig.EnableJWT {
 		glog.Info("Enabling JWT authentication middleware")
 
 		jwtHandler, err := auth.NewJWTHandler().
-			WithKeysFile(env.Config.Server.JwkCertFile).
-			WithKeysURL(env.Config.Server.JwkCertURL).
+			WithKeysFile(authConfig.JwkCertFile).
+			WithKeysURL(authConfig.JwkCertURL).
 			WithACLFile(env.Config.Server.ACLFile).
 			WithPublicPath(strings.TrimSuffix(trex.GetConfig().BasePath, "/v1")).
 			WithPublicPath(trex.GetConfig().BasePath).

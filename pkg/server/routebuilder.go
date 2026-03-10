@@ -24,7 +24,7 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	metadataHandler := handlers.NewMetadataHandler()
 
 	// Build authentication middleware based on configuration
-	authConfig := env.Config.GetEffectiveAuthConfig()
+	authConfig := env.Config.GetAuthConfig()
 	authBuilder := auth.NewAuthMiddlewareBuilder(authConfig)
 	httpAuthMiddleware, err := authBuilder.BuildHTTPMiddleware()
 	if err != nil {
@@ -47,7 +47,12 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 		Check(fmt.Errorf("auth middleware is nil"), "Unable to create auth middleware: missing middleware")
 	}
 
-	authzMiddleware := auth.NewAuthzMiddlewareMock() //nolint:staticcheck // placeholder for real authz middleware
+	var authzMiddleware auth.AuthorizationMiddleware
+	if authConfig.EnableAuthz {
+		authzMiddleware = auth.NewAuthzMiddleware(authConfig)
+	} else {
+		authzMiddleware = auth.NewAuthzMiddlewareMock()
+	}
 
 	mainRouter := mux.NewRouter()
 	mainRouter.NotFoundHandler = http.HandlerFunc(api.SendNotFound)

@@ -104,7 +104,7 @@ func (h *BaseHelper) NewAccount(username, name, email string) *amv1.Account {
 
 func (h *BaseHelper) StartJWKCertServerMock() (jwkURL string, teardown func() error) {
 	jwkURL, teardown = mocks.NewJWKCertServerMock(h.T, h.JWTCA, JwkKID, JwkAlg)
-	h.AppConfig.Server.JwkCertURL = jwkURL
+	h.AppConfig.Auth.JwkCertURL = jwkURL
 	return jwkURL, teardown
 }
 
