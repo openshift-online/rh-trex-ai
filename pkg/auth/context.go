@@ -16,9 +16,7 @@ type contextKey string
 const (
 	ContextUsernameKey contextKey = "username"
 
-	// Does not use contextKey type because the jwt middleware improperly updates context with string key type
-	// See https://github.com/auth0/go-jwt-middleware/blob/master/jwtmiddleware.go#L232
-	ContextAuthKey string = "user"
+	ContextAuthKey contextKey = "user"
 )
 
 // AuthPayload defines the structure of the JWT payload we expect from

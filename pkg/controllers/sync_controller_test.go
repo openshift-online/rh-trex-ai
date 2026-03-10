@@ -65,9 +65,9 @@ func TestSyncController_FindsUnreconciledEvents(t *testing.T) {
 
 	// Setup mock DAO with test events
 	mockDao := mocks.NewEventDao()
-	mockDao.Create(context.Background(), oldEvent)
-	mockDao.Create(context.Background(), recentEvent)
-	mockDao.Create(context.Background(), reconciledEvent)
+	_, _ = mockDao.Create(context.Background(), oldEvent)
+	_, _ = mockDao.Create(context.Background(), recentEvent)
+	_, _ = mockDao.Create(context.Background(), reconciledEvent)
 
 	eventService := services.NewEventService(mockDao)
 
@@ -132,7 +132,7 @@ func TestSyncController_HandlerTracking(t *testing.T) {
 		ReconciledDate: nil,
 	}
 
-	mockEventDao.Create(context.Background(), event)
+	_, _ = mockEventDao.Create(context.Background(), event)
 
 	// Perform sync manually
 	ctx := context.Background()
@@ -164,7 +164,7 @@ func TestSyncController_EventLimiting(t *testing.T) {
 			EventType:      api.CreateEventType,
 			ReconciledDate: nil,
 		}
-		mockEventDao.Create(context.Background(), event)
+		_, _ = mockEventDao.Create(context.Background(), event)
 	}
 
 	// Test that sync respects MaxEventsPerSync limit

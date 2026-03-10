@@ -257,7 +257,7 @@ func (c *TLSConfig) applySecuritySettings(config *tls.Config) *tls.Config {
 
 	// Apply other settings
 	config.InsecureSkipVerify = c.InsecureSkipVerify
-	config.PreferServerCipherSuites = c.PreferServerCiphers
+	// PreferServerCipherSuites is deprecated and ignored since Go 1.18
 	config.ServerName = c.ServerName
 
 	return config

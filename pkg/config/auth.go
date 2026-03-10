@@ -56,12 +56,6 @@ func (c *AuthConfig) AddFlags(fs *pflag.FlagSet) {
 
 // ReadFiles reads authentication configuration from files and environment variables
 func (c *AuthConfig) ReadFiles() error {
-	// Read JWK cert file if specified
-	if c.JwkCertFile != "" {
-		// JWK cert file reading is handled by the JWT middleware
-		// No action needed here
-	}
-
 	// Read bearer token from environment if not set via flag
 	if c.BearerToken == "" {
 		if token := os.Getenv("API_TOKEN"); token != "" {

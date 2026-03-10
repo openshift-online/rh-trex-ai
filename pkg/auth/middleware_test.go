@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"net/http/httptest"
 	"testing"
@@ -133,13 +132,8 @@ func TestJWTHandler_SecurityHeaders(t *testing.T) {
 	}
 
 	// Test that error responses don't leak internal details
-	req := httptest.NewRequest("GET", "/protected", nil)
-	req.Header.Set("Authorization", "Bearer invalid.jwt.token")
-
-	// Verify the handler properly rejects without keys loaded
-	if req == nil {
-		t.Error("Failed to create test request")
-	}
+	// httptest.NewRequest never returns nil; just confirm it compiles
+	_ = httptest.NewRequest("GET", "/protected", nil)
 }
 
 func TestJWTHandler_ThreadSafety(t *testing.T) {
@@ -191,13 +185,4 @@ func TestJWTHandler_Stop(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Error("Stop() did not close refresh channel within timeout")
 	}
-}
-
-// generateTestRSAKey generates a test RSA key pair for testing
-func generateTestRSAKey() (*rsa.PrivateKey, *rsa.PublicKey, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-	return privateKey, &privateKey.PublicKey, nil
 }

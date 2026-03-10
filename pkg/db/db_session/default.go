@@ -133,10 +133,7 @@ func newListener(ctx context.Context, connstr, channel string, callback func(id 
 	}
 
 	logger.Infof("Starting channeling monitor for %s", channel)
-	for {
-		if !waitForNotification(ctx, listener, callback) {
-			break
-		}
+	for waitForNotification(ctx, listener, callback) {
 	}
 
 	if err := listener.Close(); err != nil {

@@ -106,8 +106,8 @@ func HandleGet(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig) {
 	}
 
 	result, serviceErr := cfg.Action()
-	switch {
-	case serviceErr == nil:
+	switch serviceErr {
+	case nil:
 		writeJSONResponse(w, http.StatusOK, result)
 	default:
 		cfg.ErrorHandler(r.Context(), w, serviceErr)

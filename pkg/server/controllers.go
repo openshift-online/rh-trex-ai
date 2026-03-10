@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/openshift-online/rh-trex-ai/pkg/controllers"
@@ -20,7 +19,6 @@ type ControllersServer struct {
 	SessionFactory        db.SessionFactory
 	cancel                context.CancelFunc
 	done                  chan struct{}
-	startOnce             sync.Once
 }
 
 func (s *ControllersServer) Start() {

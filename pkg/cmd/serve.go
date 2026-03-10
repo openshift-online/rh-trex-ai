@@ -102,6 +102,6 @@ func runServe(getSpecData func() ([]byte, error)) {
 		glog.Warning("Shutdown timed out, forcing exit")
 	}
 
-	env.Database.SessionFactory.Close()
+	_ = env.Database.SessionFactory.Close()
 	glog.Info("Database connections closed")
 }

@@ -27,7 +27,7 @@ func (testModel) TableName() string { return "dinosaurs" }
 func TestSQLTranslation(t *testing.T) {
 	RegisterTestingT(t)
 	var dbFactory db.SessionFactory = dbmocks.NewMockSessionFactory()
-	defer dbFactory.Close()
+	defer func() { _ = dbFactory.Close() }()
 
 	g := dao.NewGenericDao(&dbFactory)
 	genericService := sqlGenericService{genericDao: g}

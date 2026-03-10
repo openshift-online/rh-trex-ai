@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -84,9 +83,12 @@ func (k *KubernetesCALoader) LoadCombinedCA() (*x509.CertPool, error) {
 	// Add service CA if available
 	serviceCA, err := k.LoadServiceCA()
 	if err == nil {
-		// Merge service CA into the pool
-		for _, cert := range serviceCA.Subjects() {
-			pool.AppendCertsFromPEM(cert)
+		// Merge service CA into the pool by re-reading the source file
+		if k.fileExists(k.ServiceCAPath) {
+			if caCert, readErr := os.ReadFile(k.ServiceCAPath); readErr == nil {
+				_ = serviceCA
+				pool.AppendCertsFromPEM(caCert)
+			}
 		}
 	}
 
@@ -95,8 +97,9 @@ func (k *KubernetesCALoader) LoadCombinedCA() (*x509.CertPool, error) {
 		if k.fileExists(caPath) {
 			customCA, err := k.loadCAFromFile(caPath)
 			if err == nil {
-				for _, cert := range customCA.Subjects() {
-					pool.AppendCertsFromPEM(cert)
+				_ = customCA
+				if caCert, readErr := os.ReadFile(caPath); readErr == nil {
+					pool.AppendCertsFromPEM(caCert)
 				}
 			}
 		}
@@ -121,7 +124,7 @@ func (k *KubernetesCALoader) GetNamespace() (string, error) {
 		return "", fmt.Errorf("namespace file not found (not running in Kubernetes?)")
 	}
 
-	data, err := ioutil.ReadFile(DefaultServiceNamespace)
+	data, err := os.ReadFile(DefaultServiceNamespace)
 	if err != nil {
 		return "", fmt.Errorf("failed to read namespace: %w", err)
 	}
@@ -210,7 +213,7 @@ func (k *KubernetesCALoader) fileExists(path string) bool {
 
 // loadCAFromFile loads CA certificates from a file
 func (k *KubernetesCALoader) loadCAFromFile(path string) (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(path)
+	caCert, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CA file %s: %w", path, err)
 	}

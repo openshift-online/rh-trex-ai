@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -27,11 +27,6 @@ func SecureTLSConfig() *tls.Config {
 			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
 		},
-
-		// Prefer server cipher suite order
-		PreferServerCipherSuites: true,
-
-		// Session tickets are OK with TLS 1.2+ but not configurable in this field
 
 		// Use only secure curves
 		CurvePreferences: []tls.CurveID{
@@ -69,7 +64,7 @@ func NewClientTLSConfig(serverName string, caFile string, insecureSkipVerify boo
 	config.InsecureSkipVerify = insecureSkipVerify
 
 	if caFile != "" {
-		caCert, err := ioutil.ReadFile(caFile)
+		caCert, err := os.ReadFile(caFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA file: %w", err)
 		}
@@ -93,7 +88,7 @@ func NewMutualTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 	}
 
 	if caFile != "" {
-		caCert, err := ioutil.ReadFile(caFile)
+		caCert, err := os.ReadFile(caFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA file: %w", err)
 		}

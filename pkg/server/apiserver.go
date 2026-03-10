@@ -162,7 +162,7 @@ func (s defaultAPIServer) Start() {
 	}
 	s.Serve(listener)
 
-	s.env.Database.SessionFactory.Close()
+	_ = s.env.Database.SessionFactory.Close()
 }
 
 func (s defaultAPIServer) Stop() error {

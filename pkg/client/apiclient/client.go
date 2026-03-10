@@ -76,7 +76,7 @@ func (c *Client) newConnection() error {
 
 func (c *Client) Close() {
 	if c.connection != nil {
-		c.connection.Close()
+		_ = c.connection.Close()
 	}
 }
 

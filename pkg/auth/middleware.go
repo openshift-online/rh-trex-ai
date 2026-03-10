@@ -234,7 +234,7 @@ func (j *JWTHandler) loadKeysFromURL() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch JWK set: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
