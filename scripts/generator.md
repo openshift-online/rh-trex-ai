@@ -143,12 +143,12 @@ For each diff item, the factory executes a pipeline:
 
 | Action | Generator | Command |
 | --- | --- | --- |
-| New Kind | Entity Generator | `go run ./scripts/generator.go --kind <Kind> --fields "<fields>"` |
+| New Kind (REST + gRPC) | Entity Generator | `go run ./scripts/generator.go --kind <Kind> --fields "<fields>"` |
+| Proto compile | Protobuf | `make proto` (run automatically by entity generator) |
+| OpenAPI client regen | OpenAPI | `make generate` (run automatically by entity generator) |
 | SDK regen | SDK Generator | `make generate-sdk` |
 | CLI regen | CLI Generator | `make generate-cli` |
 | Console regen | Console Plugin Generator | `make generate-console-plugin` |
-| Proto regen | Protobuf | `make proto` |
-| OpenAPI regen | OpenAPI | `make generate` |
 
 #### 3b. Build & Test (Agent: TRex)
 
@@ -245,24 +245,57 @@ Complete list of files produced by each generator in `scripts/`.
 
 ### 1. Entity Generator (`scripts/generator.go`)
 
-Generates a full CRUD entity with event-driven controllers from `--kind KindName`.
+Generates a full CRUD entity with REST, gRPC, and event-driven controllers from `--kind KindName`.
+All generated source files are co-located in `plugins/{kinds}/` as a self-contained plugin.
 
+#### Generated Files
 
-| #  | Generated File                                  | Description                                                  |
-| -- | ----------------------------------------------- | ------------------------------------------------------------ |
-| 1  | `pkg/api/{kind}.go`                             | API model struct and patch request                           |
-| 2  | `pkg/api/presenters/{kind}.go`                  | Presenter conversion functions                               |
-| 3  | `pkg/handlers/{kind}.go`                        | HTTP handlers (create, get, list, patch, delete)             |
-| 4  | `pkg/services/{kind}.go`                        | Business logic with OnUpsert/OnDelete event handlers         |
-| 5  | `pkg/dao/{kind}.go`                             | Data access layer for m                                      |
-| 6  | `pkg/dao/mocks/{kind}.go`                       | Mock DAO for unit testing                                    |
-| 7  | `pkg/db/migrations/YYYYMMDDHHMM_add_{kinds}.go` | Database migration                                           |
-| 8  | `test/integration/{kinds}_test.go`              | Integration test suite                                       |
-| 9  | `test/factories/{kinds}.go`                     | Test data factories                                          |
-| 10 | `openapi/openapi.{kinds}.yaml`                  | OpenAPI sub-specification                                    |
-| 11 | `plugins/{kinds}/plugin.go`                     | Plugin with routes, controllers, presenters, service locator |
+| #  | Generated File                           | Description                                                        |
+| -- | ---------------------------------------- | ------------------------------------------------------------------ |
+| 1  | `plugins/{kinds}/model.go`               | API model struct and patch request                                 |
+| 2  | `plugins/{kinds}/presenter.go`           | REST presenter: API model ↔ OpenAPI model conversion              |
+| 3  | `plugins/{kinds}/handler.go`             | HTTP handlers (create, get, list, patch, delete)                   |
+| 4  | `plugins/{kinds}/service.go`             | Business logic with OnUpsert/OnDelete event handlers               |
+| 5  | `plugins/{kinds}/dao.go`                 | Data access layer (GORM CRUD, FindByIDs, Search)                   |
+| 6  | `plugins/{kinds}/mock_dao.go`            | Mock DAO for unit testing                                          |
+| 7  | `plugins/{kinds}/migration.go`           | Database migration (YYYYMMDDHHMM timestamp ID)                     |
+| 8  | `plugins/{kinds}/integration_test.go`    | REST integration test suite (CRUD + search + pagination)           |
+| 9  | `plugins/{kinds}/factory_test.go`        | Test data factories                                                |
+| 10 | `plugins/{kinds}/testmain_test.go`       | Test main entry point (database setup)                             |
+| 11 | `plugins/{kinds}/grpc_handler.go`        | gRPC service implementation (Get, Create, Update, Delete, List, Watch) |
+| 12 | `plugins/{kinds}/grpc_presenter.go`      | gRPC presenter: API model ↔ protobuf message conversion           |
+| 13 | `plugins/{kinds}/grpc_integration_test.go` | gRPC integration tests (CRUD + server-streaming Watch)           |
+| 14 | `plugins/{kinds}/plugin.go`              | Plugin init(): registers routes, controllers, gRPC service, presenters |
+| 15 | `proto/rh_trex/v1/{kinds_snake}.proto`   | Protobuf service definition (6 RPCs + all message types)           |
+| 16 | `openapi/openapi.{kinds}.yaml`           | OpenAPI sub-specification (schemas + paths)                        |
 
-**Modified files:** `cmd/trex/main.go`, `pkg/db/migrations/migration_structs.go`, `openapi/openapi.yaml`
+#### Post-Generation Steps (run automatically)
+
+| Step | Command | Output |
+| ---- | ------- | ------ |
+| Compile proto | `make proto` | `pkg/api/grpc/rh_trex/v1/` Go stubs |
+| Regen OpenAPI client | `make generate` | `pkg/api/openapi/model_{kind}*.go` |
+
+#### Modified Files
+
+| File | Change |
+| ---- | ------ |
+| `openapi/openapi.yaml` | Adds `$ref` to new kind's paths and schemas |
+| `cmd/trex/main.go` | Adds blank import to trigger plugin `init()` |
+| `pkg/db/migrations/migration_structs.go` | Adds migration to `MigrationList` |
+
+#### gRPC Architecture
+
+Each entity generates a complete gRPC service alongside the REST API:
+
+- **`grpc_handler.go`**: Implements `pb.{Kind}ServiceServer`. The `Watch{Kinds}` method is a server-streaming RPC that subscribes to the `EventBroker` (PostgreSQL LISTEN/NOTIFY fan-out) and streams real-time change events to clients.
+- **`grpc_presenter.go`**: Type-safe conversion between the GORM model and protobuf message, including nullable pointer handling, int32 casting, and `timestamppb.Timestamp` conversion.
+- **`proto/rh_trex/v1/{kinds_snake}.proto`**: Defines 6 RPCs — `Get`, `Create`, `Update`, `Delete`, `List` (unary) and `Watch` (server-streaming returning `stream {Kind}WatchEvent`).
+- **`plugin.go` registration**: `RegisterGRPCService()` wires the handler into the gRPC server at startup via `init()`.
+
+#### OpenShift Console Plugin
+
+The entity generator does **not** generate the frontend console plugin. Use the Console Plugin Generator (below) to regenerate the full React/PatternFly frontend after adding new Kinds.
 
 ---
 
@@ -393,15 +426,17 @@ Produces a React/PatternFly application with webpack module federation, deployme
 ### File Count Summary
 
 
-| Generator        | Static Files   | Per-Resource Files  | Total (3 resources) |
-| ---------------- | -------------- | ------------------- | ------------------- |
-| Entity           | 0 + 3 modified | 11 per kind         | 11                  |
-| SDK (Go)         | 4              | 2 per resource      | 10                  |
-| SDK (Python)     | 4              | 2 per resource      | 10                  |
-| SDK (TypeScript) | 3              | 2 per resource      | 9                   |
-| CLI              | 20             | 3 per resource      | 29                  |
-| Console Plugin   | 14             | 3 per resource      | 23                  |
-| **Total**        | **45**         | **23 per resource** | **92**              |
+| Generator        | Static Files   | Per-Kind/Resource Files | Total (3 resources) |
+| ---------------- | -------------- | ----------------------- | ------------------- |
+| Entity           | 3 modified     | 16 per kind + 2 regen   | 48 + 6 regen        |
+| SDK (Go)         | 4              | 2 per resource          | 10                  |
+| SDK (Python)     | 4              | 2 per resource          | 10                  |
+| SDK (TypeScript) | 3              | 2 per resource          | 9                   |
+| CLI              | 20             | 3 per resource          | 29                  |
+| Console Plugin   | 14             | 3 per resource          | 23                  |
+| **Total**        | **48**         | **28 per resource**     | **129 + regen**     |
+
+> **Note:** "regen" files are produced by `make proto` and `make generate` from the generator's output, not written directly. For 3 new kinds these add ~12 Go stub files plus OpenAPI client models.
 
 ---
 
