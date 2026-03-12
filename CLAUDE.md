@@ -141,6 +141,9 @@ All subcommands support these logging flags:
   --enable-https \
   --https-cert-file /etc/certs/tls.crt \
   --https-key-file /etc/certs/tls.key \
+  --grpc-enable-tls \
+  --grpc-tls-cert-file /etc/certs/tls.crt \
+  --grpc-tls-key-file /etc/certs/tls.key \
   --db-sslmode verify-full \
   --enable-sentry \
   --ocm-base-url https://api.openshift.com \

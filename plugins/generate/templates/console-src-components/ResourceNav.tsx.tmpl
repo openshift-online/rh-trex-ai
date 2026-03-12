@@ -1,0 +1,19 @@
+import * as React from 'react';
+import { NavLink } from 'react-router-dom';
+import { Nav, NavItem, NavList } from '@patternfly/react-core';
+
+const ResourceNav: React.FC = () => (
+  <Nav theme="light">
+    <NavList>
+{{- range .Resources}}
+      <NavItem>
+        <NavLink to="/{{$.PluginName}}/{{.PluralKebab}}" activeClassName="pf-m-current">
+          {{.Plural}}
+        </NavLink>
+      </NavItem>
+{{- end}}
+    </NavList>
+  </Nav>
+);
+
+export default ResourceNav;

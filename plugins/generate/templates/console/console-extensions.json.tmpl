@@ -1,0 +1,44 @@
+[
+  {
+    "type": "console.navigation/section",
+    "properties": {
+      "id": "{{.PluginName}}",
+      "name": "{{.DisplayName}}",
+      "perspective": "{{.Perspective}}"
+    }
+  }{{range $i, $r := .Resources}},
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/{{$.PluginName}}/{{$r.PluralKebab}}",
+      "component": { "$codeRef": "{{$r.Name}}ListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/{{$.PluginName}}/{{$r.PluralKebab}}/create",
+      "component": { "$codeRef": "{{$r.Name}}CreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/{{$.PluginName}}/{{$r.PluralKebab}}/:id",
+      "component": { "$codeRef": "{{$r.Name}}DetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "{{$r.PluralKebab}}",
+      "name": "{{$r.Plural}}",
+      "href": "/{{$.PluginName}}/{{$r.PluralKebab}}",
+      "perspective": "{{$.Perspective}}",
+      "section": "{{$.PluginName}}"
+    }
+  }{{end}}
+]

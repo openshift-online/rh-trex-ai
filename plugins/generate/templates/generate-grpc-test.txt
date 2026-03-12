@@ -1,0 +1,269 @@
+package {{.KindLowerPlural}}_test
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"sync"
+	"testing"
+	"time"
+
+	. "github.com/onsi/gomega"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
+	"{{.Repo}}/{{.Project}}/test"
+)
+
+type bearerToken struct {
+	token string
+}
+
+func (b *bearerToken) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	return map[string]string{
+		"authorization": "Bearer " + b.token,
+	}, nil
+}
+
+func (b *bearerToken) RequireTransportSecurity() bool {
+	return false
+}
+
+func TestGRPC{{.Kind}}CRUD(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	h.StartControllersServer()
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+	jwtToken := h.CreateJWTString(account)
+
+	conn, err := grpc.NewClient(
+		h.GRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(&bearerToken{token: jwtToken}),
+	)
+	Expect(err).NotTo(HaveOccurred())
+	defer conn.Close()
+
+	grpcClient := pb.New{{.Kind}}ServiceClient(conn)
+
+	createReq := &pb.Create{{.Kind}}Request{
+		{{- range .Fields}}
+		{{- if .Required}}
+		{{- if eq .Type "string"}}
+		{{.Name}}: "Test{{.Name}}",
+		{{- else if eq .Type "int"}}
+		{{.Name}}: 42,
+		{{- else if eq .Type "int64"}}
+		{{.Name}}: 42,
+		{{- else if eq .Type "bool"}}
+		{{.Name}}: true,
+		{{- else if eq .Type "float"}}
+		{{.Name}}: 3.14,
+		{{- end}}
+		{{- else}}
+		{{- if eq .Type "string"}}
+		{{.Name}}: func() *string { s := "Test{{.Name}}"; return &s }(),
+		{{- else if eq .Type "int"}}
+		{{.Name}}: func() *int32 { v := int32(42); return &v }(),
+		{{- else if eq .Type "int64"}}
+		{{.Name}}: func() *int64 { v := int64(42); return &v }(),
+		{{- else if eq .Type "bool"}}
+		{{.Name}}: func() *bool { v := true; return &v }(),
+		{{- else if eq .Type "float"}}
+		{{.Name}}: func() *float64 { v := 3.14; return &v }(),
+		{{- end}}
+		{{- end}}
+		{{- end}}
+	}
+	created, err := grpcClient.Create{{.Kind}}(ctx, createReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(created.Metadata.Id).NotTo(BeEmpty())
+
+	{{.KindLowerSingular}}ID := created.Metadata.Id
+
+	getReq := &pb.Get{{.Kind}}Request{Id: {{.KindLowerSingular}}ID}
+	retrieved, err := grpcClient.Get{{.Kind}}(ctx, getReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(retrieved.Metadata.Id).To(Equal({{.KindLowerSingular}}ID))
+
+	updateReq := &pb.Update{{.Kind}}Request{
+		Id: {{.KindLowerSingular}}ID,
+		{{- range .Fields}}
+		{{- if eq .Type "string"}}
+		{{.Name}}: func() *string { s := "Updated{{.Name}}"; return &s }(),
+		{{- else if eq .Type "int"}}
+		{{.Name}}: func() *int32 { v := int32(99); return &v }(),
+		{{- else if eq .Type "int64"}}
+		{{.Name}}: func() *int64 { v := int64(99); return &v }(),
+		{{- else if eq .Type "bool"}}
+		{{.Name}}: func() *bool { v := false; return &v }(),
+		{{- else if eq .Type "float"}}
+		{{.Name}}: func() *float64 { v := 6.28; return &v }(),
+		{{- end}}
+		{{- end}}
+	}
+	updated, err := grpcClient.Update{{.Kind}}(ctx, updateReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(updated.Metadata.Id).To(Equal({{.KindLowerSingular}}ID))
+
+	listReq := &pb.List{{.KindPlural}}Request{
+		Page: 1,
+		Size: 10,
+	}
+	listResp, err := grpcClient.List{{.KindPlural}}(ctx, listReq)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(listResp.Metadata.Total).To(BeNumerically(">=", 1))
+
+	deleteReq := &pb.Delete{{.Kind}}Request{Id: {{.KindLowerSingular}}ID}
+	_, err = grpcClient.Delete{{.Kind}}(ctx, deleteReq)
+	Expect(err).NotTo(HaveOccurred())
+
+	_, err = grpcClient.Get{{.Kind}}(ctx, getReq)
+	Expect(err).To(HaveOccurred())
+}
+
+func TestGRPCWatch{{.KindPlural}}(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	h.StartControllersServer()
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+	jwtToken := h.CreateJWTString(account)
+
+	const totalItems = 25
+
+	conn, err := grpc.NewClient(
+		h.GRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(&bearerToken{token: jwtToken}),
+	)
+	Expect(err).NotTo(HaveOccurred())
+	defer conn.Close()
+
+	grpcClient := pb.New{{.Kind}}ServiceClient(conn)
+
+	itemNames := make(map[string]bool, totalItems)
+	for i := 0; i < totalItems; i++ {
+		itemNames[fmt.Sprintf("watch_test_%d", i)] = true
+	}
+
+	var sourceErr error
+	var sinkErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	sinkReady := make(chan struct{})
+
+	go func() {
+		defer wg.Done()
+		<-sinkReady
+		time.Sleep(100 * time.Millisecond)
+
+		for name := range itemNames {
+			{{.KindLowerSingular}}Input := openapi.{{.Kind}}{
+				{{- range .Fields}}
+				{{- if eq .Name "Name"}}
+				{{- if .Nullable}}
+				Name: openapi.PtrString(name),
+				{{- else}}
+				Name: name,
+				{{- end}}
+				{{- end}}
+				{{- end}}
+			}
+			_, resp, postErr := client.DefaultAPI.Api{{.ProjectPascalCase}}V1{{.KindPlural}}Post(ctx).{{.Kind}}({{.KindLowerSingular}}Input).Execute()
+			if postErr != nil {
+				sourceErr = fmt.Errorf("REST POST failed for %s: %v", name, postErr)
+				return
+			}
+			if resp.StatusCode != 201 {
+				sourceErr = fmt.Errorf("REST POST unexpected status %d for %s", resp.StatusCode, name)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		watchCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+
+		stream, streamErr := grpcClient.Watch{{.KindPlural}}(watchCtx, &pb.Watch{{.KindPlural}}Request{})
+		if streamErr != nil {
+			sinkErr = fmt.Errorf("Watch{{.KindPlural}} failed: %v", streamErr)
+			close(sinkReady)
+			return
+		}
+
+		close(sinkReady)
+
+		seen := make(map[string]bool)
+		for {
+			evt, recvErr := stream.Recv()
+			if recvErr == io.EOF {
+				break
+			}
+			if recvErr != nil {
+				if watchCtx.Err() != nil {
+					sinkErr = fmt.Errorf("sink timed out: saw %d/%d items", len(seen), totalItems)
+				} else {
+					sinkErr = fmt.Errorf("stream recv error: %v", recvErr)
+				}
+				return
+			}
+
+			if evt.Type != pb.EventType_EVENT_TYPE_CREATED {
+				continue
+			}
+
+			if evt.ResourceId != "" {
+				seen[evt.ResourceId] = true
+			}
+
+			if len(seen) == totalItems {
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	Expect(sourceErr).NotTo(HaveOccurred(), "source goroutine error")
+	Expect(sinkErr).NotTo(HaveOccurred(), "sink goroutine error")
+
+	listResp, listErr := grpcClient.List{{.KindPlural}}(context.Background(), &pb.List{{.KindPlural}}Request{
+		Page: 1,
+		Size: 100,
+	})
+	Expect(listErr).NotTo(HaveOccurred())
+	Expect(int(listResp.Metadata.Total)).To(BeNumerically(">=", totalItems))
+}
+
+func TestGRPC{{.Kind}}ErrorHandling(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	h.StartControllersServer()
+
+	account := h.NewRandAccount()
+	jwtToken := h.CreateJWTString(account)
+
+	conn, err := grpc.NewClient(
+		h.GRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(&bearerToken{token: jwtToken}),
+	)
+	Expect(err).NotTo(HaveOccurred())
+	defer conn.Close()
+
+	grpcClient := pb.New{{.Kind}}ServiceClient(conn)
+
+	getReq := &pb.Get{{.Kind}}Request{Id: "nonexistent"}
+	_, err = grpcClient.Get{{.Kind}}(context.Background(), getReq)
+	Expect(err).To(HaveOccurred())
+
+	deleteReq := &pb.Delete{{.Kind}}Request{Id: "nonexistent"}
+	_, err = grpcClient.Delete{{.Kind}}(context.Background(), deleteReq)
+}
