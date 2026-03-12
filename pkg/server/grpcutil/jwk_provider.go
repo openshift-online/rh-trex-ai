@@ -43,7 +43,7 @@ func NewJWKKeyProvider(keysURL, keysFile string) *JWKKeyProvider {
 		keys:          make(map[string]*rsa.PublicKey),
 		keysURL:       keysURL,
 		keysFile:      keysFile,
-		reloadMinWait: 1 * time.Minute,
+		reloadMinWait: 15 * time.Second,
 	}
 }
 

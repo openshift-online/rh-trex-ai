@@ -20,24 +20,25 @@ import (
 
 // JWTHandler provides JWT authentication without OCM dependencies
 type JWTHandler struct {
-	keysURL     string
-	keysFile    string
-	publicKeys  map[string]*rsa.PublicKey
-	keysMutex   sync.RWMutex
-	aclFile     string
-	publicPaths []string
-	httpClient  *http.Client
-	refreshStop chan struct{}
+	keysURL        string
+	keysFile       string
+	publicKeys     map[string]*rsa.PublicKey
+	keysMutex      sync.RWMutex
+	aclFile        string
+	publicPaths    []string
+	httpClient     *http.Client
+	refreshStop    chan struct{}
+	lastKidRefresh time.Time
+	kidRefreshWait time.Duration
 }
 
 // NewJWTHandler creates a new JWT handler instance
 func NewJWTHandler() *JWTHandler {
 	return &JWTHandler{
-		publicKeys: make(map[string]*rsa.PublicKey),
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		refreshStop: make(chan struct{}),
+		publicKeys:     make(map[string]*rsa.PublicKey),
+		httpClient:     &http.Client{Timeout: 10 * time.Second},
+		refreshStop:    make(chan struct{}),
+		kidRefreshWait: 30 * time.Second,
 	}
 }
 
@@ -72,10 +73,8 @@ func (j *JWTHandler) Build() (func(http.Handler) http.Handler, error) {
 		return nil, fmt.Errorf("failed to load JWT keys: %v", err)
 	}
 
-	// Start automatic key refresh if using URL
-	if j.keysURL != "" {
-		go j.refreshKeysLoop()
-	}
+	// Start automatic key refresh for URL sources (hourly) and file sources (every 5 minutes)
+	go j.refreshKeysLoop()
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -147,11 +146,26 @@ func (j *JWTHandler) validateToken(tokenString string) (*jwt.Token, error) {
 		publicKey, exists := j.publicKeys[kid]
 		j.keysMutex.RUnlock()
 
-		if !exists {
-			return nil, fmt.Errorf("unknown key ID: %s", kid)
+		if exists {
+			return publicKey, nil
 		}
 
-		return publicKey, nil
+		// Unknown kid — attempt a one-shot refresh if outside cooldown window
+		if time.Since(j.lastKidRefresh) >= j.kidRefreshWait {
+			j.lastKidRefresh = time.Now()
+			if refreshErr := j.loadKeys(); refreshErr != nil {
+				glog.Warningf("JWT key refresh on unknown kid failed: %v", refreshErr)
+			} else {
+				j.keysMutex.RLock()
+				publicKey, exists = j.publicKeys[kid]
+				j.keysMutex.RUnlock()
+				if exists {
+					return publicKey, nil
+				}
+			}
+		}
+
+		return nil, fmt.Errorf("unknown key ID: %s", kid)
 	})
 
 	if err != nil {
@@ -201,15 +215,20 @@ type JWK struct {
 	E   string `json:"e"`   // RSA exponent
 }
 
-// refreshKeysLoop periodically refreshes JWK keys from URL
+// refreshKeysLoop periodically refreshes JWK keys.
+// URL sources refresh every hour; file sources refresh every 5 minutes to pick up kubelet-synced rotations.
 func (j *JWTHandler) refreshKeysLoop() {
-	ticker := time.NewTicker(1 * time.Hour) // Refresh every hour
+	interval := 1 * time.Hour
+	if j.keysURL == "" {
+		interval = 5 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := j.loadKeysFromURL(); err != nil {
+			if err := j.loadKeys(); err != nil {
 				glog.Warningf("Failed to refresh JWT keys: %v", err)
 			} else {
 				glog.V(1).Info("JWT keys refreshed successfully")
