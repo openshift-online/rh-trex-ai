@@ -15,6 +15,7 @@ import (
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
 
 	"github.com/openshift-online/rh-trex-ai/pkg/api"
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/dao"
 	"github.com/openshift-online/rh-trex-ai/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/pkg/errors"
@@ -35,10 +36,24 @@ type sqlGenericService struct {
 	genericDao dao.GenericDao
 }
 
+// UserScopeConfig controls per-resource user-scoped query filtering.
+type UserScopeConfig struct {
+	// OwnershipField is the DB column used for ownership filtering (e.g., "created_by_user_id").
+	OwnershipField string
+	// AdminRoles are JWT realm_access.roles that bypass scoping.
+	AdminRoles []string
+}
+
 var (
 	SearchDisallowedFields = map[string]map[string]string{}
 	allFieldsAllowed       = map[string]string{}
+	userScopeConfigs       = map[string]*UserScopeConfig{}
 )
+
+// SetUserScopeConfig registers a UserScopeConfig for a resource type name.
+func SetUserScopeConfig(resourceType string, config *UserScopeConfig) {
+	userScopeConfigs[resourceType] = config
+}
 
 // wrap all needed pieces for the LIST funciton
 type listContext struct {
@@ -94,10 +109,11 @@ func (s *sqlGenericService) List(ctx context.Context, username string, args *Lis
 		// add "ORDER BY"
 		s.buildOrderBy,
 
+		// filter by ownership field when UserScopeConfig is registered
+		s.buildUserScope,
+
 		// translate "search" into "WHERE"(s), and "JOIN"(s) if related resource is searched.
 		s.buildSearch,
-
-		// TODO: add any custom builder functions
 	}
 
 	d := s.genericDao.GetInstanceDao(ctx, model)
@@ -145,6 +161,30 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 			(*d).OrderBy(orderByArg)
 		}
 	}
+	return false, nil
+}
+
+func (s *sqlGenericService) buildUserScope(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
+	scopeConfig, exists := userScopeConfigs[listCtx.resourceType]
+	if !exists {
+		return false, nil
+	}
+	if listCtx.username == "" {
+		return false, nil
+	}
+	roles := auth.GetRolesFromContext(listCtx.ctx)
+	for _, role := range roles {
+		for _, adminRole := range scopeConfig.AdminRoles {
+			if role == adminRole {
+				return false, nil
+			}
+		}
+	}
+	tableName := (*d).GetTableName()
+	(*d).Where(dao.NewWhere(
+		fmt.Sprintf("%s.%s = ?", tableName, scopeConfig.OwnershipField),
+		[]any{listCtx.username},
+	))
 	return false, nil
 }
 
