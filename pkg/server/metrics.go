@@ -120,6 +120,10 @@ func (w *metricsResponseWrapper) WriteHeader(code int) {
 	w.wrapped.WriteHeader(code)
 }
 
+func (w *metricsResponseWrapper) Unwrap() http.ResponseWriter {
+	return w.wrapped
+}
+
 var metricsOnce sync.Once
 
 func RegisterMetrics() {

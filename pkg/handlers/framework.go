@@ -126,3 +126,10 @@ func HandleList(w http.ResponseWriter, r *http.Request, cfg *HandlerConfig) {
 	}
 	writeJSONResponse(w, http.StatusOK, results)
 }
+
+// FlushSSE flushes buffered SSE data to the client. It uses http.ResponseController
+// (Go 1.20+) which traverses wrapper chains (e.g. metricsResponseWrapper) automatically,
+// avoiding the w.(http.Flusher) type assertion that fails when the writer is wrapped.
+func FlushSSE(w http.ResponseWriter) error {
+	return http.NewResponseController(w).Flush()
+}
