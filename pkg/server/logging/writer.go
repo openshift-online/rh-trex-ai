@@ -28,6 +28,16 @@ func (writer *LoggingWriter) WriteHeader(status int) {
 	writer.ResponseWriter.WriteHeader(status)
 }
 
+func (writer *LoggingWriter) Flush() {
+	if f, ok := writer.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (writer *LoggingWriter) Unwrap() http.ResponseWriter {
+	return writer.ResponseWriter
+}
+
 func (writer *LoggingWriter) log(logMsg string, err error) {
 	log := logger.NewLogger(writer.request.Context())
 	switch err {
