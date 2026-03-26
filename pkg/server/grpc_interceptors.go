@@ -234,6 +234,9 @@ func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyPr
 		username, _ = claims["preferred_username"].(string)
 	}
 	if username == "" {
+		username, _ = claims["sub"].(string)
+	}
+	if username == "" {
 		return "", status.Error(codes.Unauthenticated, "token missing username claim")
 	}
 

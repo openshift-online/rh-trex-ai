@@ -15,6 +15,10 @@ type AuthConfig struct {
 	JwkCertURL  string `json:"jwk_cert_url"`
 	JwkCertFile string `json:"jwk_cert_file"`
 
+	// gRPC-specific JWK config (overrides JWT config for gRPC when set)
+	GRPCJwkCertURL  string `json:"grpc_jwk_cert_url"`
+	GRPCJwkCertFile string `json:"grpc_jwk_cert_file"`
+
 	// Bearer Token Authentication (new)
 	EnableBearer  bool     `json:"enable_bearer"`
 	BearerToken   string   `json:"-"` // Don't serialize token to JSON
@@ -31,6 +35,10 @@ func NewAuthConfig() *AuthConfig {
 		JwkCertURL:  "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs",
 		JwkCertFile: "",
 
+		// gRPC-specific JWK defaults (empty = fall back to HTTP JWK config)
+		GRPCJwkCertURL:  "",
+		GRPCJwkCertFile: "",
+
 		// Bearer token defaults (disabled by default)
 		EnableBearer:  false,
 		BearerToken:   "",
@@ -46,6 +54,8 @@ func (c *AuthConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.EnableAuthz, "enable-authz", c.EnableAuthz, "Enable authorization on endpoints")
 	fs.StringVar(&c.JwkCertURL, "jwk-cert-url", c.JwkCertURL, "JWK Certificate URL for JWT validation")
 	fs.StringVar(&c.JwkCertFile, "jwk-cert-file", c.JwkCertFile, "Local JWK Certificate file")
+	fs.StringVar(&c.GRPCJwkCertURL, "grpc-jwk-cert-url", c.GRPCJwkCertURL, "JWK Certificate URL for gRPC JWT validation (overrides --jwk-cert-url for gRPC)")
+	fs.StringVar(&c.GRPCJwkCertFile, "grpc-jwk-cert-file", c.GRPCJwkCertFile, "Local JWK Certificate file for gRPC JWT validation (overrides --jwk-cert-file for gRPC)")
 
 	// Bearer token flags (new)
 	fs.BoolVar(&c.EnableBearer, "enable-bearer", c.EnableBearer, "Enable bearer token authentication")

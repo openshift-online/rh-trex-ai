@@ -108,6 +108,12 @@ func (h *BaseHelper) StartJWKCertServerMock() (jwkURL string, teardown func() er
 	return jwkURL, teardown
 }
 
+func (h *BaseHelper) StartJWKServerMock() (certURL string, tokenURL string, teardown func() error) {
+	certURL, tokenURL, teardown = mocks.NewJWKServerMock(h.T, h.JWTPrivateKey, h.JWTCA, JwkKID, JwkAlg, h.AppConfig.APIClient.TokenURL)
+	h.AppConfig.Auth.JwkCertURL = certURL
+	return certURL, tokenURL, teardown
+}
+
 func (h *BaseHelper) DeleteAll(table interface{}) {
 	g2 := h.DBFactory.New(context.Background())
 	err := g2.Model(table).Unscoped().Delete(table).Error
