@@ -12,12 +12,12 @@ type AuthConfig struct {
 	// JWT Authentication (existing)
 	EnableJWT   bool   `json:"enable_jwt"`
 	EnableAuthz bool   `json:"enable_authz"`
-	JwkCertURL  string `json:"jwk_cert_url"`
-	JwkCertFile string `json:"jwk_cert_file"`
+	JwkCertURLs []string `json:"jwk_cert_urls"`
+	JwkCertFile string   `json:"jwk_cert_file"`
 
 	// gRPC-specific JWK config (overrides JWT config for gRPC when set)
-	GRPCJwkCertURL  string `json:"grpc_jwk_cert_url"`
-	GRPCJwkCertFile string `json:"grpc_jwk_cert_file"`
+	GRPCJwkCertURLs []string `json:"grpc_jwk_cert_urls"`
+	GRPCJwkCertFile string   `json:"grpc_jwk_cert_file"`
 
 	// Bearer Token Authentication (new)
 	EnableBearer  bool     `json:"enable_bearer"`
@@ -32,11 +32,11 @@ func NewAuthConfig() *AuthConfig {
 		// JWT defaults (preserve existing behavior from ServerConfig)
 		EnableJWT:   true,
 		EnableAuthz: true,
-		JwkCertURL:  "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs",
+		JwkCertURLs: []string{"https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs"},
 		JwkCertFile: "",
 
 		// gRPC-specific JWK defaults (empty = fall back to HTTP JWK config)
-		GRPCJwkCertURL:  "",
+		GRPCJwkCertURLs: []string{},
 		GRPCJwkCertFile: "",
 
 		// Bearer token defaults (disabled by default)
@@ -52,9 +52,9 @@ func (c *AuthConfig) AddFlags(fs *pflag.FlagSet) {
 	// JWT flags (existing)
 	fs.BoolVar(&c.EnableJWT, "enable-jwt", c.EnableJWT, "Enable JWT authentication validation")
 	fs.BoolVar(&c.EnableAuthz, "enable-authz", c.EnableAuthz, "Enable authorization on endpoints")
-	fs.StringVar(&c.JwkCertURL, "jwk-cert-url", c.JwkCertURL, "JWK Certificate URL for JWT validation")
+	fs.StringSliceVar(&c.JwkCertURLs, "jwk-cert-url", c.JwkCertURLs, "JWK Certificate URL(s) for JWT validation (comma-separated or repeated flag)")
 	fs.StringVar(&c.JwkCertFile, "jwk-cert-file", c.JwkCertFile, "Local JWK Certificate file")
-	fs.StringVar(&c.GRPCJwkCertURL, "grpc-jwk-cert-url", c.GRPCJwkCertURL, "JWK Certificate URL for gRPC JWT validation (overrides --jwk-cert-url for gRPC)")
+	fs.StringSliceVar(&c.GRPCJwkCertURLs, "grpc-jwk-cert-url", c.GRPCJwkCertURLs, "JWK Certificate URL(s) for gRPC JWT validation (overrides --jwk-cert-url for gRPC)")
 	fs.StringVar(&c.GRPCJwkCertFile, "grpc-jwk-cert-file", c.GRPCJwkCertFile, "Local JWK Certificate file for gRPC JWT validation (overrides --jwk-cert-file for gRPC)")
 
 	// Bearer token flags (new)

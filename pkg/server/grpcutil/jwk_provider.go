@@ -32,16 +32,16 @@ type jwkSetData struct {
 type JWKKeyProvider struct {
 	mu            sync.RWMutex
 	keys          map[string]*rsa.PublicKey
-	keysURL       string
+	keysURLs      []string
 	keysFile      string
 	lastReload    time.Time
 	reloadMinWait time.Duration
 }
 
-func NewJWKKeyProvider(keysURL, keysFile string) *JWKKeyProvider {
+func NewJWKKeyProvider(keysURLs []string, keysFile string) *JWKKeyProvider {
 	return &JWKKeyProvider{
 		keys:          make(map[string]*rsa.PublicKey),
-		keysURL:       keysURL,
+		keysURLs:      keysURLs,
 		keysFile:      keysFile,
 		reloadMinWait: 15 * time.Second,
 	}
@@ -98,9 +98,9 @@ func (p *JWKKeyProvider) loadKeys() error {
 			glog.Warningf("JWKKeyProvider: failed to load keys from file %s: %v", p.keysFile, err)
 		}
 	}
-	if p.keysURL != "" {
-		if err := p.loadKeysFromURL(); err != nil {
-			return fmt.Errorf("failed to load keys from URL %s: %w", p.keysURL, err)
+	for _, url := range p.keysURLs {
+		if err := p.loadKeysFromURL(url); err != nil {
+			glog.Warningf("JWKKeyProvider: failed to load keys from URL %s: %v", url, err)
 		}
 	}
 	return nil
@@ -114,8 +114,8 @@ func (p *JWKKeyProvider) loadKeysFromFile() error {
 	return p.parseAndStoreKeys(data)
 }
 
-func (p *JWKKeyProvider) loadKeysFromURL() error {
-	resp, err := http.Get(p.keysURL)
+func (p *JWKKeyProvider) loadKeysFromURL(url string) error {
+	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}

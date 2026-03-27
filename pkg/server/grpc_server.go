@@ -46,15 +46,15 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 	var keyProvider *grpcutil.JWKKeyProvider
 
 	if authConfig.EnableJWT {
-		grpcJwkURL := authConfig.GRPCJwkCertURL
-		if grpcJwkURL == "" {
-			grpcJwkURL = authConfig.JwkCertURL
+		grpcJwkURLs := authConfig.GRPCJwkCertURLs
+		if len(grpcJwkURLs) == 0 {
+			grpcJwkURLs = authConfig.JwkCertURLs
 		}
 		grpcJwkFile := authConfig.GRPCJwkCertFile
 		if grpcJwkFile == "" {
 			grpcJwkFile = authConfig.JwkCertFile
 		}
-		keyProvider = grpcutil.NewJWKKeyProvider(grpcJwkURL, grpcJwkFile)
+		keyProvider = grpcutil.NewJWKKeyProvider(grpcJwkURLs, grpcJwkFile)
 	}
 
 	// Auto-register bearer token interceptors if configured
