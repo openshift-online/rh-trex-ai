@@ -24,3 +24,17 @@ func LoadDiscoveredRoutes(apiV1Router *mux.Router, services ServicesInterface, a
 		registrationFunc(apiV1Router, services, authMiddleware, authzMiddleware)
 	}
 }
+
+type RootRouteRegistrationFunc func(mainRouter *mux.Router)
+
+var rootRouteRegistry = make(map[string]RootRouteRegistrationFunc)
+
+func RegisterRootRoutes(name string, registrationFunc RootRouteRegistrationFunc) {
+	rootRouteRegistry[name] = registrationFunc
+}
+
+func LoadDiscoveredRootRoutes(mainRouter *mux.Router) {
+	for _, registrationFunc := range rootRouteRegistry {
+		registrationFunc(mainRouter)
+	}
+}

@@ -23,7 +23,13 @@ func (l {{.Kind}}List) Index() {{.Kind}}Index {
 	return index
 }
 
+// Hook function for customizing BeforeCreate behavior
+var {{.Kind}}BeforeCreateHook func(*{{.Kind}}, *gorm.DB) error
+
 func (d *{{.Kind}}) BeforeCreate(tx *gorm.DB) error {
+	if {{.Kind}}BeforeCreateHook != nil {
+		return {{.Kind}}BeforeCreateHook(d, tx)
+	}
 	d.ID = api.NewID()
 	return nil
 }

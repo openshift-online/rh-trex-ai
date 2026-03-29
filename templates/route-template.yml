@@ -22,3 +22,22 @@ objects:
     tls:
       termination: reencrypt
       insecureEdgeTerminationPolicy: Redirect
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: trex-grpc
+    labels:
+      app: trex
+    annotations:
+      haproxy.router.openshift.io/balance: roundrobin
+      haproxy.router.openshift.io/timeout: 600s
+  spec:
+    to:
+      kind: Service
+      name: trex-grpc
+    port:
+      targetPort: grpc
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: None

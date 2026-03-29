@@ -87,6 +87,7 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	apiV1Router.Use(gorillahandlers.CompressHandler)
 
 	LoadDiscoveredRoutes(apiV1Router, services, authMiddleware, authzMiddleware)
+	LoadDiscoveredRootRoutes(mainRouter)
 
 	return mainRouter
 }

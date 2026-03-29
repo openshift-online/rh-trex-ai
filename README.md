@@ -1,7 +1,7 @@
 TRex
 ---
 
- **TRex** is RH **T**AP's **R**est **Ex**ample
+ **TRex** is RH's **T**rusted **R**est **ex**ample
 
 ![Trexxy](rhtap-trex_sm.png)
 
