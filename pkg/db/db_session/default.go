@@ -43,18 +43,29 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 	// Only the first time
 	once.Do(func() {
 		var (
-			dbx *sql.DB
 			g2  *gorm.DB
 			err error
 		)
 
-		// Open connection to DB via standard library
-		dbx, err = sql.Open(config.Dialect, config.ConnectionString(config.SSLMode != disable))
+		dsn := config.ConnectionString(config.SSLMode != disable)
+
+		conf := &gorm.Config{
+			PrepareStmt:          false,
+			FullSaveAssociations: false,
+		}
+		g2, err = gorm.Open(postgres.New(postgres.Config{
+			DSN:                  dsn,
+			PreferSimpleProtocol: true,
+		}), conf)
 		if err != nil {
-			dbx, err = sql.Open(config.Dialect, config.ConnectionString(false))
+			dsn = config.ConnectionString(false)
+			g2, err = gorm.Open(postgres.New(postgres.Config{
+				DSN:                  dsn,
+				PreferSimpleProtocol: true,
+			}), conf)
 			if err != nil {
 				panic(fmt.Sprintf(
-					"SQL failed to connect to %s database %s with connection string: %s\nError: %s",
+					"GORM failed to connect to %s database %s with connection string: %s\nError: %s",
 					config.Dialect,
 					config.Name,
 					config.LogSafeConnectionString(config.SSLMode != disable),
@@ -62,30 +73,14 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 				))
 			}
 		}
-		dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
-		// Connect GORM to use the same connection
-		conf := &gorm.Config{
-			PrepareStmt:          false,
-			FullSaveAssociations: false,
-		}
-		g2, err = gorm.Open(postgres.New(postgres.Config{
-			Conn: dbx,
-			// Disable implicit prepared statement usage (GORM V2 uses pgx as database/sql driver and it enables prepared
-			/// statement cache by default)
-			// In migrations we both change tables' structure and running SQLs to modify data.
-			// This way all prepared statements becomes invalid.
-			PreferSimpleProtocol: true,
-		}), conf)
+		dbx, err := g2.DB()
 		if err != nil {
 			panic(fmt.Sprintf(
-				"GORM failed to connect to %s database %s with connection string: %s\nError: %s",
-				config.Dialect,
-				config.Name,
-				config.LogSafeConnectionString(config.SSLMode != disable),
-				err.Error(),
+				"failed to get underlying *sql.DB: %s", err.Error(),
 			))
 		}
+		dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
 		f.config = config
 		f.g2 = g2
