@@ -10,8 +10,8 @@ import (
 // AuthConfig holds authentication configuration for both JWT and Bearer token auth
 type AuthConfig struct {
 	// JWT Authentication (existing)
-	EnableJWT   bool   `json:"enable_jwt"`
-	EnableAuthz bool   `json:"enable_authz"`
+	EnableJWT   bool     `json:"enable_jwt"`
+	EnableAuthz bool     `json:"enable_authz"`
 	JwkCertURLs []string `json:"jwk_cert_urls"`
 	JwkCertFile string   `json:"jwk_cert_file"`
 

@@ -1,0 +1,26 @@
+[
+  {
+    "input": "generate a new entity called Rocket",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "entity-generator", "args": "--kind Rocket" },
+    "description": "Basic entity generation trigger"
+  },
+  {
+    "input": "create a new kind with fields name and speed",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "entity-generator", "args": "--kind {kind} --fields name:string,speed:int" },
+    "description": "Entity generation with custom fields"
+  },
+  {
+    "input": "scaffold CRUD for a Widget resource",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "entity-generator", "args": "--kind Widget" },
+    "description": "Scaffold trigger phrase"
+  },
+  {
+    "input": "add a new resource type called Policy with irregular plural",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "entity-generator", "args": "--kind Policy --plural Policies" },
+    "description": "Entity with irregular plural"
+  }
+]

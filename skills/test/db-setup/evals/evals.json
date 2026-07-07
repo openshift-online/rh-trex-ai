@@ -1,0 +1,20 @@
+[
+  {
+    "input": "set up the database",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "db-setup" },
+    "description": "Basic db setup trigger"
+  },
+  {
+    "input": "reset the database and run migrations",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "db-setup" },
+    "description": "Reset trigger"
+  },
+  {
+    "input": "recreate the PostgreSQL container",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "db-setup" },
+    "description": "Recreate trigger"
+  }
+]

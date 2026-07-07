@@ -1,0 +1,14 @@
+[
+  {
+    "input": "start the server",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "server-start" },
+    "description": "Basic server start trigger"
+  },
+  {
+    "input": "run the API locally",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "server-start" },
+    "description": "Run API trigger"
+  }
+]

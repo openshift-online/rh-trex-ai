@@ -1,0 +1,20 @@
+[
+  {
+    "input": "regenerate the openapi client",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "openapi-generate" },
+    "description": "Basic OpenAPI generation trigger"
+  },
+  {
+    "input": "make generate",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "openapi-generate" },
+    "description": "Direct make command trigger"
+  },
+  {
+    "input": "update the Go models from the OpenAPI spec",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "openapi-generate" },
+    "description": "Model update trigger"
+  }
+]

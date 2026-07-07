@@ -1,0 +1,20 @@
+[
+  {
+    "input": "review my code changes",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "code-review" },
+    "description": "Basic code review trigger"
+  },
+  {
+    "input": "check the current PR for issues",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "code-review" },
+    "description": "PR review trigger"
+  },
+  {
+    "input": "do a security review of the latest changes",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "code-review" },
+    "description": "Security-focused review"
+  }
+]

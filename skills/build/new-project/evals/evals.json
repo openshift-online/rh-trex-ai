@@ -1,0 +1,20 @@
+[
+  {
+    "input": "create a new project called fleet-manager",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "new-project", "args": "fleet-manager" },
+    "description": "Basic new project creation"
+  },
+  {
+    "input": "scaffold a new microservice using the TRex framework",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "new-project" },
+    "description": "Scaffold trigger phrase"
+  },
+  {
+    "input": "bootstrap a new service at github.com/myorg/my-api",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "new-project", "args": "my-api --repo github.com/myorg" },
+    "description": "Project with custom repo path"
+  }
+]

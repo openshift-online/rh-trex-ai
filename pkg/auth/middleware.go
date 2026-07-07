@@ -20,7 +20,7 @@ import (
 
 // JWTHandler provides JWT authentication without OCM dependencies
 type JWTHandler struct {
-	keysURL        string
+	keysURLs       []string
 	keysFile       string
 	publicKeys     map[string]*rsa.PublicKey
 	keysMutex      sync.RWMutex
@@ -42,9 +42,9 @@ func NewJWTHandler() *JWTHandler {
 	}
 }
 
-// WithKeysURL sets the JWK endpoint URL for key discovery
-func (j *JWTHandler) WithKeysURL(url string) *JWTHandler {
-	j.keysURL = url
+// WithKeysURLs sets the JWK endpoint URLs for key discovery (supports multiple issuers)
+func (j *JWTHandler) WithKeysURLs(urls []string) *JWTHandler {
+	j.keysURLs = urls
 	return j
 }
 
@@ -190,15 +190,45 @@ func (j *JWTHandler) isPublicPath(path string) bool {
 	return false
 }
 
-// loadKeys loads JWT verification keys from URL or file
+// loadKeys loads JWT verification keys from all configured sources (file and URLs) additively
 func (j *JWTHandler) loadKeys() error {
-	if j.keysURL != "" {
-		return j.loadKeysFromURL()
+	if j.keysFile == "" && len(j.keysURLs) == 0 {
+		return fmt.Errorf("no keys URL or file specified")
 	}
+
+	newKeys := make(map[string]*rsa.PublicKey)
+	var lastErr error
+
 	if j.keysFile != "" {
-		return j.loadKeysFromFile()
+		if err := j.loadKeysFromFileInto(newKeys); err != nil {
+			glog.Warningf("Failed to load JWT keys from file %s: %v", j.keysFile, err)
+			lastErr = err
+		}
 	}
-	return fmt.Errorf("no keys URL or file specified")
+
+	for _, url := range j.keysURLs {
+		if url == "" {
+			continue
+		}
+		if err := j.loadKeysFromURLInto(url, newKeys); err != nil {
+			glog.Warningf("Failed to load JWT keys from URL %s: %v", url, err)
+			lastErr = err
+		}
+	}
+
+	if len(newKeys) == 0 {
+		if lastErr != nil {
+			return fmt.Errorf("no valid RSA keys loaded from any source: %v", lastErr)
+		}
+		return fmt.Errorf("no valid RSA keys found in any configured source")
+	}
+
+	j.keysMutex.Lock()
+	j.publicKeys = newKeys
+	j.keysMutex.Unlock()
+
+	glog.Infof("Updated JWT keys: %d RSA keys loaded from all sources", len(newKeys))
+	return nil
 }
 
 // JWKSet represents a JSON Web Key Set
@@ -216,10 +246,10 @@ type JWK struct {
 }
 
 // refreshKeysLoop periodically refreshes JWK keys.
-// URL sources refresh every hour; file sources refresh every 5 minutes to pick up kubelet-synced rotations.
+// Uses 5-minute interval when file-only (for kubelet-synced rotations), 1-hour otherwise.
 func (j *JWTHandler) refreshKeysLoop() {
 	interval := 1 * time.Hour
-	if j.keysURL == "" {
+	if len(j.keysURLs) == 0 {
 		interval = 5 * time.Minute
 	}
 	ticker := time.NewTicker(interval)
@@ -245,53 +275,51 @@ func (j *JWTHandler) Stop() {
 	close(j.refreshStop)
 }
 
-// loadKeysFromURL fetches JWK keys from the specified URL
-func (j *JWTHandler) loadKeysFromURL() error {
-	glog.V(2).Infof("Loading JWT keys from URL: %s", j.keysURL)
+// loadKeysFromURLInto fetches JWK keys from the specified URL and merges them into the target map
+func (j *JWTHandler) loadKeysFromURLInto(url string, target map[string]*rsa.PublicKey) error {
+	glog.V(2).Infof("Loading JWT keys from URL: %s", url)
 
-	resp, err := j.httpClient.Get(j.keysURL)
+	resp, err := j.httpClient.Get(url)
 	if err != nil {
-		return fmt.Errorf("failed to fetch JWK set: %v", err)
+		return fmt.Errorf("failed to fetch JWK set from %s: %v", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("JWK endpoint %s returned HTTP %d", url, resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read JWK response: %v", err)
+		return fmt.Errorf("failed to read JWK response from %s: %v", url, err)
 	}
 
-	var jwkSet JWKSet
-	if err := json.Unmarshal(body, &jwkSet); err != nil {
-		return fmt.Errorf("failed to parse JWK set: %v", err)
-	}
-
-	return j.parseJWKSet(&jwkSet)
+	return j.parseAndStoreKeys(body, target)
 }
 
-// loadKeysFromFile loads JWK keys from a local file
-func (j *JWTHandler) loadKeysFromFile() error {
-	glog.Infof("Loading JWT keys from file: %s", j.keysFile)
+// loadKeysFromFileInto loads JWK keys from a local file and merges them into the target map
+func (j *JWTHandler) loadKeysFromFileInto(target map[string]*rsa.PublicKey) error {
+	glog.V(2).Infof("Loading JWT keys from file: %s", j.keysFile)
 
 	data, err := os.ReadFile(j.keysFile)
 	if err != nil {
 		return fmt.Errorf("failed to read JWK file: %v", err)
 	}
 
-	var jwkSet JWKSet
-	if err := json.Unmarshal(data, &jwkSet); err != nil {
-		return fmt.Errorf("failed to parse JWK file: %v", err)
-	}
-
-	return j.parseJWKSet(&jwkSet)
+	return j.parseAndStoreKeys(data, target)
 }
 
-// parseJWKSet converts JWK set to RSA public keys
-func (j *JWTHandler) parseJWKSet(jwkSet *JWKSet) error {
-	newKeys := make(map[string]*rsa.PublicKey)
+// parseAndStoreKeys parses a JWK set JSON and adds RSA keys to the target map
+func (j *JWTHandler) parseAndStoreKeys(data []byte, target map[string]*rsa.PublicKey) error {
+	var jwkSet JWKSet
+	if err := json.Unmarshal(data, &jwkSet); err != nil {
+		return fmt.Errorf("failed to parse JWK set: %v", err)
+	}
 
+	count := 0
 	for _, jwk := range jwkSet.Keys {
 		if jwk.Kty != "RSA" {
-			continue // Skip non-RSA keys
+			continue
 		}
 
 		publicKey, err := j.jwkToRSAPublicKey(&jwk)
@@ -300,20 +328,15 @@ func (j *JWTHandler) parseJWKSet(jwkSet *JWKSet) error {
 			continue
 		}
 
-		newKeys[jwk.Kid] = publicKey
+		target[jwk.Kid] = publicKey
+		count++
 		glog.V(2).Infof("Loaded RSA public key with kid: %s", jwk.Kid)
 	}
 
-	if len(newKeys) == 0 {
+	if count == 0 {
 		return fmt.Errorf("no valid RSA keys found in JWK set")
 	}
 
-	// Atomically replace the keys map
-	j.keysMutex.Lock()
-	j.publicKeys = newKeys
-	j.keysMutex.Unlock()
-
-	glog.Infof("Updated JWT keys: %d RSA keys loaded", len(newKeys))
 	return nil
 }
 

@@ -1,0 +1,20 @@
+[
+  {
+    "input": "run unit tests",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "unit-test" },
+    "description": "Basic unit test trigger"
+  },
+  {
+    "input": "make test",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "unit-test" },
+    "description": "Make test trigger"
+  },
+  {
+    "input": "run tests without a database",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "unit-test" },
+    "description": "No-database test trigger"
+  }
+]

@@ -6,6 +6,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TRex is a Go-based REST and gRPC API template for Red Hat TAP (Trusted Application Pipeline) that serves as a full-featured foundation for building new microservices. It provides CRUD operations for "dinosaurs" as example business logic to be replaced.
 
+## Spec-Driven Development (SDD)
+
+This repository uses **Spec-Driven Development** where specifications define the desired state and skills define the executable procedures to achieve it.
+
+### Specs (`specs/`)
+
+Formal requirements documents using RFC 2119 keywords (SHALL, MUST, SHOULD, MAY). Organized by domain:
+
+| Domain | Path | Description |
+|--------|------|-------------|
+| framework | `specs/framework/` | Plugin architecture, entity lifecycle, event controllers, service locator |
+| api | `specs/api/` | REST and gRPC conventions, interceptor chains, streaming |
+| data | `specs/data/` | DAO pattern, migration pattern, GORM usage |
+| security | `specs/security/` | JWT authentication, authorization, secrets management |
+| codegen | `specs/codegen/` | Entity/CLI/SDK/console plugin generators |
+| standards | `specs/standards/` | Naming conventions, error handling, testing |
+
+**Registry:** `specs/index.spec.md` — machine-readable index of all specs with dependency graph.
+
+### Skills (`skills/`)
+
+Executable agent procedures organized by SDLC lifecycle phase:
+
+| Phase | Skills | Description |
+|-------|--------|-------------|
+| build | entity-generator, add-field, remove-entity, new-project, reconcile | Code generation and spec reconciliation |
+| test | unit-test, integration-test, db-setup | Testing and database management |
+| deploy | server-start | Local server management |
+| review | code-review, verify | Code quality and static analysis |
+| plan | spec | Authoring new specifications |
+| tooling | openapi-generate | OpenAPI client regeneration |
+
+**Reconciliation Checkpoint:** `skills/RECONCILE.md` — persistent gap-tracking across agent sessions.
+
+### SDLC Workflow
+
+```
+/reconcile → /spec → /entity-generator → /db-setup → /unit-test → /integration-test → /verify → /code-review
+```
+
 ## Development Commands
 
 ### Building and Running

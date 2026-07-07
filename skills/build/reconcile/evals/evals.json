@@ -1,0 +1,26 @@
+[
+  {
+    "input": "reconcile specs against code",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "reconcile" },
+    "description": "Basic reconciliation trigger"
+  },
+  {
+    "input": "what's the current spec coverage?",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "reconcile" },
+    "description": "Coverage query trigger"
+  },
+  {
+    "input": "find and fix gaps between specs and implementation",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "reconcile", "args": "--fix" },
+    "description": "Reconcile with auto-fix"
+  },
+  {
+    "input": "sync specs to code",
+    "expected_tool_call": "Skill",
+    "expected_args": { "skill": "reconcile" },
+    "description": "Sync trigger phrase"
+  }
+]
