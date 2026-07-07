@@ -1,342 +1,158 @@
-TRex
----
+# TRex
 
- **TRex** is RH **T**AP's **R**est **Ex**ample
+**T**rusted **R**EST **Ex**ample
 
-![Trexxy](rhtap-trex_sm.png)
+![TRex](rhtap-trex_sm.png)
 
+A production-ready REST and gRPC API template for bootstrapping new Go microservices. Ships with "dinosaurs" as placeholder business logic — replace them with your own.
 
-TRex is a full-featured REST and gRPC API that persists _dinosaurs_, making it a solid foundation from which developers can quickly bootstrap new services.
+## Features
 
-Some of the features included are:
+- REST + gRPC dual-protocol API with OpenAPI spec generation
+- Plugin-based entity architecture with auto-registration
+- Entity code generator (`go run ./scripts/generator.go --kind YourKind`)
+- CLI code generator (`scripts/cli-generator/`) — generates a typed CLI from your OpenAPI spec
+- PostgreSQL with GORM, migrations, and advisory locks
+- Event-driven controllers via PostgreSQL LISTEN/NOTIFY
+- JWT authentication with multi-issuer support (multiple JWK URLs + file)
+- Server-streaming gRPC (watch for real-time events)
+- Prometheus metrics, health checks, structured logging
+- Spec-Driven Development with agent-executable skills
 
-* Openapi generation
-* CRUD code foundation
-* Standard API guidelines, paging, etc.
-* Test driven development built-in
-* GORM and DB migrations
-* OIDC authentication
-* Responsive control plane
-* Blocking and Non-blocking locks
-* gRPC transport with server-streaming (WatchDinosaurs)
-* Event-driven architecture with PostgreSQL LISTEN/NOTIFY
-
-When looking through the code, anything talking about dinosaurs is business logic, which you
-will replace with your business logic. The rest is infrastructure that you will probably want to preserve without change.
-
-It's up to you to port future improvements to this project to your own fork. A goal of this project is to become a
-framework with an upgrade path.
-
-
-## Run for the first time
-
-Before running TRex for the first time, ensure the prerequisites are installed. For more detailed information on each prerequisite, refer to the [prerequisites](./PREREQUISITES.md) document.
-
-
-### Make a build and run postgres
+## Quick Start
 
 ```sh
+# Prerequisites: Go 1.24+, Docker, buf (for protobuf)
+# See PREREQUISITES.md for details
 
-# 1. build the project
+# Build
+make proto
+make binary
 
-$ go install gotest.tools/gotestsum@latest
-$ make proto
-$ make binary
-
-# 2. run a postgres database locally in docker
-
-$ make db/setup
-$ make db/login
-
-    root@f076ddf94520:/# psql -h localhost -U trex rh-trex
-    psql (14.4 (Debian 14.4-1.pgdg110+1))
-    Type "help" for help.
-
-    rh-trex=# \dt
-    Did not find any relations.
-
-```
-
-### Run database migrations
-
-The initial migration will create the base data model as well as providing a way to add future migrations.
-
-```shell
-
-# Run migrations
+# Database
+make db/setup
 ./trex migrate
 
-# Verify they ran in the database
-$ make db/login
-
-root@f076ddf94520:/# psql -h localhost -U trex rh-trex
-psql (14.4 (Debian 14.4-1.pgdg110+1))
-Type "help" for help.
-
-rh-trex=# \dt
-                 List of relations
- Schema |    Name    | Type  |        Owner
---------+------------+-------+---------------------
- public | dinosaurs  | table | trex
- public | events     | table | trex
- public | migrations | table | trex
-(3 rows)
-
-
-```
-
-### Test the application
-
-```shell
-
-make test
-make test-integration
-
-```
-
-### Running the Service
-
-The REST API will be available at `http://localhost:8000` and the gRPC server at `localhost:9000`.
-
-#### Option 1: Run Without Authentication (Recommended for Local Development)
-
-For quick testing and development, you can run the service with authentication disabled:
-
-```shell
+# Run (no auth, for local dev)
 make run-no-auth
 ```
 
-This starts the service with `--enable-authz=false --enable-jwt=false`, allowing you to test the API without tokens.
+REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
 
-**Test the REST API:**
+## Usage
 
-```shell
-# List all dinosaurs
+```sh
+# REST
 curl http://localhost:8000/api/rh-trex/v1/dinosaurs | jq
-
-# Create a new dinosaur
 curl -X POST http://localhost:8000/api/rh-trex/v1/dinosaurs \
-  -H "Content-Type: application/json" \
-  -d '{"species": "Tyrannosaurus"}' | jq
+  -H "Content-Type: application/json" -d '{"species": "Velociraptor"}' | jq
 
-# Get a specific dinosaur (replace {id} with actual ID)
-curl http://localhost:8000/api/rh-trex/v1/dinosaurs/{id} | jq
-```
-
-**Test the gRPC API:**
-
-```shell
-# Install grpcurl if you haven't already
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-
-# List available services
-grpcurl -plaintext localhost:9000 list
-
-# Create a dinosaur
-grpcurl -plaintext -d '{"species": "Velociraptor"}' \
-  localhost:9000 rh_trex.v1.DinosaurService/CreateDinosaur
-
-# List dinosaurs
-grpcurl -plaintext -d '{"page": 1, "size": 10}' \
-  localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
-
-# Watch for real-time events (server-streaming)
+# gRPC
+grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 ```
 
-#### Option 2: Run With Authentication (Production-like)
+## Generate a New Entity
 
-Start the service with authentication enabled:
+```sh
+# Basic
+go run ./scripts/generator.go --kind Rocket
 
-```shell
-make run
+# With typed fields (nullable by default, :required for non-nullable)
+go run ./scripts/generator.go --kind Rocket \
+  --fields "name:string:required,fuel_type:string,max_speed:int,active:bool"
 ```
 
-Authentication in the default configuration is done through the RedHat SSO. You need:
-- A Red Hat customer portal user in the right account (created as part of the onboarding doc)
-- An access token from https://console.redhat.com/openshift/token
-- The `ocm` CLI tool available at https://console.redhat.com/openshift/downloads
+Generates the full stack: model, DAO, service, handlers, migration, OpenAPI spec, tests, and plugin registration. No manual wiring.
 
-**Step 1: Login to your local service**
+Supported types: `string`, `int`, `int64`, `bool`, `float`, `time`
 
-```shell
-ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
-```
+After generation:
 
-**Step 2: List all Dinosaurs**
-
-```shell
-ocm get /api/rh-trex/v1/dinosaurs
-```
-
-Response (empty if no dinosaurs exist yet):
-```json
-{
-  "items": [],
-  "kind": "DinosaurList",
-  "page": 1,
-  "size": 0,
-  "total": 0
-}
-```
-
-**Step 3: Create a new Dinosaur**
-
-```shell
-ocm post /api/rh-trex/v1/dinosaurs << EOF
-{
-    "species": "foo"
-}
-EOF
-```
-
-**Step 4: Get your Dinosaur**
-
-```shell
-ocm get /api/rh-trex/v1/dinosaurs
-```
-
-Response:
-```json
-{
-  "items": [
-    {
-      "created_at": "2023-10-26T08:15:54.509653Z",
-      "href": "/api/rh-trex/v1/dinosaurs/2XIENcJIi9t2eBblhWVCtWLdbDZ",
-      "id": "2XIENcJIi9t2eBblhWVCtWLdbDZ",
-      "kind": "Dinosaur",
-      "species": "foo",
-      "updated_at": "2023-10-26T08:15:54.509653Z"
-    }
-  ],
-  "kind": "DinosaurList",
-  "page": 1,
-  "size": 1,
-  "total": 1
-}
-```
-
-#### Option 3: Deploy to OpenShift Local (CRC)
-
-Use OpenShift Local (CRC) to deploy to a local OpenShift cluster.
-
-**Prerequisites:** Ensure CRC is running locally:
-
-```shell
-$ crc status
-CRC VM:          Running
-OpenShift:       Running (v4.13.12)
-RAM Usage:       7.709GB of 30.79GB
-Disk Usage:      23.75GB of 32.68GB (Inside the CRC VM)
-Cache Usage:     37.62GB
-Cache Directory: /home/mturansk/.crc/cache
-```
-
-**Deploy to CRC:**
-
-```shell
-# 1. Login to CRC
-$ make crc/login
-Logging into CRC
-Logged into "https://api.crc.testing:6443" as "kubeadmin" using existing credentials.
-
-You have access to 66 projects, the list has been suppressed. You can list all projects with 'oc projects'
-
-Using project "ocm-mturansk".
-Login Succeeded!
-
-# 2. Deploy the service
-$ make deploy
-
-# 3. Login with OCM
-$ ocm login --token=${OCM_ACCESS_TOKEN} --url=https://trex.apps-crc.testing --insecure
-
-# 4. Test the deployment
-$ ocm post /api/rh-trex/v1/dinosaurs << EOF
-{
-    "species": "foo"
-}
-EOF
-```
-
-## Run your own service
-
-To create your own service based on TRex, import it as a Go library. See [the_big_refactor.md](./the_big_refactor.md) for the full architecture of TRex as an importable library.
-
-### Make a new Kind
-
-The generator script creates a complete CRUD entity with plugin-based architecture. This automates most of the boilerplate code needed for a new resource type.
-
-**Generate a new entity:**
-```shell
-# Basic entity with no custom fields
-go run ./scripts/generator.go --kind KindName
-
-# Entity with custom fields (nullable by default)
-go run ./scripts/generator.go --kind KindName --fields "name:string,count:int,active:bool"
-
-# Entity with required (non-nullable) and optional (nullable) fields
-go run ./scripts/generator.go --kind Rocket --fields "name:string:required,fuel_type:string,max_speed:int:optional"
-```
-
-**Supported field types:**
-- `string` - Text fields
-- `int` - 32-bit integers
-- `int64` - 64-bit integers
-- `bool` - Boolean values
-- `float` - Floating-point numbers
-- `time` - Timestamp fields
-
-**Field nullability:**
-- Fields are **nullable** (pointer types) by default
-- Add `:required` to make a field non-nullable (e.g., `name:string:required`)
-- Add `:optional` to explicitly mark as nullable (e.g., `count:int:optional`)
-- Required fields appear in the OpenAPI `required` array
-
-**What the generator creates automatically:**
-- API model (`pkg/api/{kind}.go`)
-- DAO layer (`pkg/dao/{kind}.go` and `pkg/dao/mocks/{kind}.go`)
-- Service layer with event handlers (`pkg/services/{kind}.go`)
-- HTTP handlers (`pkg/handlers/{kind}.go`)
-- Presenters (`pkg/api/presenters/{kind}.go`)
-- Database migration (`pkg/db/migrations/YYYYMMDDHHMM_add_{kinds}.go`)
-- OpenAPI specification (`openapi/openapi.{kinds}.yaml`)
-- Integration tests (`test/integration/{kinds}_test.go`)
-- Test factories (`test/factories/{kinds}.go`)
-- Plugin registration (`plugins/{kinds}/plugin.go`) - auto-registers routes, controllers, and presenters
-- Automatic updates:
-  - Adds plugin import to `cmd/trex/main.go`
-  - Adds migration to `pkg/db/migrations/migration_structs.go`
-  - Updates `openapi/openapi.yaml` with new entity references
-  - Runs `make generate` to create OpenAPI client code
-
-**After generation, build and test:**
-```shell
-# 1. Build the binary
+```sh
 make binary
-
-# 2. Set up the database
-make db/teardown
-make db/setup
-
-# 3. Run migrations
+make db/teardown && make db/setup
 ./trex migrate
-
-# 4. Run the server
 make run-no-auth
-
-# 5. Test the new entity
-curl -X POST http://localhost:8000/api/rh-trex/v1/{kinds} \
-  -H "Content-Type: application/json" \
-  -d '{"species": "example"}' | jq
-
-curl http://localhost:8000/api/rh-trex/v1/{kinds} | jq
 ```
 
-**Plugin Architecture Benefits:**
-- Reduction in manual steps - no need to manually edit routes, controllers, or service locators
-- Self-contained entities - all wiring for an entity lives in its plugin file
-- Auto-discovery - plugins register themselves via init() functions
-- Type-safe - compile-time checks for service access
+## Generate a CLI
 
-For more detailed information about the generator and plugin system, see [CLAUDE.md](./CLAUDE.md).
+Generate a typed CLI from the OpenAPI spec:
+
+```sh
+cd scripts/cli-generator
+go run . --spec ../../openapi/openapi.yaml --out /tmp/trex-cli
+cd /tmp/trex-cli
+go build -o trex-cli ./cmd/trex-cli
+```
+
+Use the generated CLI:
+
+```sh
+# Login
+trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+
+# CRUD
+trex-cli list dinosaurs
+trex-cli create dinosaur --species Velociraptor
+trex-cli get dinosaur <id>
+```
+
+## Run With Authentication
+
+```sh
+make run
+
+# Using the generated CLI
+trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+trex-cli list dinosaurs
+
+# Or with curl
+curl -H "Authorization: Bearer $OIDC_TOKEN" http://localhost:8000/api/rh-trex/v1/dinosaurs
+```
+
+Supports any OIDC provider. Default: Red Hat SSO. Configure via `--jwk-cert-url`.
+
+## Testing
+
+```sh
+make test              # Unit tests
+make test-integration  # Integration tests (requires running PostgreSQL)
+make verify            # Vet + formatting checks
+make lint              # golangci-lint
+```
+
+## Architecture
+
+```
+cmd/trex/              CLI entrypoint (serve, migrate)
+pkg/api/               Models and OpenAPI client
+pkg/handlers/          REST handlers
+pkg/services/          Business logic + event handlers
+pkg/dao/               Data access layer (GORM)
+pkg/db/migrations/     Schema migrations
+pkg/auth/              JWT authentication
+pkg/server/            gRPC server, routing, event broker
+plugins/               Self-registering entity plugins
+proto/                 Protobuf definitions
+scripts/generator.go   Entity code generator
+scripts/cli-generator/ CLI code generator
+specs/                 Formal requirements (SDD)
+skills/                Agent-executable procedures
+```
+
+## Deploy to OpenShift
+
+```sh
+make crc/login
+make image
+make push
+make deploy
+```
+
+## Further Reading
+
+- [PREREQUISITES.md](./PREREQUISITES.md) — Development environment setup
+- [GRPC.md](./GRPC.md) — gRPC API details
+- [CLAUDE.md](./CLAUDE.md) — Agent/developer reference (code generation, CLI flags, architecture details)

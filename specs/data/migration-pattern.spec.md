@@ -82,3 +82,23 @@ Adding fields to an existing entity SHALL always create a new migration file, ne
 | Local struct in migration function | Avoids coupling migration to current model state; migration is a snapshot |
 | `AutoMigrate` for schema changes | Additive-only (adds columns, doesn't drop); safe for production |
 | Kind-name hash in migration ID | Prevents ID collisions when generating multiple kinds at the same time |
+
+## Continuous Delivery Migration Strategy
+
+Breaking migrations MUST be decomposed into multiple backward-compatible steps for safe CD rollouts.
+
+### Requirement: No Breaking Migrations in a Single Deploy
+
+A migration that removes a column or renames a field SHALL NOT be deployed in the same release as the code change that stops using it.
+
+#### Scenario: Dropping a column safely
+- GIVEN a `widgets` table has a `legacy_status` column still read by running pods
+- WHEN the column needs to be removed
+- THEN Step 1 SHALL deploy code that no longer reads or writes `legacy_status`
+- AND Step 1 SHALL propagate to all running pods before proceeding
+- THEN Step 2 SHALL deploy a migration that drops the `legacy_status` column
+- AND the two steps SHALL be separate releases with sufficient time between them
+
+### Requirement: Advisory Lock for Migration Concurrency
+
+Multiple pods running `./trex migrate` concurrently SHALL coordinate via PostgreSQL advisory locks so only one pod executes migrations at a time.

@@ -56,4 +56,34 @@ Code generation plugins for `buf` that produce Go message types and gRPC service
 - **Purpose**: Useful for manual testing of the gRPC API (port 9000). Uses server reflection to discover services.
 - **Installation**: `go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest`
 
+## Docker or Podman
+
+A container runtime is required for integration tests (testcontainers) and for running PostgreSQL locally.
+
+- **Purpose**: `make db/setup` runs PostgreSQL in a container. Integration tests use [testcontainers-go](https://github.com/testcontainers/testcontainers-go/) to spin up ephemeral containers.
+- **Installation**: Install [Docker](https://docs.docker.com/get-docker/) or [Podman](https://podman.io/docs/installation).
+
+### Podman Workarounds
+
+testcontainers officially supports Docker only. With Podman you may hit this error:
+
+```
+Failed to start PostgreSQL testcontainer: create container: container create: Error response from daemon:
+  unable to find network with name or ID bridge: network not found: creating reaper failed
+```
+
+This is caused by the [ryuk](https://github.com/testcontainers/moby-ryuk) cleanup container. Disable it:
+
+```bash
+export TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+Or add to `~/.testcontainers.properties`:
+
+```
+ryuk.disabled=true
+```
+
+If you need ryuk with Podman, see [testcontainers-go#2781](https://github.com/testcontainers/testcontainers-go/issues/2781#issuecomment-2619626043) for the socket-forwarding workaround (requires elevated permissions).
+
 Make sure all these prerequisites are installed before running TRex.
