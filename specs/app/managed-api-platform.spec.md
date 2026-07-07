@@ -4,13 +4,38 @@
 **Status:** Draft
 **ID:** APP-001
 **Related:** [Entity Generator](../codegen/entity-generator.spec.md), [CLI Generator](../codegen/cli-generator.spec.md), [SDK Generator](../codegen/sdk-generator.spec.md), [Console Plugin Generator](../codegen/console-plugin-generator.spec.md), [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Event-Driven Controllers](../framework/event-driven-controllers.spec.md), [Plugin Architecture](../framework/plugin-architecture.spec.md)
-**Implements:** `plugins/projects/`, `plugins/entity_definitions/`, `plugins/field_definitions/`, `plugins/relationships/`, `plugins/builds/`, `plugins/deployments/`
+**Implements:** `plugins/projects/`, `plugins/entity_definitions/`, `plugins/field_definitions/`, `plugins/relationships/`, `plugins/builds/`
 
 ---
 
 ## Purpose
 
-Transform TRex from a demonstrative "dinosaurs" API into a managed API platform that orchestrates the full TRex generation pipeline. Users define their entity-relationship diagrams (ERD) through the API, and the platform generates complete API services (REST, gRPC, CLI, SDK, Console Plugin) from those definitions. This dogfoods every TRex generator (CG-001 through CG-004) and stress-tests the entity system with a non-trivial 6-entity relational data model featuring parent-child hierarchies, state machines, and cross-entity referential integrity.
+Transform TRex from a demonstrative "dinosaurs" API into a managed API platform that orchestrates the full TRex generation pipeline. Users define their entity-relationship diagrams (ERD) through the API, and the platform generates complete API services (REST, gRPC, CLI, SDK, Console Plugin) from those definitions. This dogfoods every TRex generator (CG-001 through CG-004) and stress-tests the entity system with a non-trivial relational data model featuring parent-child hierarchies, state machines, and cross-entity referential integrity.
+
+## Phasing
+
+### Phase 1 (this spec)
+
+5 entities: Project, EntityDefinition, FieldDefinition, Relationship, Build. These cover the full ERD-definition and generation workflow.
+
+### Phase 2 (future spec)
+
+Deployment entity — requires defining the deployment target (containers, Kubernetes, process-per-project) and resource lifecycle management. Deferred until the Build pipeline is proven.
+
+## Prerequisites — Generator Enhancements Required
+
+The entity generator (CG-001, `scripts/generator.go`) produces ~40% of the code needed for this spec's entities. The following capabilities are **missing** and MUST be added to CG-001 (or a follow-up spec extending it) before APP-001 can be fully implemented:
+
+| Capability | Current State | Required Enhancement |
+|------------|--------------|---------------------|
+| Foreign key fields | No `--parent` or `--references` flag | Add `--parent ParentKind` flag that generates a `parent_kind_id` field, DB index, and `FindByParentKindID` DAO method |
+| Parent-child cascade delete | Generated delete is simple, no cascade | Generate cascade soft-delete in parent's `OnDelete` handler when `--parent` is used |
+| State machine validation | Status is a plain string field | Add `--status "draft,active,archived"` flag that generates a `ValidateStatusTransition()` method and handler-layer validation |
+| Filtered DAO queries | Only `Get`, `Create`, `Replace`, `Delete`, `All` | Generate `FindBy{Field}` methods for fields marked with a `:indexed` modifier |
+| Uniqueness constraints | No unique constraint support | Add `:unique` field modifier that generates a DB unique index and 409 Conflict error mapping |
+| Migration ordering for FK dependencies | SHA256 hash-based IDs are non-deterministic | Add `--migration-order N` flag or use topological sort based on `--parent` graph |
+
+Until these enhancements land, the gap between generated code and the spec's requirements MUST be bridged by hand-coded post-generation customization (see [Post-Generation Customization](#post-generation-customization)).
 
 ## Data Model
 
@@ -23,21 +48,19 @@ Project (1) ──────< (N) EntityDefinition
     │                      │
     │                      └──< (N) Relationship (source + target)
     │
-    ├──< (N) Build
-    │         │
-    │         └──< (N) Deployment
+    └──< (N) Build
 ```
 
 ### Entity Summary
 
-| Entity | Plugin Directory | Parent | State Machine |
-|--------|-----------------|--------|---------------|
-| Project | `plugins/projects/` | — | draft → active → archived |
-| EntityDefinition | `plugins/entity_definitions/` | Project | — |
-| FieldDefinition | `plugins/field_definitions/` | EntityDefinition | — |
-| Relationship | `plugins/relationships/` | Project (+ source/target EntityDefinition) | — |
-| Build | `plugins/builds/` | Project | pending → building → succeeded / failed |
-| Deployment | `plugins/deployments/` | Build + Project | provisioning → running → stopped / failed |
+| Entity | Plugin Directory | Parent | State Machine | Phase |
+|--------|-----------------|--------|---------------|-------|
+| Project | `plugins/projects/` | — | draft → active → archived | 1 |
+| EntityDefinition | `plugins/entity_definitions/` | Project | — | 1 |
+| FieldDefinition | `plugins/field_definitions/` | EntityDefinition | — | 1 |
+| Relationship | `plugins/relationships/` | Project (+ source/target EntityDefinition) | — | 1 |
+| Build | `plugins/builds/` | Project | pending → building → succeeded / failed | 1 |
+| Deployment | `plugins/deployments/` | Build + Project | provisioning → running → stopped / failed | 2 (future) |
 
 ## Requirements
 
@@ -59,13 +82,12 @@ A Project SHALL represent a managed API service with a name, description, reposi
 - AND a Project in status "archived" SHALL NOT transition to any other status
 
 #### Scenario: Project deletion cascades
-- GIVEN a Project with associated EntityDefinitions, FieldDefinitions, Relationships, Builds, and Deployments
+- GIVEN a Project with associated EntityDefinitions, FieldDefinitions, Relationships, and Builds
 - WHEN the Project is deleted
 - THEN all child EntityDefinitions SHALL be soft-deleted
 - AND all child FieldDefinitions SHALL be soft-deleted (via EntityDefinition cascade)
 - AND all child Relationships SHALL be soft-deleted
 - AND all child Builds SHALL be soft-deleted
-- AND all child Deployments SHALL be soft-deleted (via Build cascade)
 
 **Fields:**
 
@@ -90,6 +112,7 @@ An EntityDefinition SHALL represent a single entity kind within a Project, mappi
 - GIVEN a Project with an existing EntityDefinition where `kind_name` is "Customer"
 - WHEN a new EntityDefinition with the same `kind_name` and `project_id` is submitted
 - THEN the request SHALL be rejected with a 409 Conflict error
+- AND uniqueness SHALL be enforced via a composite DB unique index on `(project_id, kind_name)` with GORM error mapping to 409
 
 #### Scenario: List entities for a project
 - GIVEN a Project with 3 EntityDefinitions
@@ -124,6 +147,7 @@ A FieldDefinition SHALL represent a single field on an EntityDefinition, mapping
 - GIVEN an EntityDefinition with a field named "email"
 - WHEN a new FieldDefinition with the same `field_name` and `entity_definition_id` is submitted
 - THEN the request SHALL be rejected with a 409 Conflict error
+- AND uniqueness SHALL be enforced via a composite DB unique index on `(entity_definition_id, field_name)` with GORM error mapping to 409
 
 **Fields:**
 
@@ -132,8 +156,7 @@ A FieldDefinition SHALL represent a single field on an EntityDefinition, mapping
 | entity_definition_id | `string` | `entity_definition_id` | yes | Parent EntityDefinition reference |
 | field_name | `string` | `field_name` | yes | snake_case field name |
 | field_type | `string` | `field_type` | yes | One of: string, int, int64, bool, float, time |
-| nullable | `*bool` | `nullable` | no | Whether the field accepts null (default: true) |
-| is_required | `*bool` | `is_required` | no | Whether the field is required in API requests (default: false) |
+| is_required | `*bool` | `is_required` | no | Whether the field is required in API requests and non-nullable in Go (default: false). When `true`, the field is non-nullable (`string` not `*string`) and listed in the OpenAPI `required` array. When `false` or omitted, the field is nullable (pointer type). |
 
 ### Requirement: Relationship Management
 
@@ -173,7 +196,7 @@ A Relationship SHALL define a foreign-key association between two EntityDefiniti
 
 ### Requirement: Build Orchestration
 
-A Build SHALL represent a single execution of the TRex generation pipeline for a Project, capturing inputs and tracking status through a state machine.
+A Build SHALL represent a single execution of the TRex generation pipeline for a Project, capturing inputs and tracking status through a state machine. Builds are **immutable after creation** — only the Build controller (via event handlers) MAY update the status and build_log fields. No PATCH endpoint is exposed.
 
 #### Scenario: Trigger a build
 - GIVEN a Project "proj-123" in status "active" with at least one EntityDefinition
@@ -187,11 +210,12 @@ A Build SHALL represent a single execution of the TRex generation pipeline for a
 - THEN the handler SHALL:
   1. Transition the Build to status "building"
   2. Resolve all EntityDefinitions, FieldDefinitions, and Relationships for the Project
-  3. Invoke the entity generator (CG-001) for each EntityDefinition with its resolved fields
-  4. Invoke the CLI generator (CG-002) against the generated OpenAPI spec
-  5. Invoke the SDK generator (CG-003) against the generated OpenAPI spec
-  6. On success: set status to "succeeded" and record `completed_at`
-  7. On failure: set status to "failed" and capture error details in `build_log`
+  3. Create an isolated workspace directory under a configured `build_workspace_root` path (default: `/tmp/trex-builds/{build_id}/`)
+  4. For each EntityDefinition, invoke the entity generator as a subprocess: `go run ./scripts/generator.go --kind {KindName} --fields {resolved_fields} --repo {project.repository_url} --project {project.name}` within the workspace
+  5. Invoke the CLI generator (CG-002) as a subprocess against the workspace's generated OpenAPI spec
+  6. Invoke the SDK generator (CG-003) as a subprocess against the workspace's generated OpenAPI spec
+  7. On success: set status to "succeeded", record `completed_at`, and store the workspace path or artifact reference in `build_log`
+  8. On failure: set status to "failed" and capture stderr/stdout in `build_log`
 
 #### Scenario: Prevent build for draft project
 - GIVEN a Project in status "draft"
@@ -200,7 +224,7 @@ A Build SHALL represent a single execution of the TRex generation pipeline for a
 - AND the error SHALL indicate the project must be "active" to build
 
 #### Scenario: Build idempotency
-- GIVEN a Build that has already reached status "succeeded"
+- GIVEN a Build that has already reached status "succeeded" or "failed"
 - WHEN the OnUpsert handler fires again (event replay)
 - THEN the handler SHALL detect the terminal status and skip processing
 
@@ -210,40 +234,17 @@ A Build SHALL represent a single execution of the TRex generation pipeline for a
 |-------|---------|------|----------|-------------|
 | project_id | `string` | `project_id` | yes | Parent Project reference |
 | status | `string` | `status` | yes | State: pending, building, succeeded, failed |
-| build_log | `*string` | `build_log` | no | Generation output and error details |
+| build_log | `*string` | `build_log` | no | Generation output, error details, and workspace path |
 | triggered_by | `*string` | `triggered_by` | no | Identity of the user or system that triggered the build |
 | completed_at | `*time.Time` | `completed_at` | no | Timestamp when the build reached a terminal state |
 
-### Requirement: Deployment Lifecycle
+### Requirement: Deployment Lifecycle (Phase 2 — Future)
 
-A Deployment SHALL represent a running instance of a generated API service from a successful Build.
+A Deployment SHALL represent a running instance of a generated API service from a successful Build. This requirement is deferred to Phase 2 pending resolution of deployment target architecture (containers, Kubernetes pods, process-per-project, etc.).
 
-#### Scenario: Create a deployment
-- GIVEN a Build "build-789" with status "succeeded"
-- WHEN a POST request is made to `/api/rh-trex-ai/v1/deployments` with `{"build_id": "build-789", "project_id": "proj-123", "target_environment": "staging"}`
-- THEN a Deployment SHALL be created with `status: "provisioning"`
+**Status:** Future — not implemented in Phase 1.
 
-#### Scenario: Deployment controller provisions instance
-- GIVEN a Deployment in status "provisioning"
-- WHEN the Deployment's OnUpsert controller handler fires
-- THEN the handler SHALL:
-  1. Allocate resources for the generated API service
-  2. Deploy the built artifacts to the target environment
-  3. On success: set status to "running" and record the `endpoint_url`
-  4. On failure: set status to "failed" and capture error in Build's log
-
-#### Scenario: Prevent deployment of failed build
-- GIVEN a Build with status "failed"
-- WHEN a Deployment referencing that Build is submitted
-- THEN the request SHALL be rejected with a 400 Bad Request
-
-#### Scenario: Stop a deployment
-- GIVEN a Deployment in status "running"
-- WHEN a PATCH request sets `{"status": "stopped"}`
-- THEN the Deployment SHALL transition to "stopped"
-- AND resources SHALL be deallocated by the OnUpsert controller handler
-
-**Fields:**
+**Fields (preliminary):**
 
 | Field | Go Type | JSON | Required | Description |
 |-------|---------|------|----------|-------------|
@@ -258,7 +259,7 @@ A Deployment SHALL represent a running instance of a generated API service from 
 The platform SHALL translate EntityDefinitions and FieldDefinitions into generator CLI arguments.
 
 #### Scenario: Single entity with fields
-- GIVEN an EntityDefinition `kind_name: "Customer"` with FieldDefinitions `[{field_name: "email", field_type: "string", is_required: true}, {field_name: "age", field_type: "int", nullable: true}]`
+- GIVEN an EntityDefinition `kind_name: "Customer"` with FieldDefinitions `[{field_name: "email", field_type: "string", is_required: true}, {field_name: "age", field_type: "int", is_required: false}]`
 - WHEN the Build controller resolves generator arguments
 - THEN the equivalent command SHALL be: `go run ./scripts/generator.go --kind Customer --fields "email:string:required,age:int"`
 
@@ -267,11 +268,18 @@ The platform SHALL translate EntityDefinitions and FieldDefinitions into generat
 - WHEN the Build controller resolves generator arguments
 - THEN the `--plural People` flag SHALL be included
 
+#### Scenario: Library mode for downstream projects
+- GIVEN a Build for a Project with `repository_url: "github.com/myorg/my-service"`
+- WHEN the Build controller resolves generator arguments
+- THEN the `--library github.com/openshift-online/rh-trex-ai` flag SHALL be included
+- AND `--repo github.com/myorg/my-service` and `--project my-service` SHALL be included
+
 #### Scenario: Relationship to generator mapping
 - GIVEN a `has_many` relationship from "Customer" to "Order"
 - WHEN the Build controller processes relationships
-- THEN a `customer_id:string:required` field SHALL be auto-injected into the "Order" EntityDefinition
+- THEN a `customer_id:string:required` field SHALL be auto-injected into the "Order" EntityDefinition's resolved field list
 - AND the foreign key column SHALL follow the pattern `{source_kind_snake_case}_id`
+- AND this auto-injection requires the CG-001 `--parent` enhancement (see [Prerequisites](#prerequisites--generator-enhancements-required)); until then, FK fields MUST be manually added as FieldDefinitions
 
 ### Requirement: API Path Structure
 
@@ -290,8 +298,6 @@ All platform entities SHALL follow the TRex REST conventions under the `/api/rh-
   - `GET/PATCH/DELETE /api/rh-trex-ai/v1/relationships/{id}`
   - `GET/POST /api/rh-trex-ai/v1/builds`
   - `GET/DELETE /api/rh-trex-ai/v1/builds/{id}`
-  - `GET/POST /api/rh-trex-ai/v1/deployments`
-  - `GET/PATCH/DELETE /api/rh-trex-ai/v1/deployments/{id}`
 
 ### Requirement: Parent-Child Query Filtering
 
@@ -312,16 +318,33 @@ List endpoints for child entities SHALL support filtering by parent ID.
 - WHEN `GET /api/rh-trex-ai/v1/builds?project_id=proj-123`
 - THEN only Builds belonging to "proj-123" SHALL be returned
 
+## Post-Generation Customization
+
+The entity generator (CG-001) produces scaffolding for each entity. The following customizations MUST be applied manually after generation until the corresponding generator enhancements are implemented:
+
+| Entity | Post-Generation Work | Generator Enhancement That Eliminates It |
+|--------|---------------------|------------------------------------------|
+| **All entities with parents** | Add `{parent}_id` foreign key field to model, DB index in migration, and `FindBy{Parent}ID()` DAO method | `--parent` flag (CG-001) |
+| **Project** | Add `ValidateStatusTransition()` to service layer; reject invalid transitions in handler | `--status` flag (CG-001) |
+| **Build** | Add `ValidateStatusTransition()` to service layer; reject invalid transitions in handler | `--status` flag (CG-001) |
+| **Project** | Add cascade soft-delete of children in `OnDelete` handler | `--parent` cascade support (CG-001) |
+| **EntityDefinition** | Add composite unique index `(project_id, kind_name)` to migration; map GORM duplicate key error to 409 | `:unique` field modifier (CG-001) |
+| **FieldDefinition** | Add composite unique index `(entity_definition_id, field_name)` to migration; map GORM duplicate key error to 409 | `:unique` field modifier (CG-001) |
+| **Relationship** | Add same-project validation and self-reference check in handler | Custom validation (likely always hand-coded) |
+| **Build** | Implement subprocess-based generation orchestration in `OnUpsert` handler | N/A (application-specific logic) |
+| **All child entities** | Add `FindBy{Parent}ID()` filtered query to DAO and expose via query parameter in handler | `:indexed` field modifier (CG-001) |
+
 ## Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| 6 entities (Project, EntityDefinition, FieldDefinition, Relationship, Build, Deployment) | 3x current entity count; exercises parent-child hierarchies, state machines, and cross-entity validation that the toy "dinosaurs" model doesn't test |
+| 5 entities in Phase 1, Deployment deferred to Phase 2 | Deployment requires defining infrastructure targets (K8s, containers, processes) which is orthogonal to the ERD-to-generation pipeline. Ship the core loop first. |
+| Build is immutable (no PATCH endpoint) | Only the controller changes Build state, ensuring a clean audit trail. Users can only trigger (POST) or cancel (DELETE) builds. |
+| Build controller uses subprocess execution | The entity generator is a file-system tool (`go run ./scripts/generator.go`), not a library. Subprocess invocation in an isolated workspace directory is the simplest correct approach. The Build controller creates a temp directory, shells out, and captures stdout/stderr. |
 | Separate FieldDefinition entity (not embedded JSON) | Enables individual CRUD, audit trail per field, and filtering — proves the generator handles high entity counts |
-| Build as immutable snapshot | Generation is auditable and reproducible; failed builds are preserved for debugging |
-| Deployment separate from Build | One Build can have multiple Deployments (staging, production); decouples generation from operational lifecycle |
+| `is_required` subsumes `nullable` | A single `is_required` boolean controls both Go type (pointer vs value) and OpenAPI `required` array membership. No separate `nullable` field — `is_required: true` means non-nullable, `is_required: false` or omitted means nullable. Eliminates ambiguity. |
+| Uniqueness enforced at DB level with error mapping | Composite unique indexes on `(project_id, kind_name)` and `(entity_definition_id, field_name)` prevent races. GORM duplicate key errors are mapped to 409 Conflict in the service layer. |
 | New `app/` spec domain | Cleanly separates "what TRex does as a product" from "how TRex works as a framework" |
-| Denormalized `project_id` on Deployment | Avoids joining through Build for common project-scoped queries |
-| Relationship auto-injects FK fields | Mirrors real ORM behavior; validates that the generator can handle derived fields |
+| Relationship auto-injection is aspirational | FK field auto-injection from Relationships requires CG-001 `--parent` support. Until then, FK fields are added as explicit FieldDefinitions. The spec documents both the target state and the interim workaround. |
 | Status field as string enum (not Go enum) | Matches existing TRex pattern; validated in handler layer |
 | No self-referencing relationships | Simplifies initial implementation; MAY be added in a future spec revision |
