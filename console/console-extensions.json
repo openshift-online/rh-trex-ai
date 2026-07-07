@@ -1,0 +1,282 @@
+[
+  {
+    "type": "console.navigation/section",
+    "properties": {
+      "id": "trex-console",
+      "name": "Rh Trex Ai Console",
+      "perspective": "admin"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/builds",
+      "component": { "$codeRef": "BuildListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/builds/create",
+      "component": { "$codeRef": "BuildCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/builds/:id",
+      "component": { "$codeRef": "BuildDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "builds",
+      "name": "Builds",
+      "href": "/trex-console/builds",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/dinosaurs",
+      "component": { "$codeRef": "DinosaurListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/dinosaurs/create",
+      "component": { "$codeRef": "DinosaurCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/dinosaurs/:id",
+      "component": { "$codeRef": "DinosaurDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "dinosaurs",
+      "name": "Dinosaurs",
+      "href": "/trex-console/dinosaurs",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/entity-definitions",
+      "component": { "$codeRef": "EntityDefinitionListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/entity-definitions/create",
+      "component": { "$codeRef": "EntityDefinitionCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/entity-definitions/:id",
+      "component": { "$codeRef": "EntityDefinitionDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "entity-definitions",
+      "name": "EntityDefinitions",
+      "href": "/trex-console/entity-definitions",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/field-definitions",
+      "component": { "$codeRef": "FieldDefinitionListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/field-definitions/create",
+      "component": { "$codeRef": "FieldDefinitionCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/field-definitions/:id",
+      "component": { "$codeRef": "FieldDefinitionDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "field-definitions",
+      "name": "FieldDefinitions",
+      "href": "/trex-console/field-definitions",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/fossils",
+      "component": { "$codeRef": "FossilListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/fossils/create",
+      "component": { "$codeRef": "FossilCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/fossils/:id",
+      "component": { "$codeRef": "FossilDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "fossils",
+      "name": "Fossils",
+      "href": "/trex-console/fossils",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/projects",
+      "component": { "$codeRef": "ProjectListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/projects/create",
+      "component": { "$codeRef": "ProjectCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/projects/:id",
+      "component": { "$codeRef": "ProjectDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "projects",
+      "name": "Projects",
+      "href": "/trex-console/projects",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/relationships",
+      "component": { "$codeRef": "RelationshipListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/relationships/create",
+      "component": { "$codeRef": "RelationshipCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/relationships/:id",
+      "component": { "$codeRef": "RelationshipDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "relationships",
+      "name": "Relationships",
+      "href": "/trex-console/relationships",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/scientists",
+      "component": { "$codeRef": "ScientistListPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/scientists/create",
+      "component": { "$codeRef": "ScientistCreatePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/trex-console/scientists/:id",
+      "component": { "$codeRef": "ScientistDetailsPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "scientists",
+      "name": "Scientists",
+      "href": "/trex-console/scientists",
+      "perspective": "admin",
+      "section": "trex-console"
+    }
+  }
+]
