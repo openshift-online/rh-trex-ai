@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message Relationship {
+  ObjectReference metadata = 1;
+  string project_id = 2;
+  string source_entity_id = 3;
+  string target_entity_id = 4;
+  string relationship_type = 5;
+  optional string foreign_key = 6;
+}
+
+message CreateRelationshipRequest {
+  string project_id = 1;
+  string source_entity_id = 2;
+  string target_entity_id = 3;
+  string relationship_type = 4;
+  optional string foreign_key = 5;
+}
+
+message GetRelationshipRequest {
+  string id = 1;
+}
+
+message UpdateRelationshipRequest {
+  string id = 1;
+  optional string project_id = 2;
+  optional string source_entity_id = 3;
+  optional string target_entity_id = 4;
+  optional string relationship_type = 5;
+  optional string foreign_key = 6;
+}
+
+message DeleteRelationshipRequest {
+  string id = 1;
+}
+
+message ListRelationshipsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListRelationshipsResponse {
+  repeated Relationship items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteRelationshipResponse {}
+
+message WatchRelationshipsRequest {}
+
+message RelationshipWatchEvent {
+  EventType type = 1;
+  Relationship relationship = 2;
+  string resource_id = 3;
+}
+
+service RelationshipService {
+  rpc GetRelationship(GetRelationshipRequest) returns (Relationship);
+  rpc CreateRelationship(CreateRelationshipRequest) returns (Relationship);
+  rpc UpdateRelationship(UpdateRelationshipRequest) returns (Relationship);
+  rpc DeleteRelationship(DeleteRelationshipRequest) returns (DeleteRelationshipResponse);
+  rpc ListRelationships(ListRelationshipsRequest) returns (ListRelationshipsResponse);
+  rpc WatchRelationships(WatchRelationshipsRequest) returns (stream RelationshipWatchEvent);
+}

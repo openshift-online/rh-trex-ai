@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message Project {
+  ObjectReference metadata = 1;
+  string name = 2;
+  optional string description = 3;
+  optional string repository_url = 4;
+  string status = 5;
+}
+
+message CreateProjectRequest {
+  string name = 1;
+  optional string description = 2;
+  optional string repository_url = 3;
+  string status = 4;
+}
+
+message GetProjectRequest {
+  string id = 1;
+}
+
+message UpdateProjectRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional string repository_url = 4;
+  optional string status = 5;
+}
+
+message DeleteProjectRequest {
+  string id = 1;
+}
+
+message ListProjectsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListProjectsResponse {
+  repeated Project items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteProjectResponse {}
+
+message WatchProjectsRequest {}
+
+message ProjectWatchEvent {
+  EventType type = 1;
+  Project project = 2;
+  string resource_id = 3;
+}
+
+service ProjectService {
+  rpc GetProject(GetProjectRequest) returns (Project);
+  rpc CreateProject(CreateProjectRequest) returns (Project);
+  rpc UpdateProject(UpdateProjectRequest) returns (Project);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  rpc WatchProjects(WatchProjectsRequest) returns (stream ProjectWatchEvent);
+}

@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message EntityDefinition {
+  ObjectReference metadata = 1;
+  string project_id = 2;
+  string kind_name = 3;
+  optional string plural_override = 4;
+  optional string description = 5;
+}
+
+message CreateEntityDefinitionRequest {
+  string project_id = 1;
+  string kind_name = 2;
+  optional string plural_override = 3;
+  optional string description = 4;
+}
+
+message GetEntityDefinitionRequest {
+  string id = 1;
+}
+
+message UpdateEntityDefinitionRequest {
+  string id = 1;
+  optional string project_id = 2;
+  optional string kind_name = 3;
+  optional string plural_override = 4;
+  optional string description = 5;
+}
+
+message DeleteEntityDefinitionRequest {
+  string id = 1;
+}
+
+message ListEntityDefinitionsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListEntityDefinitionsResponse {
+  repeated EntityDefinition items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteEntityDefinitionResponse {}
+
+message WatchEntityDefinitionsRequest {}
+
+message EntityDefinitionWatchEvent {
+  EventType type = 1;
+  EntityDefinition entityDefinition = 2;
+  string resource_id = 3;
+}
+
+service EntityDefinitionService {
+  rpc GetEntityDefinition(GetEntityDefinitionRequest) returns (EntityDefinition);
+  rpc CreateEntityDefinition(CreateEntityDefinitionRequest) returns (EntityDefinition);
+  rpc UpdateEntityDefinition(UpdateEntityDefinitionRequest) returns (EntityDefinition);
+  rpc DeleteEntityDefinition(DeleteEntityDefinitionRequest) returns (DeleteEntityDefinitionResponse);
+  rpc ListEntityDefinitions(ListEntityDefinitionsRequest) returns (ListEntityDefinitionsResponse);
+  rpc WatchEntityDefinitions(WatchEntityDefinitionsRequest) returns (stream EntityDefinitionWatchEvent);
+}

@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+message Build {
+  ObjectReference metadata = 1;
+  string project_id = 2;
+  string status = 3;
+  optional string build_log = 4;
+  optional string triggered_by = 5;
+  optional google.protobuf.Timestamp completed_at = 6;
+}
+
+message CreateBuildRequest {
+  string project_id = 1;
+  string status = 2;
+  optional string build_log = 3;
+  optional string triggered_by = 4;
+  optional google.protobuf.Timestamp completed_at = 5;
+}
+
+message GetBuildRequest {
+  string id = 1;
+}
+
+message UpdateBuildRequest {
+  string id = 1;
+  optional string project_id = 2;
+  optional string status = 3;
+  optional string build_log = 4;
+  optional string triggered_by = 5;
+  optional google.protobuf.Timestamp completed_at = 6;
+}
+
+message DeleteBuildRequest {
+  string id = 1;
+}
+
+message ListBuildsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListBuildsResponse {
+  repeated Build items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteBuildResponse {}
+
+message WatchBuildsRequest {}
+
+message BuildWatchEvent {
+  EventType type = 1;
+  Build build = 2;
+  string resource_id = 3;
+}
+
+service BuildService {
+  rpc GetBuild(GetBuildRequest) returns (Build);
+  rpc CreateBuild(CreateBuildRequest) returns (Build);
+  rpc UpdateBuild(UpdateBuildRequest) returns (Build);
+  rpc DeleteBuild(DeleteBuildRequest) returns (DeleteBuildResponse);
+  rpc ListBuilds(ListBuildsRequest) returns (ListBuildsResponse);
+  rpc WatchBuilds(WatchBuildsRequest) returns (stream BuildWatchEvent);
+}

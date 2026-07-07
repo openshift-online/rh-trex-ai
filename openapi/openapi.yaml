@@ -23,6 +23,26 @@ paths:
     $ref: 'openapi.scientists.yaml#/paths/~1api~1rh-trex-ai~1v1~1scientists'
   /api/rh-trex-ai/v1/scientists/{id}:
     $ref: 'openapi.scientists.yaml#/paths/~1api~1rh-trex-ai~1v1~1scientists~1{id}'
+  /api/rh-trex-ai/v1/projects:
+    $ref: 'openapi.projects.yaml#/paths/~1api~1rh-trex-ai~1v1~1projects'
+  /api/rh-trex-ai/v1/projects/{id}:
+    $ref: 'openapi.projects.yaml#/paths/~1api~1rh-trex-ai~1v1~1projects~1{id}'
+  /api/rh-trex-ai/v1/entity_definitions:
+    $ref: 'openapi.entityDefinitions.yaml#/paths/~1api~1rh-trex-ai~1v1~1entity_definitions'
+  /api/rh-trex-ai/v1/entity_definitions/{id}:
+    $ref: 'openapi.entityDefinitions.yaml#/paths/~1api~1rh-trex-ai~1v1~1entity_definitions~1{id}'
+  /api/rh-trex-ai/v1/field_definitions:
+    $ref: 'openapi.fieldDefinitions.yaml#/paths/~1api~1rh-trex-ai~1v1~1field_definitions'
+  /api/rh-trex-ai/v1/field_definitions/{id}:
+    $ref: 'openapi.fieldDefinitions.yaml#/paths/~1api~1rh-trex-ai~1v1~1field_definitions~1{id}'
+  /api/rh-trex-ai/v1/relationships:
+    $ref: 'openapi.relationships.yaml#/paths/~1api~1rh-trex-ai~1v1~1relationships'
+  /api/rh-trex-ai/v1/relationships/{id}:
+    $ref: 'openapi.relationships.yaml#/paths/~1api~1rh-trex-ai~1v1~1relationships~1{id}'
+  /api/rh-trex-ai/v1/builds:
+    $ref: 'openapi.builds.yaml#/paths/~1api~1rh-trex-ai~1v1~1builds'
+  /api/rh-trex-ai/v1/builds/{id}:
+    $ref: 'openapi.builds.yaml#/paths/~1api~1rh-trex-ai~1v1~1builds~1{id}'
   # AUTO-ADD NEW PATHS
 components:
   securitySchemes:
@@ -92,6 +112,36 @@ components:
       $ref: 'openapi.scientists.yaml#/components/schemas/ScientistList'
     ScientistPatchRequest:
       $ref: 'openapi.scientists.yaml#/components/schemas/ScientistPatchRequest'
+    Project:
+      $ref: 'openapi.projects.yaml#/components/schemas/Project'
+    ProjectList:
+      $ref: 'openapi.projects.yaml#/components/schemas/ProjectList'
+    ProjectPatchRequest:
+      $ref: 'openapi.projects.yaml#/components/schemas/ProjectPatchRequest'
+    EntityDefinition:
+      $ref: 'openapi.entityDefinitions.yaml#/components/schemas/EntityDefinition'
+    EntityDefinitionList:
+      $ref: 'openapi.entityDefinitions.yaml#/components/schemas/EntityDefinitionList'
+    EntityDefinitionPatchRequest:
+      $ref: 'openapi.entityDefinitions.yaml#/components/schemas/EntityDefinitionPatchRequest'
+    FieldDefinition:
+      $ref: 'openapi.fieldDefinitions.yaml#/components/schemas/FieldDefinition'
+    FieldDefinitionList:
+      $ref: 'openapi.fieldDefinitions.yaml#/components/schemas/FieldDefinitionList'
+    FieldDefinitionPatchRequest:
+      $ref: 'openapi.fieldDefinitions.yaml#/components/schemas/FieldDefinitionPatchRequest'
+    Relationship:
+      $ref: 'openapi.relationships.yaml#/components/schemas/Relationship'
+    RelationshipList:
+      $ref: 'openapi.relationships.yaml#/components/schemas/RelationshipList'
+    RelationshipPatchRequest:
+      $ref: 'openapi.relationships.yaml#/components/schemas/RelationshipPatchRequest'
+    Build:
+      $ref: 'openapi.builds.yaml#/components/schemas/Build'
+    BuildList:
+      $ref: 'openapi.builds.yaml#/components/schemas/BuildList'
+    BuildPatchRequest:
+      $ref: 'openapi.builds.yaml#/components/schemas/BuildPatchRequest'
     # AUTO-ADD NEW SCHEMAS
   parameters:
     id:

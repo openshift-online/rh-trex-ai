@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message FieldDefinition {
+  ObjectReference metadata = 1;
+  string entity_definition_id = 2;
+  string field_name = 3;
+  string field_type = 4;
+  optional bool is_required = 5;
+}
+
+message CreateFieldDefinitionRequest {
+  string entity_definition_id = 1;
+  string field_name = 2;
+  string field_type = 3;
+  optional bool is_required = 4;
+}
+
+message GetFieldDefinitionRequest {
+  string id = 1;
+}
+
+message UpdateFieldDefinitionRequest {
+  string id = 1;
+  optional string entity_definition_id = 2;
+  optional string field_name = 3;
+  optional string field_type = 4;
+  optional bool is_required = 5;
+}
+
+message DeleteFieldDefinitionRequest {
+  string id = 1;
+}
+
+message ListFieldDefinitionsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListFieldDefinitionsResponse {
+  repeated FieldDefinition items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteFieldDefinitionResponse {}
+
+message WatchFieldDefinitionsRequest {}
+
+message FieldDefinitionWatchEvent {
+  EventType type = 1;
+  FieldDefinition fieldDefinition = 2;
+  string resource_id = 3;
+}
+
+service FieldDefinitionService {
+  rpc GetFieldDefinition(GetFieldDefinitionRequest) returns (FieldDefinition);
+  rpc CreateFieldDefinition(CreateFieldDefinitionRequest) returns (FieldDefinition);
+  rpc UpdateFieldDefinition(UpdateFieldDefinitionRequest) returns (FieldDefinition);
+  rpc DeleteFieldDefinition(DeleteFieldDefinitionRequest) returns (DeleteFieldDefinitionResponse);
+  rpc ListFieldDefinitions(ListFieldDefinitionsRequest) returns (ListFieldDefinitionsResponse);
+  rpc WatchFieldDefinitions(WatchFieldDefinitionsRequest) returns (stream FieldDefinitionWatchEvent);
+}

@@ -78,14 +78,34 @@ All URIs are relative to *http://localhost:8000*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*DefaultAPI* | [**ApiRhTrexAiV1BuildsGet**](docs/DefaultAPI.md#apirhtrexaiv1buildsget) | **Get** /api/rh-trex-ai/v1/builds | Returns a list of builds
+*DefaultAPI* | [**ApiRhTrexAiV1BuildsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1buildsidget) | **Get** /api/rh-trex-ai/v1/builds/{id} | Get an build by id
+*DefaultAPI* | [**ApiRhTrexAiV1BuildsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1buildsidpatch) | **Patch** /api/rh-trex-ai/v1/builds/{id} | Update an build
+*DefaultAPI* | [**ApiRhTrexAiV1BuildsPost**](docs/DefaultAPI.md#apirhtrexaiv1buildspost) | **Post** /api/rh-trex-ai/v1/builds | Create a new build
 *DefaultAPI* | [**ApiRhTrexAiV1DinosaursGet**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursget) | **Get** /api/rh-trex-ai/v1/dinosaurs | Returns a list of dinosaurs
 *DefaultAPI* | [**ApiRhTrexAiV1DinosaursIdGet**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursidget) | **Get** /api/rh-trex-ai/v1/dinosaurs/{id} | Get an dinosaur by id
 *DefaultAPI* | [**ApiRhTrexAiV1DinosaursIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursidpatch) | **Patch** /api/rh-trex-ai/v1/dinosaurs/{id} | Update an dinosaur
 *DefaultAPI* | [**ApiRhTrexAiV1DinosaursPost**](docs/DefaultAPI.md#apirhtrexaiv1dinosaurspost) | **Post** /api/rh-trex-ai/v1/dinosaurs | Create a new dinosaur
+*DefaultAPI* | [**ApiRhTrexAiV1EntityDefinitionsGet**](docs/DefaultAPI.md#apirhtrexaiv1entitydefinitionsget) | **Get** /api/rh-trex-ai/v1/entity_definitions | Returns a list of entityDefinitions
+*DefaultAPI* | [**ApiRhTrexAiV1EntityDefinitionsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1entitydefinitionsidget) | **Get** /api/rh-trex-ai/v1/entity_definitions/{id} | Get an entityDefinition by id
+*DefaultAPI* | [**ApiRhTrexAiV1EntityDefinitionsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1entitydefinitionsidpatch) | **Patch** /api/rh-trex-ai/v1/entity_definitions/{id} | Update an entityDefinition
+*DefaultAPI* | [**ApiRhTrexAiV1EntityDefinitionsPost**](docs/DefaultAPI.md#apirhtrexaiv1entitydefinitionspost) | **Post** /api/rh-trex-ai/v1/entity_definitions | Create a new entityDefinition
+*DefaultAPI* | [**ApiRhTrexAiV1FieldDefinitionsGet**](docs/DefaultAPI.md#apirhtrexaiv1fielddefinitionsget) | **Get** /api/rh-trex-ai/v1/field_definitions | Returns a list of fieldDefinitions
+*DefaultAPI* | [**ApiRhTrexAiV1FieldDefinitionsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1fielddefinitionsidget) | **Get** /api/rh-trex-ai/v1/field_definitions/{id} | Get an fieldDefinition by id
+*DefaultAPI* | [**ApiRhTrexAiV1FieldDefinitionsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1fielddefinitionsidpatch) | **Patch** /api/rh-trex-ai/v1/field_definitions/{id} | Update an fieldDefinition
+*DefaultAPI* | [**ApiRhTrexAiV1FieldDefinitionsPost**](docs/DefaultAPI.md#apirhtrexaiv1fielddefinitionspost) | **Post** /api/rh-trex-ai/v1/field_definitions | Create a new fieldDefinition
 *DefaultAPI* | [**ApiRhTrexAiV1FossilsGet**](docs/DefaultAPI.md#apirhtrexaiv1fossilsget) | **Get** /api/rh-trex-ai/v1/fossils | Returns a list of fossils
 *DefaultAPI* | [**ApiRhTrexAiV1FossilsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1fossilsidget) | **Get** /api/rh-trex-ai/v1/fossils/{id} | Get an fossil by id
 *DefaultAPI* | [**ApiRhTrexAiV1FossilsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1fossilsidpatch) | **Patch** /api/rh-trex-ai/v1/fossils/{id} | Update an fossil
 *DefaultAPI* | [**ApiRhTrexAiV1FossilsPost**](docs/DefaultAPI.md#apirhtrexaiv1fossilspost) | **Post** /api/rh-trex-ai/v1/fossils | Create a new fossil
+*DefaultAPI* | [**ApiRhTrexAiV1ProjectsGet**](docs/DefaultAPI.md#apirhtrexaiv1projectsget) | **Get** /api/rh-trex-ai/v1/projects | Returns a list of projects
+*DefaultAPI* | [**ApiRhTrexAiV1ProjectsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1projectsidget) | **Get** /api/rh-trex-ai/v1/projects/{id} | Get an project by id
+*DefaultAPI* | [**ApiRhTrexAiV1ProjectsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1projectsidpatch) | **Patch** /api/rh-trex-ai/v1/projects/{id} | Update an project
+*DefaultAPI* | [**ApiRhTrexAiV1ProjectsPost**](docs/DefaultAPI.md#apirhtrexaiv1projectspost) | **Post** /api/rh-trex-ai/v1/projects | Create a new project
+*DefaultAPI* | [**ApiRhTrexAiV1RelationshipsGet**](docs/DefaultAPI.md#apirhtrexaiv1relationshipsget) | **Get** /api/rh-trex-ai/v1/relationships | Returns a list of relationships
+*DefaultAPI* | [**ApiRhTrexAiV1RelationshipsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1relationshipsidget) | **Get** /api/rh-trex-ai/v1/relationships/{id} | Get an relationship by id
+*DefaultAPI* | [**ApiRhTrexAiV1RelationshipsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1relationshipsidpatch) | **Patch** /api/rh-trex-ai/v1/relationships/{id} | Update an relationship
+*DefaultAPI* | [**ApiRhTrexAiV1RelationshipsPost**](docs/DefaultAPI.md#apirhtrexaiv1relationshipspost) | **Post** /api/rh-trex-ai/v1/relationships | Create a new relationship
 *DefaultAPI* | [**ApiRhTrexAiV1ScientistsGet**](docs/DefaultAPI.md#apirhtrexaiv1scientistsget) | **Get** /api/rh-trex-ai/v1/scientists | Returns a list of scientists
 *DefaultAPI* | [**ApiRhTrexAiV1ScientistsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1scientistsidget) | **Get** /api/rh-trex-ai/v1/scientists/{id} | Get an scientist by id
 *DefaultAPI* | [**ApiRhTrexAiV1ScientistsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1scientistsidpatch) | **Patch** /api/rh-trex-ai/v1/scientists/{id} | Update an scientist
@@ -94,15 +114,30 @@ Class | Method | HTTP request | Description
 
 ## Documentation For Models
 
+ - [Build](docs/Build.md)
+ - [BuildList](docs/BuildList.md)
+ - [BuildPatchRequest](docs/BuildPatchRequest.md)
  - [Dinosaur](docs/Dinosaur.md)
  - [DinosaurList](docs/DinosaurList.md)
  - [DinosaurPatchRequest](docs/DinosaurPatchRequest.md)
+ - [EntityDefinition](docs/EntityDefinition.md)
+ - [EntityDefinitionList](docs/EntityDefinitionList.md)
+ - [EntityDefinitionPatchRequest](docs/EntityDefinitionPatchRequest.md)
  - [Error](docs/Error.md)
+ - [FieldDefinition](docs/FieldDefinition.md)
+ - [FieldDefinitionList](docs/FieldDefinitionList.md)
+ - [FieldDefinitionPatchRequest](docs/FieldDefinitionPatchRequest.md)
  - [Fossil](docs/Fossil.md)
  - [FossilList](docs/FossilList.md)
  - [FossilPatchRequest](docs/FossilPatchRequest.md)
  - [List](docs/List.md)
  - [ObjectReference](docs/ObjectReference.md)
+ - [Project](docs/Project.md)
+ - [ProjectList](docs/ProjectList.md)
+ - [ProjectPatchRequest](docs/ProjectPatchRequest.md)
+ - [Relationship](docs/Relationship.md)
+ - [RelationshipList](docs/RelationshipList.md)
+ - [RelationshipPatchRequest](docs/RelationshipPatchRequest.md)
  - [Scientist](docs/Scientist.md)
  - [ScientistList](docs/ScientistList.md)
  - [ScientistPatchRequest](docs/ScientistPatchRequest.md)

@@ -32,6 +32,7 @@ This file is the machine-readable registry of all specifications governing the r
 | STD-002 | Error Handling | standards | Active | API-001 | `standards/error-handling.spec.md` |
 | STD-003 | Testing Standards | standards | Active | FW-002 | `standards/testing.spec.md` |
 | APP-001 | Managed API Platform | app | Draft | CG-001, CG-002, CG-003, FW-001, FW-002, FW-003 | `app/managed-api-platform.spec.md` |
+| APP-002 | Console UI | app | Draft | APP-001, CG-004, API-001 | `app/console-ui.spec.md` |
 
 ## Spec Dependency Order
 
@@ -44,7 +45,7 @@ Topological layers for reconciliation:
 - **Layer 4 (data + security):** DA-002, SEC-001, STD-002
 - **Layer 5 (auth + standards):** SEC-002, STD-003
 - **Layer 6 (codegen):** CG-001, CG-002, CG-003, CG-004
-- **Layer 7 (application):** APP-001
+- **Layer 7 (application):** APP-001, APP-002
 
 ## SDLC Workflow
 
