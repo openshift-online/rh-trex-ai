@@ -15,8 +15,7 @@ tags:
   - name: default
     description: Default API operations
 paths:
-  /api/my-service/v1:
-    $ref: './openapi.yaml#/paths/~1api~1my-service~1v1'
+  # AUTO-ADD NEW PATHS
 components:
   schemas:
     List:
@@ -52,6 +51,54 @@ components:
               type: string
             operation_id:
               type: string
+    # AUTO-ADD NEW SCHEMAS
+  parameters:
+    id:
+      name: id
+      in: path
+      description: The id of record
+      required: true
+      schema:
+        type: string
+    page:
+      name: page
+      in: query
+      description: Page number of record list when record list exceeds specified page size
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      required: false
+    size:
+      name: size
+      in: query
+      description: Maximum number of records to return
+      schema:
+        type: integer
+        default: 100
+        minimum: 0
+      required: false
+    search:
+      name: search
+      in: query
+      required: false
+      description: Specifies the search criteria
+      schema:
+        type: string
+    orderBy:
+      name: orderBy
+      in: query
+      required: false
+      description: Specifies the order by criteria
+      schema:
+        type: string
+    fields:
+      name: fields
+      in: query
+      required: false
+      description: Supplies a comma-separated list of fields to be returned
+      schema:
+        type: string
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid

@@ -33,10 +33,12 @@ var (
 	kind                        = "Asteroid"
 	repo                        = "github.com/openshift-online"
 	project                     = "rh-trex-ai"
-	apiProject                  = "rh-trex-ai"
+	apiProject                  = ""
 	fields                      = ""
 	plural                      = ""
 	library                     = "github.com/openshift-online/rh-trex-ai"
+	protoPackage                = ""
+	templatesDir                = "templates"
 	openapiEndpointStart        = "# NEW ENDPOINT START"
 	openapiEndpointEnd          = "# NEW ENDPOINT END"
 	openApiSchemaStart          = "# NEW SCHEMA START"
@@ -56,6 +58,8 @@ func init() {
 	flags.StringVar(&fields, "fields", fields, "comma-separated list of custom fields in format name:type (e.g. 'name:string,age:int,active:bool')")
 	flags.StringVar(&plural, "plural", plural, "the plural form of the kind. If not provided, uses irregular plurals map or adds 's'")
 	flags.StringVar(&library, "library", library, "the module path of the rh-trex-ai library (e.g. github.com/openshift-online/rh-trex-ai)")
+	flags.StringVar(&protoPackage, "proto-package", protoPackage, "the protobuf package name (e.g. rh_trex_mgr). Defaults to snake_case of project name")
+	flags.StringVar(&templatesDir, "templates-dir", templatesDir, "directory containing generate-*.txt template files")
 }
 
 // irregularPlurals maps singular forms to their irregular plural forms
@@ -145,7 +149,7 @@ func main() {
 	}
 
 	for _, nm := range templates {
-		path := fmt.Sprintf("templates/generate-%s.txt", nm)
+		path := fmt.Sprintf("%s/generate-%s.txt", templatesDir, nm)
 		contents, err := os.ReadFile(path)
 		if err != nil {
 			panic(err)
@@ -163,12 +167,21 @@ func main() {
 		kindPlural := pluralize(kind)
 		kindPluralLower := pluralize(kindLowerCamel)
 		kindPluralSnake := toSnakeCase(kindPlural)
+		resolvedProtoPackage := protoPackage
+		if resolvedProtoPackage == "" {
+			resolvedProtoPackage = strings.ReplaceAll(strings.ReplaceAll(project, "-", "_"), ".", "_")
+		}
+		resolvedApiProject := apiProject
+		if resolvedApiProject == "" {
+			resolvedApiProject = project
+		}
 		k := myWriter{
 			Project:             project,
 			ProjectPascalCase:   toPascalCase(project),
-			ApiProject:          apiProject,
+			ApiProject:          resolvedApiProject,
 			Repo:                repo,
 			Library:             library,
+			ProtoPackage:        resolvedProtoPackage,
 			Cmd:                 getCmdDir(),
 			Kind:                kind,
 			KindPlural:          kindPlural,
@@ -193,7 +206,7 @@ func main() {
 			"generate-grpc-handler":   fmt.Sprintf("plugins/%s/grpc_handler.go", k.KindLowerPlural),
 			"generate-grpc-presenter": fmt.Sprintf("plugins/%s/grpc_presenter.go", k.KindLowerPlural),
 			"generate-grpc-test":      fmt.Sprintf("plugins/%s/grpc_integration_test.go", k.KindLowerPlural),
-			"generate-proto":          fmt.Sprintf("proto/rh_trex/v1/%s.proto", k.KindSnakeCasePlural),
+			"generate-proto":          fmt.Sprintf("proto/%s/v1/%s.proto", k.ProtoPackage, k.KindSnakeCasePlural),
 			"generate-test-factories": fmt.Sprintf("plugins/%s/factory_test.go", k.KindLowerPlural),
 			"generate-test":           fmt.Sprintf("plugins/%s/integration_test.go", k.KindLowerPlural),
 			"generate-testmain":       fmt.Sprintf("plugins/%s/testmain_test.go", k.KindLowerPlural),
@@ -443,6 +456,7 @@ type myWriter struct {
 	ProjectPascalCase   string
 	ApiProject          string
 	Library             string
+	ProtoPackage        string
 	Cmd                 string
 	Kind                string
 	KindPlural          string

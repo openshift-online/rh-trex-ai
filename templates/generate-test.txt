@@ -7,7 +7,7 @@ import (
 	"testing"
 {{- $hasTime := false}}
 {{- range .Fields}}
-{{- if eq .GoType "time.Time"}}
+{{- if eq .Type "time"}}
 {{- $hasTime = true}}
 {{- end}}
 {{- end}}

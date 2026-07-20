@@ -16,7 +16,7 @@ import (
 	"{{.Library}}/pkg/db"
 	"{{.Library}}/plugins/events"
 	"{{.Library}}/plugins/generic"
-	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	pb "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
 )
 
 type ServiceLocator func() {{.Kind}}Service
@@ -47,7 +47,7 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
 		{{.KindLowerSingular}}Handler := New{{.Kind}}Handler(Service(envServices), generic.Service(envServices))
 

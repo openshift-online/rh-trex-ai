@@ -33,7 +33,7 @@ test: install
 
 .PHONY: test-integration
 test-integration: install
-	OCM_ENV=integration go test -v ./plugins/... -count=1
+	API_ENV=integration_testing go test -p 1 -v ./plugins/... -count=1
 
 .PHONY: clean
 clean:
