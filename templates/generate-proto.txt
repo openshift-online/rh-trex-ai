@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package rh_trex.v1;
+package {{.ProtoPackage}}.v1;
 
-option go_package = "{{.Repo}}/{{.Project}}/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+option go_package = "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1;{{.ProtoPackage}}_v1";
 
-import "rh_trex/v1/common.proto";
+import "{{.ProtoPackage}}/v1/common.proto";
 {{- range .Fields}}
 {{- if eq .Type "time"}}
 import "google/protobuf/timestamp.proto";

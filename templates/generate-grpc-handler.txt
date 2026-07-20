@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"{{.Library}}/pkg/api"
-	pb "{{.Library}}/pkg/api/grpc/rh_trex/v1"
+	pb "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
 	pkgserver "{{.Library}}/pkg/server"
 	"{{.Library}}/pkg/server/grpcutil"
 	"{{.Library}}/pkg/services"
@@ -187,7 +187,7 @@ func (h *{{.KindLowerSingular}}GRPCHandler) Watch{{.KindPlural}}(req *pb.Watch{{
 			}
 
 			watchEvent := &pb.{{.Kind}}WatchEvent{
-				Type:       grpcutil.APIEventTypeToProto(evt.EventType),
+				Type:       pb.EventType(grpcutil.APIEventTypeToProto(evt.EventType)),
 				ResourceId: evt.SourceID,
 			}
 

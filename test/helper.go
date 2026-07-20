@@ -168,7 +168,7 @@ func (helper *Helper) initControllersServer() {
 }
 
 func (helper *Helper) StartControllersServer() {
-	helper.ControllersServer.Start()
+	go helper.ControllersServer.Start()
 }
 
 func (helper *Helper) stopControllersServer() error {

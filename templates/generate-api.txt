@@ -1,6 +1,16 @@
 package {{.KindLowerPlural}}
 
 import (
+{{- $hasTime := false}}
+{{- range .Fields}}
+{{- if eq .Type "time"}}
+{{- $hasTime = true}}
+{{- end}}
+{{- end}}
+{{- if $hasTime}}
+	"time"
+{{- end}}
+
 	"{{.Library}}/pkg/api"
 	"gorm.io/gorm"
 )
