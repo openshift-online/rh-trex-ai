@@ -15,6 +15,17 @@ tags:
   - name: default
     description: Default API operations
 paths:
+  /api/my-service/v1/metadata:
+    get:
+      summary: Service metadata
+      operationId: getMetadata
+      responses:
+        '200':
+          description: Service metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectReference'
   # AUTO-ADD NEW PATHS
 components:
   schemas:
@@ -40,6 +51,12 @@ components:
           type: string
         href:
           type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Error:
       allOf:
         - $ref: '#/components/schemas/ObjectReference'

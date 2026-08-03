@@ -98,11 +98,15 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 			if err != nil {
 				return nil, err
 			}
+			kindStr := "{{.Kind}}List"
+			pageVal := int32(paging.Page)
+			sizeVal := int32(paging.Size)
+			totalVal := int32(paging.Total)
 			{{.KindLowerSingular}}List := openapi.{{.Kind}}List{
-				Kind:  "{{.Kind}}List",
-				Page:  int32(paging.Page),
-				Size:  int32(paging.Size),
-				Total: int32(paging.Total),
+				Kind:  &kindStr,
+				Page:  &pageVal,
+				Size:  &sizeVal,
+				Total: &totalVal,
 				Items: []openapi.{{.Kind}}{},
 			}
 
