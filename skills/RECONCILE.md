@@ -1,7 +1,7 @@
 # Reconciliation Checkpoint
 
 **Last Updated:** 2026-08-03
-**Last Run By:** Codex (reconcile skill — hermetic test bootstrap)
+**Last Run By:** Codex (reconcile skill — isolated test tooling)
 
 ---
 
@@ -108,3 +108,4 @@ GAP-001–004 remain closed and require no further action.
 | 2026-08-03 | 73.9% (102/138) | Hardened CG-005 after review with bounded references, safe projections, explicit security inheritance, atomic consumer evolution, grouped conformance requirements, automated API parity, and an explicit CG-006 TUI milestone. | Codex |
 | 2026-08-03 | 71.3% (102/143) | Verified all three generator modules have no tests and CI skips their nested modules; added pre-migration characterization, real-spec generation, and target artifact acceptance requirements. | Codex |
 | 2026-08-03 | 71.7% (104/145) | Covered reproducible test tooling and hermetic unit-test credentials: test targets use module-pinned `gotestsum`, CI no longer installs `@latest`, and configuration tests own temporary password fixtures. | Codex |
+| 2026-08-03 | 71.7% (104/145) | Preserved test-tooling coverage while isolating pinned `gotestsum` from the root module graph so downstream consumers do not inherit development-only dependencies. | Codex |

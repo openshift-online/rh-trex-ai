@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** STD-003
 **Related:** [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Secrets Management](../security/secrets-management.spec.md)
-**Implements:** `Makefile`, `go.mod`, `.tekton/`, `test/`, `cmd/trex/environments/framework_test.go`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`
+**Implements:** `Makefile`, `.tekton/`, `test/`, `cmd/trex/environments/framework_test.go`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`
 
 ---
 
@@ -31,14 +31,15 @@ Unit tests and integration tests SHALL be separated by environment and execution
 - THEN a real PostgreSQL database SHALL be available via testcontainers
 - AND full CRUD operations SHALL be tested against the database
 
-### Requirement: Reproducible Test Runner
+### Requirement: Isolated Reproducible Test Runner
 
-All repository test targets and CI jobs SHALL use a version-pinned `gotestsum` declared as a Go module tool dependency.
+All repository test targets and CI jobs SHALL use a version-pinned `gotestsum` without adding test tooling to the root application module graph.
 
 #### Scenario: Test from a clean environment
 - GIVEN the repository has been checked out on a host without `gotestsum` installed on `PATH`
 - WHEN `make test`, `make ci-test-unit`, `make test-integration`, or `make ci-test-integration` is executed
-- THEN the target SHALL invoke the `gotestsum` version pinned in `go.mod` through `go tool`
+- THEN the target SHALL invoke a repository-controlled `gotestsum` version through an isolated `go run gotest.tools/gotestsum@<version>` command
+- AND the root `go.mod` SHALL NOT require `gotest.tools/gotestsum` or its tool-only dependencies
 - AND CI SHALL NOT install an unpinned `gotestsum@latest`
 
 ### Requirement: Hermetic Unit Test Credentials
@@ -131,5 +132,5 @@ Integration tests SHALL reset the database state between test functions to preve
 | Tests co-located with plugin code | Tests live next to the code they test; easy to navigate |
 | TestMain for lifecycle management | Standard Go pattern; controls setup/teardown for entire package |
 | Separate unit and integration commands | Unit tests are fast (no DB); integration tests are thorough |
-| Go module tool dependency for `gotestsum` | Reproducible local and CI output without a global or dynamically versioned install |
+| Version-pinned isolated `go run` for `gotestsum` | Reproducible local and CI output without a global install or pollution of the dependency graph inherited by downstream consumers |
 | Temporary unit-test credentials | Exercises file-backed configuration while keeping ignored workspace secrets optional and avoiding real credentials |

@@ -7,8 +7,9 @@ CGO_ENABLED := 1
 GO ?= go
 GOPATH ?= $(shell $(GO) env GOPATH)
 
-# Run the version pinned by the tool directive in go.mod.
-GOTESTSUM ?= $(GO) tool gotestsum
+# Pin test tooling without adding it to the application module graph.
+GOTESTSUM_VERSION := v1.13.0
+GOTESTSUM ?= $(GO) run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 
 # Allow overriding `oc` command.
 # Used by pr_check.py to ssh deploy inside private Hive cluster via bastion host.
