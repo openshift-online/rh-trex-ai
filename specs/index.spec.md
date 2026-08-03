@@ -1,6 +1,6 @@
 # TRex Framework Specification Registry
 
-**Date:** 2026-07-06
+**Date:** 2026-08-03
 **Status:** Living Document
 
 ---
@@ -25,9 +25,10 @@ This file is the machine-readable registry of all specifications governing the r
 | SEC-002 | Authorization | security | Active | SEC-001 | `security/authorization.spec.md` |
 | SEC-003 | Secrets Management | security | Active | — | `security/secrets-management.spec.md` |
 | CG-001 | Entity Generator | codegen | Active | FW-001, FW-002, DA-002, API-001, API-002 | `codegen/entity-generator.spec.md` |
-| CG-002 | CLI Generator | codegen | Active | API-001 | `codegen/cli-generator.spec.md` |
-| CG-003 | SDK Generator | codegen | Active | API-001 | `codegen/sdk-generator.spec.md` |
-| CG-004 | Console Plugin Generator | codegen | Active | API-001 | `codegen/console-plugin-generator.spec.md` |
+| CG-005 | OpenAPI Intermediate Representation | codegen | Active | API-001, STD-003 | `codegen/openapi-ir.spec.md` |
+| CG-002 | CLI Generator | codegen | Active | CG-005 | `codegen/cli-generator.spec.md` |
+| CG-003 | SDK Generator | codegen | Active | CG-005 | `codegen/sdk-generator.spec.md` |
+| CG-004 | Console Plugin Generator | codegen | Active | CG-005 | `codegen/console-plugin-generator.spec.md` |
 | STD-001 | Naming Conventions | standards | Active | — | `standards/naming-conventions.spec.md` |
 | STD-002 | Error Handling | standards | Active | API-001 | `standards/error-handling.spec.md` |
 | STD-003 | Testing Standards | standards | Active | FW-002 | `standards/testing.spec.md` |
@@ -42,7 +43,8 @@ Topological layers for reconciliation:
 - **Layer 3 (data + api):** DA-001, API-001, API-002
 - **Layer 4 (data + security):** DA-002, SEC-001, STD-002
 - **Layer 5 (auth + standards):** SEC-002, STD-003
-- **Layer 6 (codegen):** CG-001, CG-002, CG-003, CG-004
+- **Layer 6 (codegen foundations):** CG-001, CG-005
+- **Layer 7 (codegen consumers):** CG-002, CG-003, CG-004
 
 ## SDLC Workflow
 

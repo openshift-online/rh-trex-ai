@@ -5,6 +5,10 @@ CGO_ENABLED := 1
 
 # Enable users to override the golang used to accomodate custom installations
 GO ?= go
+GOPATH ?= $(shell $(GO) env GOPATH)
+
+# Run the version pinned by the tool directive in go.mod.
+GOTESTSUM ?= $(GO) tool gotestsum
 
 # Allow overriding `oc` command.
 # Used by pr_check.py to ssh deploy inside private Hive cluster via bastion host.
@@ -187,7 +191,7 @@ install: check-gopath
 # Examples:
 #   make test TESTFLAGS="-run TestSomething"
 test: install
-	API_ENV=unit_testing gotestsum --format short-verbose -- -p 1 -v $(TESTFLAGS) \
+	API_ENV=unit_testing $(GOTESTSUM) --format short-verbose -- -p 1 -v $(TESTFLAGS) \
 		./pkg/... \
 		./cmd/...
 .PHONY: test
@@ -200,8 +204,7 @@ test: install
 # Examples:
 #   make test-unit-json TESTFLAGS="-run TestSomething"
 ci-test-unit: install
-	@echo $(db_password) > ${PWD}/secrets/db.password
-	API_ENV=unit_testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format short-verbose -- -p 1 -v $(TESTFLAGS) \
+	API_ENV=unit_testing $(GOTESTSUM) --jsonfile-timing-events=$(unit_test_json_output) --format short-verbose -- -p 1 -v $(TESTFLAGS) \
 		./pkg/... \
 		./cmd/...
 .PHONY: ci-test-unit
@@ -218,7 +221,7 @@ ci-test-unit: install
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
 ci-test-integration: install
 	@echo $(db_password) > ${PWD}/secrets/db.password
-	API_ENV=integration_testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	API_ENV=integration_testing $(GOTESTSUM) --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration \
 			./plugins/...
 .PHONY: ci-test-integration
@@ -235,7 +238,7 @@ ci-test-integration: install
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
 test-integration: install
 	@echo $(db_password) > ${PWD}/secrets/db.password
-	API_ENV=integration_testing gotestsum --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	API_ENV=integration_testing $(GOTESTSUM) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration \
 			./plugins/...
 .PHONY: test-integration

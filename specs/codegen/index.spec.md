@@ -13,3 +13,4 @@
 | CG-002 | [CLI Generator](cli-generator.spec.md) | CLI tool generation from OpenAPI specs |
 | CG-003 | [SDK Generator](sdk-generator.spec.md) | Multi-language SDK generation from OpenAPI specs |
 | CG-004 | [Console Plugin Generator](console-plugin-generator.spec.md) | OpenShift Console UI plugin scaffolding |
+| CG-005 | [OpenAPI Intermediate Representation](openapi-ir.spec.md) | Shared operation, schema, view, and relationship model for generators |

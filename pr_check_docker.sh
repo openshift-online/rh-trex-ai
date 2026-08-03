@@ -14,8 +14,6 @@ export LOGLEVEL="1"
 export TEST_SUMMARY_FORMAT="standard-verbose"
 
 go version
-mkdir "$(go env GOPATH)/bin"
-which gotestsum || curl -sSL "https://github.com/gotestyourself/gotestsum/releases/download/v0.3.5/gotestsum_0.3.5_linux_amd64.tar.gz" | tar -xz -C "$(go env GOPATH)/bin" gotestsum
 
 which pg_ctl
 PGDATA=/var/lib/postgresql/data /usr/lib/postgresql/*/bin/pg_ctl -w stop

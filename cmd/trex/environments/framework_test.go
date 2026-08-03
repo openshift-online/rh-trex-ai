@@ -1,7 +1,9 @@
 package environments
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -23,11 +25,19 @@ func BenchmarkGetDynos(b *testing.B) {
 }
 
 func TestLoadServices(t *testing.T) {
+	passwordFile := filepath.Join(t.TempDir(), "db.password")
+	if err := os.WriteFile(passwordFile, []byte("unit-test-password\n"), 0o600); err != nil {
+		t.Fatalf("Unable to create temporary database password file: %s", err)
+	}
+
 	env := Environment()
 	err := env.AddFlags(pflag.CommandLine)
 	if err != nil {
 		t.Errorf("Unable to add flags for testing environment: %s", err.Error())
 		return
+	}
+	if err := pflag.CommandLine.Set("db-password-file", passwordFile); err != nil {
+		t.Fatalf("Unable to configure temporary database password file: %s", err)
 	}
 	pflag.Parse()
 	err = env.Initialize()

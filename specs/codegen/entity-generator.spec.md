@@ -1,6 +1,6 @@
 # Entity Generator Specification
 
-**Date:** 2026-07-06
+**Date:** 2026-08-03
 **Status:** Active
 **ID:** CG-001
 **Related:** [Plugin Architecture](../framework/plugin-architecture.spec.md), [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Migration Pattern](../data/migration-pattern.spec.md)
@@ -98,6 +98,15 @@ The generator SHALL modify `openapi/openapi.yaml` to add `$ref` links for the ne
 - WHEN the main `openapi/openapi.yaml` is modified
 - THEN path references SHALL be added after `# AUTO-ADD NEW PATHS`
 - AND schema references SHALL be added after `# AUTO-ADD NEW SCHEMAS`
+
+### Requirement: Generated Operation Identity
+
+The entity generator SHALL emit deterministic, globally unique `operationId` values for every generated CRUD operation.
+
+#### Scenario: Operation IDs for a generated entity
+- GIVEN the generator creates the Widget OpenAPI document
+- THEN its list, create, get, update, and delete operations SHALL declare `listWidgets`, `createWidget`, `getWidget`, `updateWidget`, and `deleteWidget` respectively
+- AND rerunning generation for the same kind SHALL produce the same operation IDs
 
 ### Requirement: Post-Generation Code Formatting
 

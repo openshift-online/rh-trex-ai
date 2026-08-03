@@ -1,10 +1,10 @@
 # Testing Standards Specification
 
-**Date:** 2026-07-06
+**Date:** 2026-08-03
 **Status:** Active
 **ID:** STD-003
-**Related:** [Entity Lifecycle](../framework/entity-lifecycle.spec.md)
-**Implements:** `test/`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`
+**Related:** [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Secrets Management](../security/secrets-management.spec.md)
+**Implements:** `Makefile`, `go.mod`, `.tekton/`, `test/`, `cmd/trex/environments/framework_test.go`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`
 
 ---
 
@@ -20,16 +20,38 @@ Unit tests and integration tests SHALL be separated by environment and execution
 
 #### Scenario: Unit tests
 - GIVEN `make test` is executed
-- WHEN unit tests run with `OCM_ENV=unit_testing`
+- WHEN unit tests run with `API_ENV=unit_testing`
 - THEN only `./pkg/...` and `./cmd/...` SHALL be tested
 - AND NO database connection SHALL be required
 - AND mock DAOs SHALL be used for all data access
 
 #### Scenario: Integration tests
 - GIVEN `make test-integration` is executed
-- WHEN integration tests run with `OCM_ENV=integration_testing`
+- WHEN integration tests run with `API_ENV=integration_testing`
 - THEN a real PostgreSQL database SHALL be available via testcontainers
 - AND full CRUD operations SHALL be tested against the database
+
+### Requirement: Reproducible Test Runner
+
+All repository test targets and CI jobs SHALL use a version-pinned `gotestsum` declared as a Go module tool dependency.
+
+#### Scenario: Test from a clean environment
+- GIVEN the repository has been checked out on a host without `gotestsum` installed on `PATH`
+- WHEN `make test`, `make ci-test-unit`, `make test-integration`, or `make ci-test-integration` is executed
+- THEN the target SHALL invoke the `gotestsum` version pinned in `go.mod` through `go tool`
+- AND CI SHALL NOT install an unpinned `gotestsum@latest`
+
+### Requirement: Hermetic Unit Test Credentials
+
+Unit tests that initialize file-backed configuration SHALL own temporary, non-production credential fixtures.
+
+#### Scenario: Unit test without a repository password file
+- GIVEN `secrets/db.password` does not exist
+- WHEN `make test` or `make ci-test-unit` is executed
+- THEN configuration-initialization tests SHALL use a temporary database password file with owner-only permissions
+- AND the temporary file SHALL be removed by the test framework
+- AND the test run SHALL NOT create `secrets/db.password`
+- AND NO database connection SHALL be required
 
 ### Requirement: Testcontainers Integration
 
@@ -109,3 +131,5 @@ Integration tests SHALL reset the database state between test functions to preve
 | Tests co-located with plugin code | Tests live next to the code they test; easy to navigate |
 | TestMain for lifecycle management | Standard Go pattern; controls setup/teardown for entire package |
 | Separate unit and integration commands | Unit tests are fast (no DB); integration tests are thorough |
+| Go module tool dependency for `gotestsum` | Reproducible local and CI output without a global or dynamically versioned install |
+| Temporary unit-test credentials | Exercises file-backed configuration while keeping ignored workspace secrets optional and avoiding real credentials |
