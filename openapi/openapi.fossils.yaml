@@ -3,6 +3,7 @@ paths:
   /api/rh-trex-ai/v1/fossils:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1FossilsGet
       summary: Returns a list of fossils
       security:
         - Bearer: []
@@ -38,6 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
+      operationId: apiRhTrexAiV1FossilsPost
       summary: Create a new fossil
       security:
         - Bearer: []
@@ -89,6 +91,7 @@ paths:
   /api/rh-trex-ai/v1/fossils/{id}:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1FossilsIdGet
       summary: Get an fossil by id
       security:
         - Bearer: []
@@ -124,6 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
+      operationId: apiRhTrexAiV1FossilsIdPatch
       summary: Update an fossil
       security:
         - Bearer: []

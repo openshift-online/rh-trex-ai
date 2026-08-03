@@ -1,0 +1,190 @@
+openapi: 3.0.3
+x-document-extension: document-value
+info:
+  title: CG-005 conformance
+  version: 1.0.0
+servers:
+  - url: https://api.example.test/{version}
+    variables:
+      version: {default: v1, enum: [v1, v2]}
+security:
+  - bearer: []
+paths:
+  /widgets:
+    x-path-extension: widgets-path
+    get:
+      operationId: listWidgets
+      summary: List widgets
+      description: Flat CRUD collection operation
+      tags: [widgets]
+      security: []
+      x-operation-extension: list-widgets
+      parameters:
+        - name: filter
+          in: query
+          style: deepObject
+          explode: true
+          x-parameter-extension: filter-parameter
+          schema:
+            type: object
+            additionalProperties: {type: string}
+      responses:
+        "200":
+          description: widget list
+          content:
+            application/json:
+              schema:
+                $ref: schemas.yaml#/components/schemas/WidgetList
+          links:
+            firstWidget:
+              operationId: getWidget
+              parameters:
+                widget_id: $response.body#/items/0/id
+        "400":
+          description: error
+          content:
+            application/json:
+              schema:
+                $ref: schemas.yaml#/components/schemas/Error
+    post:
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/components/schemas/WidgetCreate
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: schemas.yaml#/components/schemas/Widget
+  /widgets/{widget_id}:
+    parameters:
+      - $ref: schemas.yaml#/components/parameters/WidgetID
+    get:
+      operationId: getWidget
+      responses:
+        "200":
+          description: widget
+          content:
+            application/json:
+              schema:
+                $ref: schemas.yaml#/components/schemas/Widget
+    patch:
+      operationId: patchWidget
+      deprecated: true
+      security:
+        - oauth: [widgets:write]
+      requestBody:
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: schemas.yaml#/components/schemas/WidgetPatchRequest
+      responses:
+        "200":
+          description: widget
+          content:
+            application/json:
+              schema:
+                $ref: schemas.yaml#/components/schemas/Widget
+    delete:
+      operationId: deleteWidget
+      responses:
+        "204": {description: deleted}
+  /widgets/{widget_id}:archive:
+    parameters:
+      - $ref: schemas.yaml#/components/parameters/WidgetID
+    post:
+      operationId: archiveWidget
+      security:
+        - oauth: [widgets:write]
+      responses:
+        "202": {description: accepted}
+  /widgets/{widget_id}/events:
+    parameters:
+      - $ref: schemas.yaml#/components/parameters/WidgetID
+    get:
+      operationId: streamWidgetEvents
+      responses:
+        "200":
+          description: event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: schemas.yaml#/components/schemas/Event
+  /organizations/{organization_id}:
+    parameters:
+      - {name: organization_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getOrganization
+      responses:
+        "200":
+          description: organization
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Organization}
+  /organizations/{organization_id}/projects/{project_id}:
+    parameters:
+      - {name: organization_id, in: path, required: true, schema: {type: string}}
+      - {name: project_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getProject
+      responses:
+        "200":
+          description: project
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Project}
+  /organizations/{organization_id}/projects/{project_id}/widgets:
+    parameters:
+      - {name: organization_id, in: path, required: true, schema: {type: string}}
+      - {name: project_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: listProjectWidgets
+      responses:
+        "200":
+          description: project widgets
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/WidgetList}
+  /accounts/{account_id}:
+    parameters:
+      - {name: account_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getAccount
+      responses:
+        "200":
+          description: account
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Account}
+  /accounts/{account_id}/widgets:
+    parameters:
+      - {name: account_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: listAccountWidgets
+      responses:
+        "200":
+          description: account widgets
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/WidgetList}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+    oauth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://example.test/token
+          scopes: {widgets:write: Write widgets}
+  schemas:
+    Widget: {$ref: schemas.yaml#/components/schemas/Widget}
+    WidgetList: {$ref: schemas.yaml#/components/schemas/WidgetList}
+    WidgetCreate: {$ref: schemas.yaml#/components/schemas/WidgetCreate}
+    WidgetPatchRequest: {$ref: schemas.yaml#/components/schemas/WidgetPatchRequest}
+    Error: {$ref: schemas.yaml#/components/schemas/Error}
+    Event: {$ref: schemas.yaml#/components/schemas/Event}

@@ -25,19 +25,20 @@ This file is the machine-readable registry of all specifications governing the r
 | SEC-002 | Authorization | security | Active | SEC-001 | `security/authorization.spec.md` |
 | SEC-003 | Secrets Management | security | Active | — | `security/secrets-management.spec.md` |
 | CG-001 | Entity Generator | codegen | Active | FW-001, FW-002, DA-002, API-001, API-002 | `codegen/entity-generator.spec.md` |
-| CG-005 | OpenAPI Intermediate Representation | codegen | Active | API-001, STD-003 | `codegen/openapi-ir.spec.md` |
+| CG-005 | OpenAPI Intermediate Representation | codegen | Active | API-001, STD-003, STD-004 | `codegen/openapi-ir.spec.md` |
 | CG-002 | CLI Generator | codegen | Active | CG-005 | `codegen/cli-generator.spec.md` |
 | CG-003 | SDK Generator | codegen | Active | CG-005 | `codegen/sdk-generator.spec.md` |
 | CG-004 | Console Plugin Generator | codegen | Active | CG-005 | `codegen/console-plugin-generator.spec.md` |
 | STD-001 | Naming Conventions | standards | Active | — | `standards/naming-conventions.spec.md` |
 | STD-002 | Error Handling | standards | Active | API-001 | `standards/error-handling.spec.md` |
 | STD-003 | Testing Standards | standards | Active | FW-002 | `standards/testing.spec.md` |
+| STD-004 | Dependency Supply Chain | standards | Active | — | `standards/dependency-supply-chain.spec.md` |
 
 ## Spec Dependency Order
 
 Topological layers for reconciliation:
 
-- **Layer 0 (no deps):** STD-001, SEC-003
+- **Layer 0 (no deps):** STD-001, STD-004, SEC-003
 - **Layer 1 (foundational):** FW-001
 - **Layer 2 (framework):** FW-002, FW-003, FW-004
 - **Layer 3 (data + api):** DA-001, API-001, API-002

@@ -1,0 +1,5 @@
+openapi: 3.0.3
+info: {title: cyclic path, version: 1.0.0}
+paths:
+  /one: {$ref: "#/paths/~1two"}
+  /two: {$ref: "#/paths/~1one"}

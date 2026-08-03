@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info: {title: missing path parameter, version: 1.0.0}
+paths:
+  /things/{thing_id}:
+    get:
+      operationId: getThing
+      responses: {"200": {description: ok}}

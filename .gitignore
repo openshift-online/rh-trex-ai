@@ -53,3 +53,5 @@ generated/
 secrets/db.password
 
 .claude/settings.local.json
+__pycache__/
+*.py[cod]

@@ -3,6 +3,7 @@ paths:
   /api/rh-trex-ai/v1/dinosaurs:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1DinosaursGet
       summary: Returns a list of dinosaurs
       security:
         - Bearer: []
@@ -38,6 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
+      operationId: apiRhTrexAiV1DinosaursPost
       summary: Create a new dinosaur
       security:
         - Bearer: []
@@ -89,6 +91,7 @@ paths:
   /api/rh-trex-ai/v1/dinosaurs/{id}:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1DinosaursIdGet
       summary: Get an dinosaur by id
       security:
         - Bearer: []
@@ -124,6 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
+      operationId: apiRhTrexAiV1DinosaursIdPatch
       summary: Update an dinosaur
       security:
         - Bearer: []

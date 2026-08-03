@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info: {title: conformance schemas, version: 1.0.0}
+paths: {}
+components:
+  parameters:
+    WidgetID:
+      name: widget_id
+      in: path
+      required: true
+      description: Exact widget identifier
+      style: simple
+      explode: false
+      schema: {type: string, format: uuid}
+  schemas:
+    Base:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          widget: "#/components/schemas/Widget"
+      required: [kind]
+      properties:
+        kind: {type: string}
+    Widget:
+      x-schema-extension: widget-schema
+      allOf:
+        - $ref: "#/components/schemas/Base"
+        - type: object
+          required: [name]
+          properties:
+            id: {type: string, format: uuid, readOnly: true}
+            name:
+              type: string
+              minLength: 1
+              maxLength: 80
+              pattern: "^[A-Za-z]"
+              x-property-extension: widget-name
+            secret: {type: string, writeOnly: true}
+            state:
+              type: string
+              nullable: true
+              enum: [new, active, archived]
+              default: new
+              example: active
+            count: {type: integer, format: int64, minimum: 0, maximum: 100}
+            score: {type: number, multipleOf: 0.5}
+            child:
+              $ref: "#/components/schemas/Widget"
+            labels:
+              type: object
+              additionalProperties: {type: string}
+    WidgetList:
+      allOf:
+        - type: object
+          properties:
+            page: {type: integer}
+        - type: object
+          properties:
+            items:
+              type: array
+              minItems: 0
+              maxItems: 100
+              uniqueItems: true
+              items: {$ref: "#/components/schemas/Widget"}
+    WidgetCreate:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        secret: {type: string, writeOnly: true}
+    WidgetPatchRequest:
+      type: object
+      properties:
+        name: {type: string}
+        state: {type: string, nullable: true}
+    Error:
+      type: object
+      required: [code]
+      properties:
+        code: {type: string}
+        reason: {type: string}
+    Event:
+      oneOf:
+        - type: object
+          properties: {created: {$ref: "#/components/schemas/Widget"}}
+        - type: object
+          properties: {deleted_id: {type: string}}
+    Organization:
+      type: object
+      properties: {id: {type: string}}
+    Project:
+      type: object
+      properties: {id: {type: string}}
+    Account:
+      type: object
+      properties: {id: {type: string}}

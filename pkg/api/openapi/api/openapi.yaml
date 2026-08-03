@@ -13,6 +13,7 @@ servers:
 paths:
   /api/rh-trex-ai/v1/dinosaurs:
     get:
+      operationId: apiRhTrexAiV1DinosaursGet
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -122,6 +123,7 @@ paths:
       - Bearer: []
       summary: Returns a list of dinosaurs
     post:
+      operationId: apiRhTrexAiV1DinosaursPost
       requestBody:
         content:
           application/json:
@@ -171,6 +173,7 @@ paths:
       summary: Create a new dinosaur
   /api/rh-trex-ai/v1/dinosaurs/{id}:
     get:
+      operationId: apiRhTrexAiV1DinosaursIdGet
       parameters:
       - description: The id of record
         explode: false
@@ -215,6 +218,7 @@ paths:
       - Bearer: []
       summary: Get an dinosaur by id
     patch:
+      operationId: apiRhTrexAiV1DinosaursIdPatch
       parameters:
       - description: The id of record
         explode: false
@@ -279,6 +283,7 @@ paths:
       summary: Update an dinosaur
   /api/rh-trex-ai/v1/fossils:
     get:
+      operationId: apiRhTrexAiV1FossilsGet
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -388,6 +393,7 @@ paths:
       - Bearer: []
       summary: Returns a list of fossils
     post:
+      operationId: apiRhTrexAiV1FossilsPost
       requestBody:
         content:
           application/json:
@@ -437,6 +443,7 @@ paths:
       summary: Create a new fossil
   /api/rh-trex-ai/v1/fossils/{id}:
     get:
+      operationId: apiRhTrexAiV1FossilsIdGet
       parameters:
       - description: The id of record
         explode: false
@@ -481,6 +488,7 @@ paths:
       - Bearer: []
       summary: Get an fossil by id
     patch:
+      operationId: apiRhTrexAiV1FossilsIdPatch
       parameters:
       - description: The id of record
         explode: false
@@ -545,6 +553,7 @@ paths:
       summary: Update an fossil
   /api/rh-trex-ai/v1/scientists:
     get:
+      operationId: apiRhTrexAiV1ScientistsGet
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -654,6 +663,7 @@ paths:
       - Bearer: []
       summary: Returns a list of scientists
     post:
+      operationId: apiRhTrexAiV1ScientistsPost
       requestBody:
         content:
           application/json:
@@ -703,6 +713,7 @@ paths:
       summary: Create a new scientist
   /api/rh-trex-ai/v1/scientists/{id}:
     get:
+      operationId: apiRhTrexAiV1ScientistsIdGet
       parameters:
       - description: The id of record
         explode: false
@@ -747,6 +758,7 @@ paths:
       - Bearer: []
       summary: Get an scientist by id
     patch:
+      operationId: apiRhTrexAiV1ScientistsIdPatch
       parameters:
       - description: The id of record
         explode: false

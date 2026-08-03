@@ -1,11 +1,13 @@
-module github.com/openshift-online/rh-trex-ai/scripts/console-plugin-generator
+module github.com/openshift-online/rh-trex-ai/scripts/openapi-ir
 
 go 1.24.0
 
-require github.com/openshift-online/rh-trex-ai/scripts/openapi-ir v0.0.0
+require (
+	github.com/getkin/kin-openapi v0.135.0
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
-	github.com/getkin/kin-openapi v0.135.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -15,7 +17,4 @@ require (
 	github.com/oasdiff/yaml3 v0.0.9 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/openshift-online/rh-trex-ai/scripts/openapi-ir => ../openapi-ir

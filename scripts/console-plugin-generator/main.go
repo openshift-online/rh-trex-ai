@@ -11,7 +11,7 @@ import (
 	"text/template"
 	"unicode"
 
-	"gopkg.in/yaml.v3"
+	ir "github.com/openshift-online/rh-trex-ai/scripts/openapi-ir"
 )
 
 func main() {
@@ -126,83 +126,36 @@ type templateContext struct {
 }
 
 func parseResources(specPath, apiPrefix string) ([]pluginResource, error) {
-	mainData, err := os.ReadFile(specPath)
+	document, err := ir.Load(specPath, ir.LoadOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load canonical OpenAPI IR: %w", err)
 	}
-
-	var doc struct {
-		Paths      map[string]interface{} `yaml:"paths"`
-		Components struct {
-			Schemas map[string]interface{} `yaml:"schemas"`
-		} `yaml:"components"`
+	if err := document.ValidateProjectionNames(); err != nil {
+		return nil, fmt.Errorf("validate console projection: %w", err)
 	}
-	if err := yaml.Unmarshal(mainData, &doc); err != nil {
-		return nil, err
-	}
-
-	specDir := filepath.Dir(specPath)
 	var resources []pluginResource
-
-	for schemaName, schemaVal := range doc.Components.Schemas {
-		if strings.HasSuffix(schemaName, "List") || strings.HasSuffix(schemaName, "PatchRequest") ||
-			strings.HasSuffix(schemaName, "StatusPatchRequest") {
+	for _, view := range pluginPrimaryCollectionViews(document, apiPrefix) {
+		schema := document.Schema(view.SchemaRef)
+		if schema == nil || schema.Name == "" {
 			continue
 		}
-		if schemaName == "ObjectReference" || schemaName == "List" || schemaName == "Error" {
-			continue
-		}
-
-		refMap, ok := schemaVal.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		refStr, ok := refMap["$ref"].(string)
-		if !ok {
-			continue
-		}
-		parts := strings.SplitN(refStr, "#", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		subFile := parts[0]
-		subPath := filepath.Join(specDir, subFile)
-		subData, err := os.ReadFile(subPath)
-		if err != nil {
-			continue
-		}
-
-		var subDoc struct {
-			Paths      map[string]interface{} `yaml:"paths"`
-			Components struct {
-				Schemas map[string]interface{} `yaml:"schemas"`
-			} `yaml:"components"`
-		}
-		if err := yaml.Unmarshal(subData, &subDoc); err != nil {
-			continue
-		}
-
-		pathSegment := inferPathSegmentFromPaths(doc.Paths, apiPrefix, schemaName)
-		columns := extractColumns(subDoc.Components.Schemas, schemaName)
-		fields := extractWritableFields(subDoc.Components.Schemas, schemaName)
-		hasDelete := checkOperation(subDoc.Paths, pathSegment, "delete")
-		hasPatch := checkOperation(subDoc.Paths, pathSegment, "patch")
-
-		nameLower := toLowerFirst(schemaName)
-		nameKebab := toKebabCase(schemaName)
-		pluralName := pluralizeName(schemaName)
+		columns := extractColumns(document, schema)
+		fields := extractWritableFields(document, schema)
+		hasDelete, hasPatch := pluginOperations(document, schema.Ref)
+		nameLower := toLowerFirst(schema.Name)
+		nameKebab := toKebabCase(schema.Name)
+		pluralName := pluralizeName(schema.Name)
 		pluralLower := toLowerFirst(pluralName)
 		pluralKebab := toKebabCase(pluralName)
 
 		resources = append(resources, pluginResource{
-			Name:           schemaName,
+			Name:           schema.Name,
 			NameLower:      nameLower,
 			NameKebab:      nameKebab,
 			Plural:         pluralName,
 			PluralLower:    pluralLower,
 			PluralKebab:    pluralKebab,
-			PathSegment:    pathSegment,
+			PathSegment:    pluginLastSegment(view.Path),
 			Columns:        columns,
 			WritableFields: fields,
 			HasDelete:      hasDelete,
@@ -217,59 +170,19 @@ func parseResources(specPath, apiPrefix string) ([]pluginResource, error) {
 	return resources, nil
 }
 
-func extractColumns(schemas map[string]interface{}, name string) []pluginColumn {
+func extractColumns(document *ir.Document, schema *ir.Schema) []pluginColumn {
 	columns := []pluginColumn{
 		{Name: "id", Header: "ID", JSONPath: "id", FieldType: "string", Sortable: true},
 	}
-
-	schema, ok := schemas[name]
-	if !ok {
-		columns = append(columns, pluginColumn{Name: "created_at", Header: "Created", JSONPath: "created_at", FieldType: "date-time", Sortable: true})
-		return columns
-	}
-
-	schemaMap, ok := schema.(map[string]interface{})
-	if !ok {
-		columns = append(columns, pluginColumn{Name: "created_at", Header: "Created", JSONPath: "created_at", FieldType: "date-time", Sortable: true})
-		return columns
-	}
-
 	var fieldNames []string
 	fieldTypes := map[string]string{}
-
-	allOf, ok := schemaMap["allOf"]
-	if ok {
-		allOfList, ok := allOf.([]interface{})
-		if ok {
-			for _, item := range allOfList {
-				itemMap, ok := item.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				if _, hasRef := itemMap["$ref"]; hasRef {
-					continue
-				}
-				props, ok := itemMap["properties"]
-				if !ok {
-					continue
-				}
-				propsMap, ok := props.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				for k, v := range propsMap {
-					fieldNames = append(fieldNames, k)
-					if propMap, ok := v.(map[string]interface{}); ok {
-						t, _ := propMap["type"].(string)
-						f, _ := propMap["format"].(string)
-						if f != "" {
-							fieldTypes[k] = f
-						} else {
-							fieldTypes[k] = t
-						}
-					}
-				}
-			}
+	for name, property := range pluginTargetProperties(document, schema) {
+		fieldNames = append(fieldNames, name)
+		typeName, format := pluginSchemaType(document.Schema(property.Schema.Ref))
+		if format != "" {
+			fieldTypes[name] = format
+		} else {
+			fieldTypes[name] = typeName
 		}
 	}
 
@@ -298,96 +211,19 @@ func extractColumns(schemas map[string]interface{}, name string) []pluginColumn 
 	return columns
 }
 
-func extractWritableFields(schemas map[string]interface{}, name string) []pluginField {
-	schema, ok := schemas[name]
-	if !ok {
-		return nil
-	}
-
-	schemaMap, ok := schema.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
+func extractWritableFields(document *ir.Document, schema *ir.Schema) []pluginField {
 	var fields []pluginField
-	var requiredSet map[string]bool
-
-	allOf, ok := schemaMap["allOf"]
-	if ok {
-		allOfList, ok := allOf.([]interface{})
-		if ok {
-			for _, item := range allOfList {
-				itemMap, ok := item.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				if _, hasRef := itemMap["$ref"]; hasRef {
-					continue
-				}
-				if req, ok := itemMap["required"]; ok {
-					if reqList, ok := req.([]interface{}); ok {
-						requiredSet = make(map[string]bool)
-						for _, r := range reqList {
-							if s, ok := r.(string); ok {
-								requiredSet[s] = true
-							}
-						}
-					}
-				}
-				fields = append(fields, extractPropsAsFields(itemMap, requiredSet)...)
-			}
-		}
-	} else {
-		if req, ok := schemaMap["required"]; ok {
-			if reqList, ok := req.([]interface{}); ok {
-				requiredSet = make(map[string]bool)
-				for _, r := range reqList {
-					if s, ok := r.(string); ok {
-						requiredSet[s] = true
-					}
-				}
-			}
-		}
-		fields = extractPropsAsFields(schemaMap, requiredSet)
-	}
-
-	sort.Slice(fields, func(i, j int) bool {
-		return fields[i].Name < fields[j].Name
-	})
-
-	return fields
-}
-
-func extractPropsAsFields(m map[string]interface{}, required map[string]bool) []pluginField {
-	props, ok := m["properties"]
-	if !ok {
-		return nil
-	}
-	propsMap, ok := props.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
 	objRefFields := map[string]bool{
 		"id": true, "kind": true, "href": true, "created_at": true, "updated_at": true,
 	}
-
-	var fields []pluginField
-	for propName, propVal := range propsMap {
+	for propName, property := range pluginTargetProperties(document, schema) {
 		if objRefFields[propName] {
 			continue
 		}
-		propMap, ok := propVal.(map[string]interface{})
-		if !ok {
+		if property.ReadOnly {
 			continue
 		}
-		readOnly, _ := propMap["readOnly"].(bool)
-		if readOnly {
-			continue
-		}
-
-		propType, _ := propMap["type"].(string)
-		propFormat, _ := propMap["format"].(string)
+		propType, propFormat := pluginSchemaType(document.Schema(property.Schema.Ref))
 
 		tsType := "string"
 		placeholder := ""
@@ -415,11 +251,74 @@ func extractPropsAsFields(m map[string]interface{}, required map[string]bool) []
 			JSONName:    propName,
 			FieldType:   propType,
 			TSType:      tsType,
-			Required:    required[propName],
+			Required:    property.Required,
 			Placeholder: placeholder,
 		})
 	}
+	sort.Slice(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 	return fields
+}
+
+func pluginTargetProperties(document *ir.Document, schema *ir.Schema) map[string]*ir.Property {
+	if len(schema.AllOf) == 0 {
+		return schema.Properties
+	}
+	result := make(map[string]*ir.Property)
+	for _, reference := range schema.AllOf {
+		part := document.Schema(reference.Ref)
+		if part == nil || part.Name != "" {
+			continue
+		}
+		for name, property := range part.Properties {
+			result[name] = property
+		}
+	}
+	return result
+}
+
+func pluginSchemaType(schema *ir.Schema) (string, string) {
+	if schema == nil || len(schema.Types) == 0 {
+		return "", ""
+	}
+	return schema.Types[0], schema.Format
+}
+
+func pluginPrimaryCollectionViews(document *ir.Document, apiPrefix string) []*ir.ResourceView {
+	bySchema := make(map[string]*ir.ResourceView)
+	for _, view := range document.ResourceViews {
+		if view.Kind != ir.ResourceCollection || !view.Capabilities.Has(ir.CapabilityList) {
+			continue
+		}
+		remainder := strings.TrimPrefix(view.Path, strings.TrimSuffix(apiPrefix, "/")+"/")
+		if remainder == view.Path || remainder == "" || strings.Contains(remainder, "/") {
+			continue
+		}
+		bySchema[view.SchemaRef] = view
+	}
+	result := make([]*ir.ResourceView, 0, len(bySchema))
+	for _, view := range bySchema {
+		result = append(result, view)
+	}
+	return result
+}
+
+func pluginOperations(document *ir.Document, schemaRef string) (bool, bool) {
+	var hasDelete, hasPatch bool
+	for _, view := range document.ResourceViews {
+		if view.SchemaRef == schemaRef {
+			hasDelete = hasDelete || view.Capabilities.Has(ir.CapabilityDelete)
+			hasPatch = hasPatch || view.Capabilities.Has(ir.CapabilityUpdate)
+		}
+	}
+	return hasDelete, hasPatch
+}
+
+func pluginLastSegment(path string) string {
+	path = strings.TrimSuffix(path, "/")
+	if index := strings.LastIndexByte(path, '/'); index >= 0 {
+		path = path[index+1:]
+	}
+	return strings.Trim(path, "{}")
 }
 
 func generatePlugin(data pluginData, outDir string) error {
@@ -435,6 +334,7 @@ func generatePlugin(data pluginData, outDir string) error {
 
 	mappings = append(mappings,
 		tmplMapping{"package.json.tmpl", "package.json", false},
+		tmplMapping{"package-lock.json.tmpl", "package-lock.json", false},
 		tmplMapping{"tsconfig.json.tmpl", "tsconfig.json", false},
 		tmplMapping{"webpack.config.ts.tmpl", "webpack.config.ts", false},
 		tmplMapping{"console-extensions.json.tmpl", "console-extensions.json", false},
@@ -461,7 +361,10 @@ func generatePlugin(data pluginData, outDir string) error {
 
 	for _, m := range mappings {
 		tmplPath := filepath.Join(tmplDir, m.tmplPath)
-		outPath := filepath.Join(outDir, m.outPath)
+		outPath, err := ir.SafeJoin(outDir, m.outPath)
+		if err != nil {
+			return fmt.Errorf("resolve output %s: %w", m.outPath, err)
+		}
 
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
@@ -536,63 +439,19 @@ func getTemplateDir() string {
 }
 
 func inferAPIPrefix(specPath string) string {
-	data, err := os.ReadFile(specPath)
+	document, err := ir.Load(specPath, ir.LoadOptions{})
 	if err != nil {
 		return "/api/v1"
 	}
-	var doc struct {
-		Paths map[string]interface{} `yaml:"paths"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return "/api/v1"
-	}
-	for pathKey := range doc.Paths {
-		if strings.HasPrefix(pathKey, "/api/") {
-			parts := strings.Split(pathKey, "/")
+	for _, operation := range document.Operations {
+		if strings.HasPrefix(operation.Path, "/api/") {
+			parts := strings.Split(operation.Path, "/")
 			if len(parts) >= 4 {
 				return "/" + parts[1] + "/" + parts[2] + "/" + parts[3]
 			}
 		}
 	}
 	return "/api/v1"
-}
-
-func inferPathSegmentFromPaths(paths map[string]interface{}, apiPrefix, resourceName string) string {
-	for pathKey := range paths {
-		if !strings.HasPrefix(pathKey, apiPrefix+"/") {
-			continue
-		}
-		remainder := strings.TrimPrefix(pathKey, apiPrefix+"/")
-		segments := strings.Split(remainder, "/")
-		if len(segments) >= 1 {
-			segment := segments[0]
-			segmentPascal := toPascalCase(segment)
-			if segmentPascal == resourceName || segmentPascal == resourceName+"s" {
-				return segment
-			}
-		}
-	}
-	return toSnakeCase(resourceName) + "s"
-}
-
-func checkOperation(paths map[string]interface{}, pathSegment, operation string) bool {
-	for pathKey, pathVal := range paths {
-		if !strings.Contains(pathKey, "/"+pathSegment+"/{id}") {
-			continue
-		}
-		segments := strings.Split(pathKey, "/")
-		if len(segments) > 0 && segments[len(segments)-1] != "{id}" {
-			continue
-		}
-		pathMap, ok := pathVal.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if _, has := pathMap[operation]; has {
-			return true
-		}
-	}
-	return false
 }
 
 func pluralizeName(name string) string {

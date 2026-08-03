@@ -16,7 +16,7 @@ import (
 
 // nolint
 //
-//go:generate go-bindata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
+//go:generate go-bindata -nometadata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
 
 func main() {
 	rootCmd := pkgcmd.NewRootCommand("trex", "rh-trex serves as a template for new microservices")

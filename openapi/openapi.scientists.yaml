@@ -3,6 +3,7 @@ paths:
   /api/rh-trex-ai/v1/scientists:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1ScientistsGet
       summary: Returns a list of scientists
       security:
         - Bearer: []
@@ -38,6 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
+      operationId: apiRhTrexAiV1ScientistsPost
       summary: Create a new scientist
       security:
         - Bearer: []
@@ -89,6 +91,7 @@ paths:
   /api/rh-trex-ai/v1/scientists/{id}:
   # NEW ENDPOINT END
     get:
+      operationId: apiRhTrexAiV1ScientistsIdGet
       summary: Get an scientist by id
       security:
         - Bearer: []
@@ -124,6 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
+      operationId: apiRhTrexAiV1ScientistsIdPatch
       summary: Update an scientist
       security:
         - Bearer: []

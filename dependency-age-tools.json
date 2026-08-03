@@ -1,0 +1,12 @@
+[
+  {
+    "kind": "go",
+    "name": "gotest.tools/gotestsum",
+    "version": "v1.13.0"
+  },
+  {
+    "kind": "npm",
+    "name": "typescript",
+    "version": "5.3.3"
+  }
+]

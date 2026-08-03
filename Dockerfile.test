@@ -13,7 +13,7 @@ ENV GORM_PASSWORD foobar-bizz-buzz
 ENV GORM_SSLMODE disable
 ENV GORM_DEBUG false
 
-RUN apt-get update && apt-get install -y make sudo git wget curl ca-certificates
+RUN apt-get update && apt-get install -y make sudo git wget curl ca-certificates python3
 
 COPY cas/redhat-it.pem /usr/local/share/ca-certificates/redhat-it.crt
 RUN update-ca-certificates

@@ -1,22 +1,16 @@
-FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS build
+FROM registry.access.redhat.com/ubi9/nodejs-20:1-1778648167@sha256:74cc7b1d13592b1e425074f434b90e470ab209da85fd1fdb8e6e9e4cabaec51a AS build
 USER root
-# Install yarn if not available, with security updates
-RUN dnf update -y && dnf clean all && (command -v yarn || npm i -g yarn)
 
 # Copy only package files first for better caching
-COPY package.json yarn.lock* /usr/src/app/
+COPY package.json package-lock.json /usr/src/app/
 WORKDIR /usr/src/app
-RUN yarn install --frozen-lockfile --production=false
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 # Copy source and build
 COPY . /usr/src/app
-RUN yarn build
+RUN npm run build
 
-FROM registry.access.redhat.com/ubi9/nginx-120:latest
-
-# Apply security updates
-USER root
-RUN dnf update -y && dnf clean all
+FROM registry.access.redhat.com/ubi9/nginx-120:1-1783485619@sha256:74a8728c8d4611de1090d09e9f8af79993ab6a2143eccd8fa14abaf7c7dc837d
 
 # Copy built assets with proper ownership
 COPY --from=build --chown=1001:0 /usr/src/app/dist /usr/share/nginx/html

@@ -3,8 +3,8 @@
 **Date:** 2026-08-03
 **Status:** Active
 **ID:** CG-005
-**Related:** [REST Conventions](../api/rest-conventions.spec.md), [Testing Standards](../standards/testing.spec.md), [CLI Generator](cli-generator.spec.md), [SDK Generator](sdk-generator.spec.md), [Console Plugin Generator](console-plugin-generator.spec.md)
-**Implements:** `scripts/sdk-generator/parser.go`, `scripts/cli-generator/main.go`, `scripts/console-plugin-generator/main.go`
+**Related:** [REST Conventions](../api/rest-conventions.spec.md), [Testing Standards](../standards/testing.spec.md), [Dependency Supply Chain](../standards/dependency-supply-chain.spec.md), [CLI Generator](cli-generator.spec.md), [SDK Generator](sdk-generator.spec.md), [Console Plugin Generator](console-plugin-generator.spec.md)
+**Implements:** `scripts/openapi-ir/`, `scripts/sdk-generator/parser.go`, `scripts/cli-generator/main.go`, `scripts/console-plugin-generator/main.go`
 
 ---
 
