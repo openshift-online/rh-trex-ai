@@ -14,8 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/segmentio/ksuid"
 
-	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
-
 	"github.com/openshift-online/rh-trex-ai/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/pkg/testutil/mocks"
@@ -73,11 +71,18 @@ func (h *BaseHelper) HealthCheckURL(path string) string {
 	return fmt.Sprintf("http://%s%s", h.AppConfig.HealthCheck.BindAddress, path)
 }
 
-func (h *BaseHelper) NewRandAccount() *amv1.Account {
+type TestAccount struct {
+	Username  string
+	FirstName string
+	LastName  string
+	Email     string
+}
+
+func (h *BaseHelper) NewRandAccount() *TestAccount {
 	return h.NewAccount(h.NewID(), faker.Name(), faker.Email())
 }
 
-func (h *BaseHelper) NewAccount(username, name, email string) *amv1.Account {
+func (h *BaseHelper) NewAccount(username, name, email string) *TestAccount {
 	var firstName string
 	var lastName string
 	names := strings.SplitN(name, " ", 2)
@@ -89,17 +94,12 @@ func (h *BaseHelper) NewAccount(username, name, email string) *amv1.Account {
 		lastName = names[1]
 	}
 
-	builder := amv1.NewAccount().
-		Username(username).
-		FirstName(firstName).
-		LastName(lastName).
-		Email(email)
-
-	acct, err := builder.Build()
-	if err != nil {
-		h.T.Errorf("Unable to build account: %s", err)
+	return &TestAccount{
+		Username:  username,
+		FirstName: firstName,
+		LastName:  lastName,
+		Email:     email,
 	}
-	return acct
 }
 
 func (h *BaseHelper) StartJWKCertServerMock() (jwkURL string, teardown func() error) {
@@ -189,18 +189,18 @@ func (h *BaseHelper) ResetDB() error {
 	return nil
 }
 
-func (h *BaseHelper) CreateJWTString(account *amv1.Account) string {
+func (h *BaseHelper) CreateJWTString(account *TestAccount) string {
 	claims := jwt.MapClaims{
 		"iss":        h.AppConfig.APIClient.TokenURL,
-		"username":   strings.ToLower(account.Username()),
-		"first_name": account.FirstName(),
-		"last_name":  account.LastName(),
+		"username":   strings.ToLower(account.Username),
+		"first_name": account.FirstName,
+		"last_name":  account.LastName,
 		"typ":        "Bearer",
 		"iat":        time.Now().Unix(),
 		"exp":        time.Now().Add(1 * time.Hour).Unix(),
 	}
-	if account.Email() != "" {
-		claims["email"] = account.Email()
+	if account.Email != "" {
+		claims["email"] = account.Email
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -214,7 +214,7 @@ func (h *BaseHelper) CreateJWTString(account *amv1.Account) string {
 	return signedToken
 }
 
-func (h *BaseHelper) CreateJWTToken(account *amv1.Account) *jwt.Token {
+func (h *BaseHelper) CreateJWTToken(account *TestAccount) *jwt.Token {
 	tokenString := h.CreateJWTString(account)
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

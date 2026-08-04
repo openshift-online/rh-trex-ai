@@ -12,8 +12,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 
-	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
-
 	"github.com/example/my-service/cmd/my-service/environments"
 	localapi "github.com/example/my-service/pkg/api"
 	"github.com/example/my-service/pkg/api/openapi"
@@ -218,7 +216,7 @@ func (helper *Helper) NewApiClient() *openapi.APIClient {
 	return client
 }
 
-func (helper *Helper) NewAuthenticatedContext(account *amv1.Account) context.Context {
+func (helper *Helper) NewAuthenticatedContext(account *testutil.TestAccount) context.Context {
 	tokenString := helper.CreateJWTString(account)
 	return context.WithValue(context.Background(), openapi.ContextAccessToken, tokenString)
 }
