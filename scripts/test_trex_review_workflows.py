@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Offline policy tests for TRex pull request workflow trust boundaries."""
 
+from contextlib import redirect_stdout
+import io
 from pathlib import Path
 import re
+import threading
 import unittest
+from unittest import mock
+
+from scripts import run_parallel_validation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +19,6 @@ GITIGNORE = ROOT / ".gitignore"
 
 ACTION_REFERENCE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 EXPRESSION = re.compile(r"\$\{\{(.*?)}}", re.DOTALL)
-PARALLEL_CI_JOBS = ("policy", "build", "quality", "unit")
 
 
 def validate_ci_workflow(workflow: str) -> list[str]:
@@ -49,53 +54,49 @@ def validate_ci_workflow(workflow: str) -> list[str]:
 
 
 def validate_ci_job_graph(workflow: str) -> list[str]:
-    """Validate independent jobs and the stable aggregate validation gate."""
+    """Validate the single shared-setup job and in-runner concurrency contract."""
     violations = []
     jobs = workflow_job_blocks(workflow)
 
-    for job_name in PARALLEL_CI_JOBS:
-        block = jobs.get(job_name)
-        if block is None:
-            violations.append(f"CI is missing parallel job: {job_name}")
-            continue
-        if re.search(r"^    needs:", block, re.MULTILINE):
-            violations.append(f"CI job {job_name} must run independently")
-        if "if: github.event.pull_request.draft == false" not in block:
-            violations.append(f"CI job {job_name} must skip draft pull requests")
-
-    required_commands = {
-        "policy": "python3 -m unittest scripts/test_trex_review_workflows.py",
-        "build": "go build ./...",
-        "quality": "go vet ./cmd/... ./pkg/...",
-        "unit": "go test -short ./pkg/... ./cmd/...",
-    }
-    for job_name, command in required_commands.items():
-        if job_name in jobs and command not in jobs[job_name]:
-            violations.append(f"CI job {job_name} is missing its required command")
-
-    aggregate = jobs.get("validate")
-    if aggregate is None:
-        violations.append("CI is missing the aggregate validate job")
+    if set(jobs) != {"validate"}:
+        violations.append("CI must use exactly one shared-setup validate job")
+    validate = jobs.get("validate")
+    if validate is None:
         return violations
-    if "name: validate" not in aggregate:
-        violations.append("aggregate CI job must retain the validate check name")
-    if "if: always() && github.event.pull_request.draft == false" not in aggregate:
-        violations.append("aggregate validate job must run after unsuccessful dependencies")
+    if "name: validate" not in validate:
+        violations.append("CI job must retain the validate check name")
+    if re.search(r"^    needs:", validate, re.MULTILINE):
+        violations.append("CI validate job must not depend on another setup job")
+    if "if: github.event.pull_request.draft == false" not in validate:
+        violations.append("CI validate job must skip draft pull requests")
+    if "continue-on-error:" in validate:
+        violations.append("CI validate checks must propagate failures")
 
-    needs_match = re.search(r"^    needs:\s*\[([^]]+)]\s*$", aggregate, re.MULTILINE)
-    aggregate_needs = (
-        {item.strip() for item in needs_match.group(1).split(",")}
-        if needs_match
-        else set()
+    required_commands = (
+        "python3 -m unittest scripts/test_trex_review_workflows.py",
+        "python3 scripts/run_parallel_validation.py",
     )
-    if aggregate_needs != set(PARALLEL_CI_JOBS):
-        violations.append("aggregate validate job must depend on every parallel CI job")
-    for job_name in PARALLEL_CI_JOBS:
-        if f"needs.{job_name}.result" not in aggregate:
-            violations.append(f"aggregate validate job must check the {job_name} result")
-    required_failure_logic = ('if [ "$result" != "success" ]', "exit 1")
-    if any(snippet not in aggregate for snippet in required_failure_logic):
-        violations.append("aggregate validate job must fail on unsuccessful results")
+    for command in required_commands:
+        if command not in validate:
+            violations.append(f"CI validate job is missing required command: {command}")
+
+    shared_setup_counts = {
+        "checkout": workflow.count("actions/checkout@"),
+        "Go setup": workflow.count("actions/setup-go@"),
+        "dependency download": workflow.count("go mod download"),
+        "dependency verification": workflow.count("go mod verify"),
+    }
+    expected_counts = {
+        "checkout": 1,
+        "Go setup": 1,
+        "dependency download": 1,
+        "dependency verification": 1,
+    }
+    for operation, expected in expected_counts.items():
+        if shared_setup_counts[operation] != expected:
+            violations.append(
+                f"CI must perform {operation} exactly {expected} time(s)"
+            )
 
     return violations
 
@@ -247,27 +248,55 @@ class ReviewWorkflowPolicyTest(unittest.TestCase):
         unsafe = self.ci.replace("  contents: read", "  contents: write")
         self.assertPolicyRejects(validate_ci_workflow, unsafe, "write permissions")
 
-    def test_rejects_serialized_ci_job(self) -> None:
+    def test_rejects_duplicate_setup_job(self) -> None:
+        unsafe = self.ci + "\n  duplicate:\n    runs-on: ubuntu-latest\n"
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "exactly one")
+
+    def test_rejects_missing_parallel_runner(self) -> None:
         unsafe = self.ci.replace(
-            "  build:\n    name: build",
-            "  build:\n    name: build\n    needs: [policy]",
+            "python3 scripts/run_parallel_validation.py",
+            "echo 'parallel validation disabled'",
         )
-        self.assertPolicyRejects(validate_ci_workflow, unsafe, "must run independently")
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "missing required command")
 
-    def test_rejects_incomplete_aggregate_gate(self) -> None:
-        unsafe = self.ci.replace(
-            "needs: [policy, build, quality, unit]",
-            "needs: [policy, build, unit]",
-        )
-        self.assertPolicyRejects(validate_ci_workflow, unsafe, "every parallel CI job")
+    def test_rejects_duplicate_go_setup(self) -> None:
+        setup = "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff"
+        unsafe = self.ci + f"\n      - uses: {setup}\n"
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "Go setup exactly 1")
 
-    def test_rejects_unchecked_parallel_result(self) -> None:
-        unsafe = self.ci.replace("${{ needs.quality.result }}", "success")
-        self.assertPolicyRejects(validate_ci_workflow, unsafe, "check the quality result")
+    def test_rejects_ignored_validation_failure(self) -> None:
+        unsafe = self.ci + "\n        continue-on-error: true\n"
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "propagate failures")
 
-    def test_rejects_non_failing_aggregate_gate(self) -> None:
-        unsafe = self.ci.replace("              exit 1\n", "")
-        self.assertPolicyRejects(validate_ci_workflow, unsafe, "fail on unsuccessful results")
+    def test_validation_runner_executes_checks_concurrently(self) -> None:
+        barrier = threading.Barrier(3)
+
+        def check(name: str):
+            def run():
+                barrier.wait(timeout=2)
+                return run_parallel_validation.CheckResult(name, 0, "", 0.0)
+
+            return run
+
+        checks = {name: check(name) for name in ("build", "quality", "unit")}
+        results = run_parallel_validation.execute_checks(checks)
+        self.assertEqual(set(checks), {result.name for result in results})
+
+    def test_validation_runner_reports_failures(self) -> None:
+        failure = run_parallel_validation.CheckResult("build", 2, "build failed\n", 0.1)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            passed = run_parallel_validation.report_results([failure])
+        self.assertFalse(passed)
+        self.assertIn("::error::build failed with exit code 2", output.getvalue())
+
+    def test_validation_runner_does_not_repeat_vet_during_unit_tests(self) -> None:
+        result = run_parallel_validation.CheckResult("unit tests", 0, "", 0.0)
+        with mock.patch.object(
+            run_parallel_validation, "run_command", return_value=result
+        ) as run_command:
+            run_parallel_validation.check_unit()
+        self.assertIn("-vet=off", run_command.call_args.args[1])
 
     def test_rejects_missing_ready_for_review_trigger(self) -> None:
         unsafe = self.ci.replace(", ready_for_review", "")

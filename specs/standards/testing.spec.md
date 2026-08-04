@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** STD-003
 **Related:** [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Secrets Management](../security/secrets-management.spec.md)
-**Implements:** `test/`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`, `.github/workflows/trex-pr-ci.yml`, `.github/workflows/trex-auto-review.yml`, `scripts/test_trex_review_workflows.py`
+**Implements:** `test/`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`, `.github/workflows/trex-pr-ci.yml`, `.github/workflows/trex-auto-review.yml`, `scripts/run_parallel_validation.py`, `scripts/test_trex_review_workflows.py`
 
 ---
 
@@ -133,13 +133,14 @@ The repository SHALL have an offline automated test that validates the event tri
 
 ### Requirement: Parallel Pull Request Validation
 
-Independent workflow-policy, build, static-quality, and unit-test checks SHALL run as separate concurrent jobs. A final job named `validate` SHALL depend on all four checks and SHALL succeed only when every required check succeeds, preserving a stable aggregate status for branch protection and review automation.
+The pull request workflow SHALL use one job named `validate` that performs checkout, workflow-policy validation, toolchain setup, and dependency verification once, then runs build, static-quality, and unit-test checks concurrently on that runner. The unit-test check SHALL disable `go test`'s implicit vet pass because the static-quality check runs explicit `go vet`. The job SHALL succeed only when every required check succeeds, preserving a stable status for branch protection and review automation without duplicating setup work.
 
 #### Scenario: Ready pull request validation
 - GIVEN a pull request is ready for review
 - WHEN pull request CI starts
-- THEN the workflow-policy, build, static-quality, and unit-test jobs SHALL be eligible to run concurrently
-- AND the `validate` job SHALL wait for all four jobs to complete
+- THEN checkout, workflow-policy validation, toolchain setup, and dependency verification SHALL each run once
+- AND build, static-quality, and unit-test checks SHALL execute concurrently after shared setup completes
+- AND unit tests SHALL NOT repeat the explicit static-quality vet pass
 - AND any required check that fails or is cancelled SHALL cause `validate` to fail
 
 ## Design Decisions
@@ -154,4 +155,4 @@ Independent workflow-policy, build, static-quality, and unit-test checks SHALL r
 | Two-stage pull request automation | Untrusted code can be tested while comment writes remain confined to trusted default-branch logic |
 | API-only privileged review | Patch analysis and comment updates do not require checking out or executing fork-controlled content |
 | Marker-owned comment updates | One auditable bot comment reflects the latest run without notification spam |
-| Job-level validation concurrency | Independent checks receive isolated logs, timeouts, and failure states while a stable aggregate gate preserves integrations |
+| In-runner validation concurrency | One `validate` runner eliminates repeated setup and runner overhead while the orchestrator preserves grouped output and failure propagation for each check |

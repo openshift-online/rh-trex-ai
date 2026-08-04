@@ -12,11 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  policy:
-    name: workflow policy
+  validate:
+    name: validate
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
 
     steps:
       - name: Checkout pull request merge commit
@@ -27,18 +27,6 @@ jobs:
       - name: Validate workflow trust boundaries
         run: python3 -m unittest scripts/test_trex_review_workflows.py
 
-  build:
-    name: build
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout pull request merge commit
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -50,90 +38,5 @@ jobs:
           go mod download
           go mod verify
 
-      - name: Build
-        run: go build ./...
-
-  quality:
-    name: static quality
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout pull request merge commit
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: 1.24.9
-          cache: false
-
-      - name: Verify dependencies
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Vet and check formatting
-        run: |
-          go vet ./cmd/... ./pkg/...
-          unformatted="$(gofmt -l cmd pkg test)"
-          if [ -n "$unformatted" ]; then
-            echo "Unformatted files:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-  unit:
-    name: unit tests
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout pull request merge commit
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: 1.24.9
-          cache: false
-
-      - name: Verify dependencies
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Run unit tests
-        run: |
-          install -d -m 0700 secrets
-          install -m 0600 /dev/null secrets/db.password
-          printf '%s\n' 'ci-test-password' > secrets/db.password
-          API_ENV=unit_testing go test -short ./pkg/... ./cmd/...
-
-  validate:
-    name: validate
-    if: always() && github.event.pull_request.draft == false
-    needs: [policy, build, quality, unit]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Require every parallel check to pass
-        env:
-          POLICY_RESULT: ${{ needs.policy.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          QUALITY_RESULT: ${{ needs.quality.result }}
-          UNIT_RESULT: ${{ needs.unit.result }}
-        run: |
-          for result in "$POLICY_RESULT" "$BUILD_RESULT" "$QUALITY_RESULT" "$UNIT_RESULT"; do
-            if [ "$result" != "success" ]; then
-              echo "Required validation job completed with result: $result"
-              exit 1
-            fi
-          done
+      - name: Run Go validations in parallel
+        run: python3 scripts/run_parallel_validation.py
