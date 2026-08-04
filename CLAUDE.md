@@ -10,6 +10,8 @@ TRex (**T**rusted **R**EST **Ex**ample) is a Go-based REST and gRPC API template
 
 - `components/api-server/` — Go REST + gRPC API microservice, PostgreSQL-backed
 - `components/control-plane/` — Go service, watches API server via gRPC and reconciles resources
+- `scripts/` — Project-level generators (CLI, SDK, console plugin)
+- `templates/new-project/` — Scaffolding template for new TRex-based projects
 - `specs/` — Desired state of the system
 - `skills/` — Agent skills for SDLC automation
 
