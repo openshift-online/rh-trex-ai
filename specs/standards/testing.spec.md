@@ -131,6 +131,17 @@ The repository SHALL have an offline automated test that validates the event tri
 - WHEN the workflow policy test runs
 - THEN the test SHALL fail before the workflow change is accepted
 
+### Requirement: Parallel Pull Request Validation
+
+Independent workflow-policy, build, static-quality, and unit-test checks SHALL run as separate concurrent jobs. A final job named `validate` SHALL depend on all four checks and SHALL succeed only when every required check succeeds, preserving a stable aggregate status for branch protection and review automation.
+
+#### Scenario: Ready pull request validation
+- GIVEN a pull request is ready for review
+- WHEN pull request CI starts
+- THEN the workflow-policy, build, static-quality, and unit-test jobs SHALL be eligible to run concurrently
+- AND the `validate` job SHALL wait for all four jobs to complete
+- AND any required check that fails or is cancelled SHALL cause `validate` to fail
+
 ## Design Decisions
 
 | Decision | Rationale |
@@ -143,3 +154,4 @@ The repository SHALL have an offline automated test that validates the event tri
 | Two-stage pull request automation | Untrusted code can be tested while comment writes remain confined to trusted default-branch logic |
 | API-only privileged review | Patch analysis and comment updates do not require checking out or executing fork-controlled content |
 | Marker-owned comment updates | One auditable bot comment reflects the latest run without notification spam |
+| Job-level validation concurrency | Independent checks receive isolated logs, timeouts, and failure states while a stable aggregate gate preserves integrations |

@@ -13,6 +13,7 @@ GITIGNORE = ROOT / ".gitignore"
 
 ACTION_REFERENCE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 EXPRESSION = re.compile(r"\$\{\{(.*?)}}", re.DOTALL)
+PARALLEL_CI_JOBS = ("policy", "build", "quality", "unit")
 
 
 def validate_ci_workflow(workflow: str) -> list[str]:
@@ -41,9 +42,77 @@ def validate_ci_workflow(workflow: str) -> list[str]:
     if "persist-credentials: false" not in workflow:
         violations.append("CI checkout must not persist credentials")
 
+    violations.extend(validate_ci_job_graph(workflow))
     violations.extend(validate_action_pins(workflow))
     violations.extend(validate_expression_operators(workflow))
     return violations
+
+
+def validate_ci_job_graph(workflow: str) -> list[str]:
+    """Validate independent jobs and the stable aggregate validation gate."""
+    violations = []
+    jobs = workflow_job_blocks(workflow)
+
+    for job_name in PARALLEL_CI_JOBS:
+        block = jobs.get(job_name)
+        if block is None:
+            violations.append(f"CI is missing parallel job: {job_name}")
+            continue
+        if re.search(r"^    needs:", block, re.MULTILINE):
+            violations.append(f"CI job {job_name} must run independently")
+        if "if: github.event.pull_request.draft == false" not in block:
+            violations.append(f"CI job {job_name} must skip draft pull requests")
+
+    required_commands = {
+        "policy": "python3 -m unittest scripts/test_trex_review_workflows.py",
+        "build": "go build ./...",
+        "quality": "go vet ./cmd/... ./pkg/...",
+        "unit": "go test -short ./pkg/... ./cmd/...",
+    }
+    for job_name, command in required_commands.items():
+        if job_name in jobs and command not in jobs[job_name]:
+            violations.append(f"CI job {job_name} is missing its required command")
+
+    aggregate = jobs.get("validate")
+    if aggregate is None:
+        violations.append("CI is missing the aggregate validate job")
+        return violations
+    if "name: validate" not in aggregate:
+        violations.append("aggregate CI job must retain the validate check name")
+    if "if: always() && github.event.pull_request.draft == false" not in aggregate:
+        violations.append("aggregate validate job must run after unsuccessful dependencies")
+
+    needs_match = re.search(r"^    needs:\s*\[([^]]+)]\s*$", aggregate, re.MULTILINE)
+    aggregate_needs = (
+        {item.strip() for item in needs_match.group(1).split(",")}
+        if needs_match
+        else set()
+    )
+    if aggregate_needs != set(PARALLEL_CI_JOBS):
+        violations.append("aggregate validate job must depend on every parallel CI job")
+    for job_name in PARALLEL_CI_JOBS:
+        if f"needs.{job_name}.result" not in aggregate:
+            violations.append(f"aggregate validate job must check the {job_name} result")
+    required_failure_logic = ('if [ "$result" != "success" ]', "exit 1")
+    if any(snippet not in aggregate for snippet in required_failure_logic):
+        violations.append("aggregate validate job must fail on unsuccessful results")
+
+    return violations
+
+
+def workflow_job_blocks(workflow: str) -> dict[str, str]:
+    """Extract top-level job blocks without requiring a YAML dependency."""
+    _, separator, jobs_section = workflow.partition("\njobs:\n")
+    if not separator:
+        return {}
+    headers = list(
+        re.finditer(r"^  ([a-z][a-z0-9_-]*):\s*$", jobs_section, re.MULTILINE)
+    )
+    blocks = {}
+    for index, header in enumerate(headers):
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(jobs_section)
+        blocks[header.group(1)] = jobs_section[header.start():end]
+    return blocks
 
 
 def validate_comment_workflow(workflow: str) -> list[str]:
@@ -177,6 +246,28 @@ class ReviewWorkflowPolicyTest(unittest.TestCase):
     def test_rejects_ci_write_permission(self) -> None:
         unsafe = self.ci.replace("  contents: read", "  contents: write")
         self.assertPolicyRejects(validate_ci_workflow, unsafe, "write permissions")
+
+    def test_rejects_serialized_ci_job(self) -> None:
+        unsafe = self.ci.replace(
+            "  build:\n    name: build",
+            "  build:\n    name: build\n    needs: [policy]",
+        )
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "must run independently")
+
+    def test_rejects_incomplete_aggregate_gate(self) -> None:
+        unsafe = self.ci.replace(
+            "needs: [policy, build, quality, unit]",
+            "needs: [policy, build, unit]",
+        )
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "every parallel CI job")
+
+    def test_rejects_unchecked_parallel_result(self) -> None:
+        unsafe = self.ci.replace("${{ needs.quality.result }}", "success")
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "check the quality result")
+
+    def test_rejects_non_failing_aggregate_gate(self) -> None:
+        unsafe = self.ci.replace("              exit 1\n", "")
+        self.assertPolicyRejects(validate_ci_workflow, unsafe, "fail on unsuccessful results")
 
     def test_rejects_missing_ready_for_review_trigger(self) -> None:
         unsafe = self.ci.replace(", ready_for_review", "")
