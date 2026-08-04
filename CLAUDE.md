@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TRex (**T**rusted **R**EST **Ex**ample) is a Go-based REST and gRPC API template that serves as a full-featured foundation for building new microservices. It provides CRUD operations for "dinosaurs" as example business logic to be replaced. See [README.md](./README.md) for quick start and usage.
 
+## Structure
+
+- `components/api-server/` — Go REST + gRPC API microservice, PostgreSQL-backed
+- `specs/` — Desired state of the system
+- `skills/` — Agent skills for SDLC automation
+
 ## Agent Rules
 
 ### Always Define Specs
@@ -44,6 +50,8 @@ Specs (`specs/`) define desired state. Skills (`skills/`) define procedures. `sk
 ```
 
 ## Development Commands
+
+All API server commands run from `components/api-server/` or via the root Makefile which delegates.
 
 ### Build & Run
 - `make proto` — generate protobuf stubs (required before `make binary`)
@@ -101,7 +109,7 @@ Same database flags as `trex serve`. Idempotent — safe to run multiple times.
 
 **Layers:** Handler → Service → DAO → Model
 
-**Key packages:**
+**Key packages (under `components/api-server/`):**
 - `pkg/api/` — models, OpenAPI client, presenters
 - `pkg/handlers/` — REST endpoints
 - `pkg/services/` — business logic + event handlers
@@ -120,6 +128,7 @@ Same database flags as `trex serve`. Idempotent — safe to run multiple times.
 ### Entity Generator
 
 ```bash
+cd components/api-server
 go run ./scripts/generator.go --kind FizzBuzz
 go run ./scripts/generator.go --kind FizzBuzz --fields "name:string:required,count:int"
 ```
@@ -134,7 +143,7 @@ Creates: model, DAO, service, handlers, presenter, migration, OpenAPI spec, test
 ### CLI Generator
 
 ```bash
-cd scripts/cli-generator
+cd components/api-server/scripts/cli-generator
 go run . --spec ../../openapi/openapi.yaml --out /tmp/trex-cli
 ```
 
@@ -143,6 +152,7 @@ Generates a complete Cobra CLI with `login`, `list`, `get`, `create` commands fr
 ### Post-Generation Workflow
 
 ```bash
+cd components/api-server
 make binary
 make db/teardown && make db/setup
 ./trex migrate
@@ -152,6 +162,7 @@ make run-no-auth
 ### Cleanup (removing a generated Kind)
 
 ```bash
+cd components/api-server
 rm -rf pkg/api/{kind}.go pkg/api/presenters/{kind}.go pkg/handlers/{kind}.go \
   pkg/services/{kind}.go pkg/dao/{kind}.go pkg/dao/mocks/{kind}.go \
   pkg/db/migrations/*{kind}* test/integration/{kinds}_test.go \
