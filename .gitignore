@@ -40,6 +40,11 @@ scripts/*/console-plugin-generator
 # Ignore generated directories
 generated/
 
+# Ignore Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
 # Ignore generated templates
 /templates/*-template.json
 

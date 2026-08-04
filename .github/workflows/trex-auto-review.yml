@@ -1,374 +1,273 @@
 name: TRex Automatic Code Review
 
 on:
-  pull_request_target:
-    types: [opened, synchronize]
+  workflow_run:
+    workflows: [TRex PR CI]
+    types: [completed]
 
 permissions:
+  actions: read
   contents: read
-  pull-requests: write
   issues: write
+  pull-requests: read
+
+concurrency:
+  group: trex-review-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
 
 jobs:
-  trex-review:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    
+    timeout-minutes: 5
+
     steps:
-      - name: Checkout PR code
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-
-      - name: Setup Go environment
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-          
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Verify code quality
-        id: verify
-        run: |
-          echo "Running TRex code verification..."
-          
-          # Check if code compiles
-          if ! go build ./...; then
-            echo "build_failed=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Run linting
-          if command -v golangci-lint >/dev/null 2>&1; then
-            if ! golangci-lint run --timeout=5m; then
-              echo "lint_failed=true" >> $GITHUB_OUTPUT
-            fi
-          fi
-          
-          # Run tests
-          if ! go test ./... -short; then
-            echo "test_failed=true" >> $GITHUB_OUTPUT
-          fi
-          
-          # Check for common security issues
-          if grep -r "log.*token\|log.*password\|log.*secret" . --include="*.go" | grep -v "len(token)\|len(password)\|len(secret)"; then
-            echo "security_issues=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: TRex Code Review Analysis
-        id: review
-        uses: actions/github-script@v6
+      - name: Analyze trusted API data and update the review comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CI_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          CI_RUN_URL: ${{ github.event.workflow_run.html_url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            
-            // Get PR files changed
-            const { data: files } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
+            const marker = '<!-- trex-auto-review -->';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const headSha = process.env.CI_HEAD_SHA;
+            const runID = Number(process.env.CI_RUN_ID);
+            const runURL = process.env.CI_RUN_URL;
+            const ciConclusion = process.env.CI_CONCLUSION;
+
+            function safeMarkdown(value) {
+              return String(value)
+                .replace(/[\u0000-\u001f\u007f]/g, '')
+                .replace(/@/g, '@\u200b')
+                .replace(/([\\`*_[\]<>])/g, '\\$1')
+                .slice(0, 500);
+            }
+
+            let associated = context.payload.workflow_run.pull_requests || [];
+            if (associated.length === 0) {
+              const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner,
+                repo,
+                commit_sha: headSha,
+              });
+              associated = response.data;
+            }
+
+            const candidateNumbers = [...new Set(associated.map((candidate) => candidate.number))];
+            const candidates = await Promise.all(candidateNumbers.map(async (pullNumber) => {
+              const response = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pullNumber,
+              });
+              return response.data;
+            }));
+            const openMatches = candidates.filter((candidate) =>
+              candidate.state === 'open' && candidate.head.sha === headSha
+            );
+            if (openMatches.length !== 1) {
+              core.notice(`Expected one open pull request for ${headSha}; found ${openMatches.length}.`);
+              return;
+            }
+
+            const pull = openMatches[0];
+            const pullNumber = pull.number;
+
+            if (pull.draft) {
+              core.notice(`Pull request #${pullNumber} is still a draft; skipping review comment.`);
+              return;
+            }
+            if (pull.head.sha !== headSha) {
+              core.notice(`Ignoring stale run ${runID}; pull request #${pullNumber} has a newer head.`);
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pullNumber,
+              per_page: 100,
             });
-            
-            console.log(`Analyzing ${files.length} changed files`);
-            
-            // Read TRex review guidance files
-            const reviewGuidance = {
-              context: {
-                backend: fs.readFileSync('.claude/context/backend-development.md', 'utf8'),
-                database: fs.readFileSync('.claude/context/database-development.md', 'utf8'),
-                security: fs.readFileSync('.claude/context/security-standards.md', 'utf8')
-              },
-              patterns: {
-                errorHandling: fs.readFileSync('.claude/patterns/error-handling.md', 'utf8'),
-                authMiddleware: fs.readFileSync('.claude/patterns/auth-middleware.md', 'utf8'),
-                testing: fs.readFileSync('.claude/patterns/testing-patterns.md', 'utf8')
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner,
+              repo,
+              run_id: runID,
+              per_page: 100,
+            });
+
+            const findings = [];
+            const counts = { CRITICAL: 0, MAJOR: 0, MINOR: 0 };
+            const addFinding = (file, severity, issue, description) => {
+              counts[severity] += 1;
+              if (findings.length < 100) {
+                findings.push({ file, severity, issue, description });
               }
             };
-            
-            // Analyze changed files
-            let findings = [];
-            let criticalIssues = 0;
-            let majorIssues = 0;
-            let minorIssues = 0;
-            
+
             for (const file of files) {
               if (!file.filename.endsWith('.go')) continue;
-              
-              console.log(`Analyzing ${file.filename}`);
-              const content = file.patch || '';
-              
-              // Security checks
-              if (content.includes('log.') && (content.includes('token') || content.includes('password') || content.includes('secret'))) {
-                if (!content.includes('len(token)') && !content.includes('len(password)') && !content.includes('len(secret)')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'CRITICAL',
-                    issue: 'Potential secret logging detected',
-                    description: 'Secrets should never be logged. Use token length instead: `len(token)`'
-                  });
-                  criticalIssues++;
+
+              const additions = (file.patch || '')
+                .split('\n')
+                .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+                .map((line) => line.slice(1))
+                .join('\n');
+
+              if (/log.*(token|password|secret)/i.test(additions) &&
+                  !/len\((token|password|secret)\)/i.test(additions)) {
+                addFinding(
+                  file.filename,
+                  'CRITICAL',
+                  'Potential secret logging detected',
+                  'Secrets must not be logged; log non-sensitive metadata such as a value length instead.'
+                );
+              }
+
+              if (file.filename.includes('handlers/') && additions.length > 0) {
+                if (!additions.includes('errors.HandleServiceError') &&
+                    !additions.includes('errors.BadRequest')) {
+                  addFinding(
+                    file.filename,
+                    'MAJOR',
+                    'Handler may be missing TRex error handling',
+                    'Use the standard TRex error constructors and response handling.'
+                  );
+                }
+                if (additions.includes('panic(') || additions.includes('log.Fatal')) {
+                  addFinding(
+                    file.filename,
+                    'CRITICAL',
+                    'Handler contains panic or fatal exit behavior',
+                    'Return and translate errors instead of terminating the server from a handler.'
+                  );
                 }
               }
-              
-              // Framework compliance checks
-              if (file.filename.includes('handlers/') && content.includes('+')) {
-                if (!content.includes('errors.HandleServiceError') && !content.includes('errors.BadRequest')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'MAJOR',
-                    issue: 'Handler missing proper error handling',
-                    description: 'Use TRex error types: errors.BadRequest, errors.NotFound, etc.'
-                  });
-                  majorIssues++;
-                }
-                
-                if (content.includes('panic(') || content.includes('log.Fatal')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'CRITICAL',
-                    issue: 'Handler contains panic() or log.Fatal()',
-                    description: 'Use proper error handling instead of panic() in handlers'
-                  });
-                  criticalIssues++;
-                }
-              }
-              
-              // Database pattern checks
+
               if (file.filename.includes('dao/') || file.filename.includes('services/')) {
-                if (content.includes('db.Exec') && content.includes('fmt.Sprintf')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'CRITICAL',
-                    issue: 'SQL injection vulnerability',
-                    description: 'Use parameterized queries instead of string concatenation'
-                  });
-                  criticalIssues++;
+                if (additions.includes('db.Exec') && additions.includes('fmt.Sprintf')) {
+                  addFinding(
+                    file.filename,
+                    'CRITICAL',
+                    'Possible SQL injection path',
+                    'Use parameterized queries instead of constructing SQL with string formatting.'
+                  );
                 }
-                
-                if (content.includes('gorm.DB') && !content.includes('WithContext')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'MAJOR',
-                    issue: 'Database operation missing context',
-                    description: 'Always use .WithContext(ctx) for database operations'
-                  });
-                  majorIssues++;
+                if (additions.includes('gorm.DB') && !additions.includes('WithContext')) {
+                  addFinding(
+                    file.filename,
+                    'MAJOR',
+                    'Database operation may be missing context',
+                    'Use WithContext(ctx) for database operations.'
+                  );
                 }
               }
-              
-              // Testing checks
-              if (file.filename.includes('_test.go')) {
-                if (content.includes('func Test') && !content.includes('assert.') && !content.includes('require.')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'MINOR',
-                    issue: 'Test missing assertions',
-                    description: 'Use testify assert/require for proper test assertions'
-                  });
-                  minorIssues++;
+
+              if (file.filename.endsWith('_test.go') && additions.includes('func Test')) {
+                const hasAssertion = [
+                  'assert.', 'require.', 'Expect(', 't.Fatal', 't.Error'
+                ].some((needle) => additions.includes(needle));
+                if (!hasAssertion) {
+                  addFinding(
+                    file.filename,
+                    'MINOR',
+                    'Test may be missing an assertion',
+                    'Confirm the test verifies an observable result or failure.'
+                  );
                 }
               }
-              
-              // Migration checks
-              if (file.filename.includes('migrations/')) {
-                if (content.includes('AutoMigrate') && !content.includes('Rollback')) {
-                  findings.push({
-                    file: file.filename,
-                    severity: 'MAJOR',
-                    issue: 'Migration missing rollback',
-                    description: 'All migrations must be reversible with proper Rollback function'
-                  });
-                  majorIssues++;
-                }
+
+              if (file.filename.includes('migrations/') &&
+                  additions.includes('AutoMigrate') && !additions.includes('Rollback')) {
+                addFinding(
+                  file.filename,
+                  'MAJOR',
+                  'Migration may be missing rollback behavior',
+                  'Migrations should provide a reversible rollback operation.'
+                );
               }
-              
-              // API design checks
-              if (content.includes('http.StatusCreated') && !content.includes('Location')) {
-                findings.push({
-                  file: file.filename,
-                  severity: 'MINOR',
-                  issue: 'Created response missing Location header',
-                  description: 'Set Location header for 201 Created responses'
-                });
-                minorIssues++;
+
+              if (additions.includes('http.StatusCreated') && !additions.includes('Location')) {
+                addFinding(
+                  file.filename,
+                  'MINOR',
+                  'Created response may be missing a Location header',
+                  'Set Location for successful 201 Created responses.'
+                );
               }
             }
-            
-            // Build verification issues
-            const buildFailed = '${{ steps.verify.outputs.build_failed }}' === 'true';
-            const lintFailed = '${{ steps.verify.outputs.lint_failed }}' === 'true';
-            const testFailed = '${{ steps.verify.outputs.test_failed }}' === 'true';
-            const securityIssues = '${{ steps.verify.outputs.security_issues }}' === 'true';
-            
-            if (buildFailed) {
-              findings.push({
-                file: 'Build',
-                severity: 'CRITICAL',
-                issue: 'Code does not compile',
-                description: 'Fix compilation errors before review'
-              });
-              criticalIssues++;
+
+            if (ciConclusion !== 'success') {
+              const failedSteps = jobs.flatMap((job) =>
+                (job.steps || [])
+                  .filter((step) => step.conclusion === 'failure')
+                  .map((step) => `${job.name}: ${step.name}`)
+              );
+              const details = failedSteps.length > 0
+                ? `Failed steps: ${failedSteps.map(safeMarkdown).join(', ')}`
+                : `Workflow conclusion: ${safeMarkdown(ciConclusion)}`;
+              addFinding(
+                'TRex PR CI',
+                'MAJOR',
+                'Pull request CI did not pass',
+                details
+              );
             }
-            
-            if (lintFailed) {
-              findings.push({
-                file: 'Linting',
-                severity: 'MAJOR',
-                issue: 'Linting failures detected',
-                description: 'Run `make lint` and fix all issues'
-              });
-              majorIssues++;
-            }
-            
-            if (testFailed) {
-              findings.push({
-                file: 'Tests',
-                severity: 'MAJOR',
-                issue: 'Test failures detected',
-                description: 'Ensure all tests pass before review'
-              });
-              majorIssues++;
-            }
-            
-            if (securityIssues) {
-              findings.push({
-                file: 'Security',
-                severity: 'CRITICAL',
-                issue: 'Potential secret logging detected',
-                description: 'Never log secrets - use token length instead'
-              });
-              criticalIssues++;
-            }
-            
-            // Generate review comment
-            let comment = `## 🤖 TRex Automated Code Review\n\n`;
-            comment += `**Files Reviewed:** ${files.length}\n`;
-            comment += `**Issues Found:** ${criticalIssues} Critical, ${majorIssues} Major, ${minorIssues} Minor\n\n`;
-            
+
+            let body = `${marker}\n## 🤖 TRex Automated Code Review\n\n`;
+            body += `**Files reviewed:** ${files.length}\n`;
+            body += `**CI:** [${safeMarkdown(ciConclusion)}](${runURL})\n`;
+            body += `**Issues found:** ${counts.CRITICAL} Critical, ${counts.MAJOR} Major, ${counts.MINOR} Minor\n\n`;
+
             if (findings.length === 0) {
-              comment += `✅ **Excellent!** No issues found. Code follows TRex standards.\n\n`;
-              comment += `### Pre-merge Checklist\n`;
-              comment += `- [ ] All tests passing\n`;
-              comment += `- [ ] Code review approved\n`;
-              comment += `- [ ] Documentation updated if needed\n`;
+              body += '✅ No automated findings. Ready for human review.\n';
             } else {
-              comment += `### 🔍 Review Findings\n\n`;
-              
-              const criticalFindings = findings.filter(f => f.severity === 'CRITICAL');
-              if (criticalFindings.length > 0) {
-                comment += `#### 🚨 Critical Issues (Must Fix)\n`;
-                for (const finding of criticalFindings) {
-                  comment += `- **${finding.file}**: ${finding.issue}\n`;
-                  comment += `  - ${finding.description}\n\n`;
+              for (const severity of ['CRITICAL', 'MAJOR', 'MINOR']) {
+                const matching = findings.filter((finding) => finding.severity === severity);
+                if (matching.length === 0) continue;
+                body += `### ${severity}\n\n`;
+                for (const finding of matching) {
+                  body += `- **${safeMarkdown(finding.file)}**: ${finding.issue}\n`;
+                  body += `  - ${finding.description}\n`;
                 }
+                body += '\n';
               }
-              
-              const majorFindings = findings.filter(f => f.severity === 'MAJOR');
-              if (majorFindings.length > 0) {
-                comment += `#### ⚠️ Major Issues (Should Fix)\n`;
-                for (const finding of majorFindings) {
-                  comment += `- **${finding.file}**: ${finding.issue}\n`;
-                  comment += `  - ${finding.description}\n\n`;
-                }
-              }
-              
-              const minorFindings = findings.filter(f => f.severity === 'MINOR');
-              if (minorFindings.length > 0) {
-                comment += `#### ℹ️ Minor Issues (Consider Fixing)\n`;
-                for (const finding of minorFindings) {
-                  comment += `- **${finding.file}**: ${finding.issue}\n`;
-                  comment += `  - ${finding.description}\n\n`;
-                }
+              if (findings.length < counts.CRITICAL + counts.MAJOR + counts.MINOR) {
+                body += '_Additional findings were omitted to keep this comment bounded._\n\n';
               }
             }
-            
-            comment += `### 📚 TRex Standards Reference\n\n`;
-            comment += `For detailed guidance, see the TRex memory system:\n`;
-            comment += `- [Backend Development Patterns](.claude/context/backend-development.md)\n`;
-            comment += `- [Security Standards](.claude/context/security-standards.md)\n`;
-            comment += `- [Database Patterns](.claude/context/database-development.md)\n`;
-            comment += `- [Error Handling](.claude/patterns/error-handling.md)\n`;
-            comment += `- [Testing Patterns](.claude/patterns/testing-patterns.md)\n\n`;
-            
-            comment += `### 🎯 Approval Status\n`;
-            if (criticalIssues > 0) {
-              comment += `❌ **Changes Requested** - Critical issues must be resolved\n`;
-            } else if (majorIssues > 0) {
-              comment += `⚠️ **Review Required** - Major issues should be addressed\n`;
-            } else {
-              comment += `✅ **Approved** - Ready for human review\n`;
-            }
-            
-            comment += `\n---\n*Automated review by TRex standards engine*`;
-            
-            return comment;
 
-      - name: Post review comment
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const comment = `${{ steps.review.outputs.result }}`;
-            
-            // Check if we already posted a review comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
+            body += '---\n*Automated review from trusted GitHub API data; fork code was not executed by this commenting workflow.*';
+            if (body.length > 60000) {
+              body = `${body.slice(0, 59500)}\n\n_Comment truncated._`;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pullNumber,
+              per_page: 100,
             });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('🤖 TRex Automated Code Review')
+            const existing = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)
             );
-            
-            if (botComment) {
-              // Update existing comment
+
+            if (existing) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: comment
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
               });
             } else {
-              // Create new comment
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: comment
-              });
-            }
-
-      - name: Set PR status
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const criticalIssues = ${{ steps.verify.outputs.build_failed === 'true' || steps.verify.outputs.security_issues === 'true' }};
-            
-            if (criticalIssues) {
-              // Request changes for critical issues
-              await github.rest.pulls.createReview({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number,
-                event: 'REQUEST_CHANGES',
-                body: 'Critical issues detected by automated TRex review. Please address before merge.'
+                owner,
+                repo,
+                issue_number: pullNumber,
+                body,
               });
             }

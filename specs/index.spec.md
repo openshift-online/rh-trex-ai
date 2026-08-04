@@ -1,6 +1,6 @@
 # TRex Framework Specification Registry
 
-**Date:** 2026-07-06
+**Date:** 2026-08-04
 **Status:** Living Document
 
 ---
