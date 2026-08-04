@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** STD-003
 **Related:** [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Secrets Management](../security/secrets-management.spec.md)
-**Implements:** `test/`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`, `.github/workflows/trex-pr-ci.yml`, `.github/workflows/trex-auto-review.yml`, `scripts/run_parallel_validation.py`, `scripts/test_trex_review_workflows.py`
+**Implements:** `test/`, `plugins/*/integration_test.go`, `plugins/*/grpc_integration_test.go`, `plugins/*/factory_test.go`, `.github/workflows/trex-pr-ci.yml`, `.github/workflows/trex-auto-review.yml`, `scripts/test_trex_review_workflows.py`
 
 ---
 
@@ -131,18 +131,6 @@ The repository SHALL have an offline automated test that validates the event tri
 - WHEN the workflow policy test runs
 - THEN the test SHALL fail before the workflow change is accepted
 
-### Requirement: Parallel Pull Request Validation
-
-The pull request workflow SHALL use one job named `validate` that performs checkout, workflow-policy validation, toolchain setup, and dependency verification once, then runs build, static-quality, and unit-test checks concurrently on that runner. The unit-test check SHALL disable `go test`'s implicit vet pass because the static-quality check runs explicit `go vet`. The job SHALL succeed only when every required check succeeds, preserving a stable status for branch protection and review automation without duplicating setup work.
-
-#### Scenario: Ready pull request validation
-- GIVEN a pull request is ready for review
-- WHEN pull request CI starts
-- THEN checkout, workflow-policy validation, toolchain setup, and dependency verification SHALL each run once
-- AND build, static-quality, and unit-test checks SHALL execute concurrently after shared setup completes
-- AND unit tests SHALL NOT repeat the explicit static-quality vet pass
-- AND any required check that fails or is cancelled SHALL cause `validate` to fail
-
 ## Design Decisions
 
 | Decision | Rationale |
@@ -155,4 +143,4 @@ The pull request workflow SHALL use one job named `validate` that performs check
 | Two-stage pull request automation | Untrusted code can be tested while comment writes remain confined to trusted default-branch logic |
 | API-only privileged review | Patch analysis and comment updates do not require checking out or executing fork-controlled content |
 | Marker-owned comment updates | One auditable bot comment reflects the latest run without notification spam |
-| In-runner validation concurrency | One `validate` runner eliminates repeated setup and runner overhead while the orchestrator preserves grouped output and failure propagation for each check |
+| Cache-warming serial Go validation | Measured PR runs showed one serial runner was faster than job-level or in-runner parallelism because build artifacts were reused by vet and unit tests without CPU contention |

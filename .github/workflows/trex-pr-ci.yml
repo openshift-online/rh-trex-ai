@@ -38,5 +38,22 @@ jobs:
           go mod download
           go mod verify
 
-      - name: Run Go validations in parallel
-        run: python3 scripts/run_parallel_validation.py
+      - name: Build
+        run: go build ./...
+
+      - name: Vet and check formatting
+        run: |
+          go vet ./cmd/... ./pkg/...
+          unformatted="$(gofmt -l cmd pkg test)"
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: |
+          install -d -m 0700 secrets
+          install -m 0600 /dev/null secrets/db.password
+          printf '%s\n' 'ci-test-password' > secrets/db.password
+          API_ENV=unit_testing go test -vet=off -short ./pkg/... ./cmd/...
