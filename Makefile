@@ -3,14 +3,17 @@ CONTAINER_ENGINE?=$(shell command -v podman 2>/dev/null || echo docker)
 .PHONY: build-all
 build-all:
 	cd components/api-server && $(MAKE) binary
+	cd components/control-plane && go build ./...
 
 .PHONY: lint
 lint:
 	cd components/api-server && $(MAKE) lint
+	cd components/control-plane && go fmt ./... && go vet ./...
 
 .PHONY: verify
 verify:
 	cd components/api-server && $(MAKE) verify
+	cd components/control-plane && go vet ./...
 
 .PHONY: test
 test:
