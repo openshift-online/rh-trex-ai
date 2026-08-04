@@ -27,6 +27,11 @@ jobs:
       - name: Validate workflow trust boundaries
         run: python3 -m unittest scripts/test_trex_review_workflows.py
 
+      - name: Test dependency-age policy
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest scripts/test_check_dependency_age.py
+
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -57,3 +62,26 @@ jobs:
           install -m 0600 /dev/null secrets/db.password
           printf '%s\n' 'ci-test-password' > secrets/db.password
           API_ENV=unit_testing go test -vet=off -short ./pkg/... ./cmd/...
+
+  dependency-age:
+    name: dependency age
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout pull request merge commit
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 1.24.9
+          cache: false
+
+      - name: Enforce dependency minimum age
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 scripts/check-dependency-age.py --min-age-days 14
