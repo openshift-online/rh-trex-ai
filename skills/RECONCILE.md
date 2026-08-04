@@ -1,7 +1,7 @@
 # Reconciliation Checkpoint
 
-**Last Updated:** 2026-08-03
-**Last Run By:** Codex (reconcile skill — CG-005 and dependency supply-chain implementation)
+**Last Updated:** 2026-08-04
+**Last Run By:** Codex (reconcile skill — OpenAPI IR and secure pull request automation merge)
 
 ---
 
@@ -14,8 +14,8 @@
 | data | 2 | 14 | 13 | 0 | 1 | 92.9% |
 | security | 3 | 17 | 17 | 0 | 0 | 100% |
 | codegen | 5 | 49 | 38 | 9 | 2 | 77.6% |
-| standards | 4 | 27 | 27 | 0 | 0 | 100% |
-| **Total** | **20** | **151** | **135** | **12** | **4** | **89.4%** |
+| standards | 4 | 30 | 30 | 0 | 0 | 100% |
+| **Total** | **20** | **154** | **138** | **12** | **4** | **89.6%** |
 
 ## Spec Dependency Order
 
@@ -85,6 +85,9 @@ Reconciliation MUST proceed in this order to respect dependencies:
 | GAP-049 | STD-004 | Audited Minimum-Age Exceptions | closed | major | The exact tuple allowlist validates mandatory reason and compensating-verification fields; the current list is empty. |
 | GAP-050 | STD-004 | Dependency Policy Verification | closed | major | Nine offline policy tests cover parsing and boundary cases, while `ci-test-unit` runs the live gate. |
 | GAP-051 | STD-004 | Actionable and Safe Metadata Access | closed | major | Metadata access is HTTPS-only with bounded retries/timeouts, no lifecycle execution, fail-closed behavior, and package-scoped diagnostics. |
+| GAP-052 | STD-003 | Untrusted Pull Request Isolation | closed | major | Fixed: `.github/workflows/trex-pr-ci.yml` runs fork code on `pull_request` with only `contents: read`, no persisted checkout credentials, immutable action SHAs, draft-transition coverage, and no secrets. |
+| GAP-053 | STD-003 | Privilege-Separated Review Comments | closed | major | Fixed: `.github/workflows/trex-auto-review.yml` consumes completed CI through `workflow_run`, verifies the current open PR/head SHA via GitHub APIs, treats patches as data, and creates or updates one marker-owned comment without checking out or executing fork content. |
+| GAP-054 | STD-003 | Workflow Trust-Boundary Verification | closed | major | Fixed: `scripts/test_trex_review_workflows.py` validates triggers, exact permissions, immutable pins, valid expression operators, and prohibited privileged operations, with unsafe mutation cases. |
 
 ### Gap Execution Plan
 
@@ -97,7 +100,7 @@ Recommended implementation order for the remaining gaps:
 5. **TUI specification and implementation:** author CG-006, then consume the now-covered canonical IR and conformance fixtures.
 6. **Independent data gap:** GAP-005 — add migration advisory locking outside the codegen workstream.
 
-CG-005 and STD-004 are fully covered. GAP-001–004 remain closed and require no further action.
+CG-005, STD-003, and STD-004 are fully covered. GAP-001–004 and GAP-052–054 remain closed and require no further action.
 
 ## Reconciliation History
 
@@ -113,3 +116,6 @@ CG-005 and STD-004 are fully covered. GAP-001–004 remain closed and require no
 | 2026-08-03 | 71.7% (104/145) | Preserved test-tooling coverage while isolating pinned `gotestsum` from the root module graph so downstream consumers do not inherit development-only dependencies. | Codex |
 | 2026-08-03 | 68.9% (104/151) | Added STD-004 for exact generator toolchain pins, locked npm graphs, a 14-day dependency cooldown, audited exceptions, and CI enforcement; identified six implementation gaps. | Codex |
 | 2026-08-03 | 89.4% (135/151) | Fully reconciled CG-005 and STD-004: added the canonical bounded IR, migrated all three consumers, added shared and real-spec acceptance gates, proved deterministic generation with SHA-256 baselines, pinned the Node/npm graph, and enforced a 14-day dependency cooldown. | Codex |
+| 2026-08-04 | 97.2% (105/108) | Added secure pull request execution, privilege-separated commenting, and workflow trust-boundary verification requirements; identified three implementation gaps. | Codex |
+| 2026-08-04 | 100% (108/108) | Closed the three STD-003 workflow gaps with read-only PR CI, an API-only trusted commenter, immutable action pins, and offline trust-boundary mutation tests. | Codex |
+| 2026-08-04 | 89.6% (138/154) | Merged the OpenAPI IR and secure pull request automation requirement sets, renumbered the CI gaps to preserve unique identifiers, and retained both implementations. | Codex |
