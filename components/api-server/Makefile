@@ -81,14 +81,6 @@ help:
 	@echo "make undeploy             undeploy from local openshift instance"
 	@echo "make project              create and use an Example project"
 	@echo "make clean                delete temporary generated files"
-	@echo "make generate-sdk         generate SDK (Go, Python, TypeScript) from OpenAPI"
-	@echo "make generate-sdk-go      generate Go SDK only"
-	@echo "make generate-sdk-python  generate Python SDK only"
-	@echo "make generate-sdk-ts      generate TypeScript SDK only"
-	@echo "make generate-cli         generate CLI from OpenAPI"
-	@echo "make generate-all         generate SDK + CLI + console plugin"
-	@echo "make generate-console-plugin  generate OpenShift Console dynamic plugin"
-	@echo "make generate-clean       remove all generated SDK/CLI/plugin output"
 	@echo "$(fake)"
 .PHONY: help
 
@@ -393,99 +385,6 @@ db/login:
 db/teardown:
 	$(container_tool) stop psql-rhtrex
 	$(container_tool) rm psql-rhtrex
-
-### SDK and CLI Generation
-
-# SDK generation output directories
-SDK_GO_OUT ?= $(PWD)/generated/sdk/go
-SDK_PYTHON_OUT ?= $(PWD)/generated/sdk/python
-SDK_TS_OUT ?= $(PWD)/generated/sdk/typescript
-SDK_MODULE ?= github.com/openshift-online/rh-trex-ai-sdk
-SDK_API_PREFIX ?= /api/rh-trex-ai/v1
-
-# CLI generation output directory
-CLI_OUT ?= $(PWD)/generated/cli
-CLI_BINARY ?= trex-cli
-CLI_MODULE ?= github.com/openshift-online/rh-trex-ai-cli
-
-# Console plugin generation output directory
-CONSOLE_PLUGIN_OUT ?= $(PWD)/generated/console-plugin
-CONSOLE_PLUGIN_NAME ?= rh-trex-ai-console
-
-.PHONY: generate-sdk
-generate-sdk:
-	@echo "Generating SDK from OpenAPI specs..."
-	cd scripts/sdk-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--go-out $(SDK_GO_OUT) \
-		--python-out $(SDK_PYTHON_OUT) \
-		--ts-out $(SDK_TS_OUT) \
-		--module $(SDK_MODULE) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "SDK generated in generated/sdk/"
-
-.PHONY: generate-sdk-go
-generate-sdk-go:
-	@echo "Generating Go SDK from OpenAPI specs..."
-	cd scripts/sdk-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--go-out $(SDK_GO_OUT) \
-		--module $(SDK_MODULE) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "Go SDK generated in $(SDK_GO_OUT)"
-
-.PHONY: generate-sdk-python
-generate-sdk-python:
-	@echo "Generating Python SDK from OpenAPI specs..."
-	cd scripts/sdk-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--python-out $(SDK_PYTHON_OUT) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "Python SDK generated in $(SDK_PYTHON_OUT)"
-
-.PHONY: generate-sdk-ts
-generate-sdk-ts:
-	@echo "Generating TypeScript SDK from OpenAPI specs..."
-	cd scripts/sdk-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--ts-out $(SDK_TS_OUT) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "TypeScript SDK generated in $(SDK_TS_OUT)"
-
-.PHONY: generate-cli
-generate-cli:
-	@echo "Generating CLI from OpenAPI specs..."
-	cd scripts/cli-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--out $(CLI_OUT) \
-		--binary $(CLI_BINARY) \
-		--module $(CLI_MODULE) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "CLI generated in $(CLI_OUT)"
-
-.PHONY: generate-console-plugin
-generate-console-plugin:
-	@echo "Generating OpenShift Console plugin from OpenAPI specs..."
-	cd scripts/console-plugin-generator && $(GO) run . \
-		--spec $(PWD)/openapi/openapi.yaml \
-		--out $(CONSOLE_PLUGIN_OUT) \
-		--name $(CONSOLE_PLUGIN_NAME) \
-		--api-prefix $(SDK_API_PREFIX) \
-		--project rh-trex-ai
-	@echo "Console plugin generated in $(CONSOLE_PLUGIN_OUT)"
-
-.PHONY: generate-all
-generate-all: generate-sdk generate-cli generate-console-plugin
-	@echo "All generators complete."
-
-.PHONY: generate-clean
-generate-clean:
-	rm -rf $(PWD)/generated/
 
 crc/login:
 	@echo "Logging into CRC"
