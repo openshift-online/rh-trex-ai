@@ -82,14 +82,6 @@ help:
 	@echo "make undeploy             undeploy from local openshift instance"
 	@echo "make project              create and use an Example project"
 	@echo "make clean                delete temporary generated files"
-	@echo "make generate-sdk         generate SDK (Go, Python, TypeScript) from OpenAPI"
-	@echo "make generate-sdk-go      generate Go SDK only"
-	@echo "make generate-sdk-python  generate Python SDK only"
-	@echo "make generate-sdk-ts      generate TypeScript SDK only"
-	@echo "make generate-cli         generate CLI from OpenAPI"
-	@echo "make generate-all         generate SDK + CLI + console plugin"
-	@echo "make generate-console-plugin  generate OpenShift Console dynamic plugin"
-	@echo "make generate-clean       remove all generated SDK/CLI/plugin output"
 	@echo "$(fake)"
 .PHONY: help
 

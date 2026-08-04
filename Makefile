@@ -25,17 +25,17 @@ container_tool ?= podman
 .PHONY: build-all
 build-all:
 	cd components/api-server && $(MAKE) binary
-	cd components/control-plane && go build ./...
+	cd components/control-plane && $(GO) build ./...
 
 .PHONY: lint
 lint:
 	cd components/api-server && $(MAKE) lint
-	cd components/control-plane && go fmt ./... && go vet ./...
+	cd components/control-plane && $(GO) fmt ./... && $(GO) vet ./...
 
 .PHONY: verify
 verify:
 	cd components/api-server && $(MAKE) verify
-	cd components/control-plane && go vet ./...
+	cd components/control-plane && $(GO) vet ./...
 
 .PHONY: test
 test:
