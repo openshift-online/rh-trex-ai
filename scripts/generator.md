@@ -305,6 +305,14 @@ Generates typed client libraries from OpenAPI specs. Auto-discovers resources fr
 | 4 | `src/{resource}.ts`     | `ts/types.ts.tmpl`       | Per resource |
 | 5 | `src/{resource}_api.ts` | `ts/client.ts.tmpl`      | Per resource |
 
+The generated `SDKClient` accepts a required `baseUrl` plus either a static
+`token` or an asynchronous `getToken` callback. The callback is evaluated for
+every request so long-lived browser clients use current credentials. Callers
+may inject a Fetch-compatible function with `fetch`; otherwise the client uses
+`globalThis.fetch`. Both authentication options are optional for transports
+such as an authenticating console service proxy, but `token` and `getToken`
+cannot be configured together.
+
 **Example (3 resources):** 10 Go + 10 Python + 9 TypeScript = **29 files**
 
 ---

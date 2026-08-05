@@ -63,7 +63,22 @@ func TestGeneratedSDKAcceptanceAndDeterminism(t *testing.T) {
 
 	acceptGeneratedGo(t, filepath.Join(first, "go"))
 	acceptGeneratedPython(t, filepath.Join(first, "python"))
-	acceptGeneratedTypeScript(t, filepath.Join(first, "typescript"))
+}
+
+func TestGeneratedTypeScriptRuntimeAcceptance(t *testing.T) {
+	specPath := filepath.Join("..", "..", "openapi", "openapi.yaml")
+	spec, err := parseSpec(specPath, "/api/rh-trex-ai/v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec.Project = "rh-trex-ai"
+	header := GeneratedHeader{SpecPath: specPath, SpecHash: "acceptance", Timestamp: "1970-01-01T00:00:00Z"}
+
+	root := t.TempDir()
+	if err := generateTypeScript(spec, root, header); err != nil {
+		t.Fatal(err)
+	}
+	acceptGeneratedTypeScript(t, root)
 }
 
 func generateAllSDKs(t *testing.T, spec *Spec, root string, header GeneratedHeader) {
@@ -123,6 +138,89 @@ func acceptGeneratedPython(t *testing.T, root string) {
 func acceptGeneratedTypeScript(t *testing.T, root string) {
 	t.Helper()
 	writeAcceptanceFile(t, filepath.Join(root, "src", "globals.d.ts"), "declare const process: { env: Record<string, string | undefined> };\n")
+	acceptance := `import { SDKClient } from './client';
+
+type CapturedRequest = {
+  url: string;
+  authorization: string | null;
+};
+
+async function main(): Promise<void> {
+  const requests: CapturedRequest[] = [];
+  const fetchMock: typeof globalThis.fetch = async (input, init) => {
+    requests.push({
+      url: String(input),
+      authorization: new Headers(init?.headers).get('Authorization'),
+    });
+    return new Response(
+      JSON.stringify({kind: 'DinosaurList', page: 1, size: 1, total: 1, items: [{species: 'T. rex'}]}),
+      {status: 200, headers: {'Content-Type': 'application/json'}},
+    );
+  };
+
+  let token = 'first';
+  let tokenRequests = 0;
+  const dynamicClient = new SDKClient({
+    baseUrl: 'https://api.example.test/',
+    getToken: async () => {
+      tokenRequests++;
+      return token;
+    },
+    fetch: fetchMock,
+  });
+  await dynamicClient.dinosaurs.list();
+  token = 'second';
+  await dynamicClient.dinosaurs.list();
+
+  const staticClient = new SDKClient({
+    baseUrl: 'https://api.example.test',
+    token: 'static',
+    fetch: fetchMock,
+  });
+  await staticClient.dinosaurs.list();
+
+  const proxyClient = new SDKClient({
+    baseUrl: 'https://proxy.example.test',
+    fetch: fetchMock,
+  });
+  await proxyClient.dinosaurs.list();
+
+  if (tokenRequests !== 2) {
+    throw new Error('getToken was not called once per request');
+  }
+  const authorizations = requests.map((request) => request.authorization);
+  const expectedAuthorizations = ['Bearer first', 'Bearer second', 'Bearer static', null];
+  if (
+    authorizations.length !== expectedAuthorizations.length ||
+    authorizations.some((authorization, index) => authorization !== expectedAuthorizations[index])
+  ) {
+    throw new Error('unexpected authorization headers: ' + authorizations.join(','));
+  }
+  if (requests[0].url !== 'https://api.example.test/api/rh-trex-ai/v1/dinosaurs') {
+    throw new Error('unexpected request URL: ' + requests[0].url);
+  }
+
+  let rejectedAmbiguousAuth = false;
+  try {
+    new SDKClient({
+      baseUrl: 'https://api.example.test',
+      token: 'static',
+      getToken: async () => 'dynamic',
+      fetch: fetchMock,
+    });
+  } catch {
+    rejectedAmbiguousAuth = true;
+  }
+  if (!rejectedAmbiguousAuth) {
+    throw new Error('client accepted both token and getToken');
+  }
+}
+
+main().catch((error) => {
+  throw error;
+});
+`
+	writeAcceptanceFile(t, filepath.Join(root, "src", "acceptance.ts"), acceptance)
 	files, err := filepath.Glob(filepath.Join(root, "src", "*.ts"))
 	if err != nil {
 		t.Fatal(err)
@@ -131,11 +229,13 @@ func acceptGeneratedTypeScript(t *testing.T, root string) {
 	if typescriptVersion == "" {
 		typescriptVersion = "5.3.3"
 	}
-	arguments := []string{"npm", "exec", "--yes", "--package=typescript@" + typescriptVersion, "--", "tsc", "--noEmit", "--strict", "--target", "ES2022", "--module", "commonjs", "--lib", "ES2022,DOM"}
+	arguments := []string{"npm", "exec", "--yes", "--package=typescript@" + typescriptVersion, "--", "tsc", "--strict", "--target", "ES2022", "--module", "commonjs", "--lib", "ES2022,DOM", "--outDir", "build"}
 	for _, file := range files {
 		arguments = append(arguments, filepath.Base(file))
 	}
 	runSDKNodeCommand(t, filepath.Join(root, "src"), arguments...)
+	runSDKNodeCommand(t, filepath.Join(root, "src"), "chmod", "-R", "a+rwX", "build")
+	runSDKNodeCommand(t, root, "node", "src/build/acceptance.js")
 }
 
 const defaultSDKNodeImage = "registry.access.redhat.com/ubi9/nodejs-20:1-1778648167@sha256:74cc7b1d13592b1e425074f434b90e470ab209da85fd1fdb8e6e9e4cabaec51a"

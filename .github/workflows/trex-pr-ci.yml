@@ -63,6 +63,12 @@ jobs:
           printf '%s\n' 'ci-test-password' > secrets/db.password
           API_ENV=unit_testing go test -vet=off -short ./pkg/... ./cmd/...
 
+      - name: Run TypeScript SDK generator tests
+        working-directory: scripts/sdk-generator
+        env:
+          TREX_CONTAINER_TOOL: docker
+        run: go test -run '^TestGeneratedTypeScriptRuntimeAcceptance$' ./...
+
   dependency-age:
     name: dependency age
     if: github.event.pull_request.draft == false

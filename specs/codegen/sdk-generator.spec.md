@@ -75,6 +75,24 @@ Each language SDK SHALL be independently packaged and publishable.
 - THEN it SHALL succeed without importing API server source code
 - AND each package SHALL contain the metadata required for independent publication
 
+### Requirement: TypeScript Runtime Integration
+
+The generated TypeScript client SHALL support a static bearer token, an
+asynchronous token provider, or transport-managed authentication. It SHALL
+also allow callers to inject a Fetch-compatible implementation.
+
+#### Scenario: Browser token refresh
+- GIVEN a long-lived TypeScript client configured with `getToken`
+- WHEN it sends multiple requests and the active token changes
+- THEN it SHALL resolve the token immediately before every request
+- AND each request SHALL carry the current bearer token
+
+#### Scenario: Console proxy transport
+- GIVEN a TypeScript client configured with an injected Fetch implementation and no token
+- WHEN it sends a request through an authenticating service proxy
+- THEN it SHALL use the injected transport
+- AND it SHALL omit the `Authorization` header so the proxy can manage authentication
+
 ## Design Decisions
 
 | Decision | Rationale |
@@ -83,3 +101,4 @@ Each language SDK SHALL be independently packaged and publishable.
 | Separate generator module | Independent of the server; can be versioned and released separately |
 | Methods project operations, not model names | Helper schemas remain usable types without becoming fictional API clients |
 | Compile and exercise every language | Template rendering success alone cannot prove that generated packages are valid or behaviorally equivalent |
+| Injectable TypeScript auth and transport | Browser tokens can rotate, service proxies can own authentication, and consumers can supply runtime-specific Fetch implementations |
