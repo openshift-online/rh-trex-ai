@@ -103,6 +103,11 @@ func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 		glog.Fatalf("Failed to run migrations on testcontainer: %s", err)
 	}
 
+	// Install cross-cutting GORM plugins after migrations so instrumentation
+	// covers request traffic, not the one-off migration statements. With no
+	// plugin registered this is a no-op.
+	db.ApplyGormPlugins(f.g2)
+
 	glog.Infof("Testcontainer database initialized successfully")
 }
 

@@ -179,6 +179,12 @@ func connectFactory(config *config.DatabaseConfig) (*sql.DB, *gorm.DB) {
 	dbx, g2, _ = connect(config.Name, config)
 	dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
+	// Install cross-cutting GORM plugins on the serving connection. This runs
+	// per (re)connect, each time on a fresh *gorm.DB, so callbacks are never
+	// duplicated. The migration and reset connections use connect() directly and
+	// stay uninstrumented. With no plugin registered this is a no-op.
+	db.ApplyGormPlugins(g2)
+
 	return dbx, g2
 }
 
