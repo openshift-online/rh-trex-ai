@@ -1,8 +1,11 @@
 package main
 
 import (
-	"github.com/golang/glog"
+	"os"
 
+	"github.com/spf13/cobra"
+
+	generatedtui "github.com/openshift-online/rh-trex-ai/data/generated/tui"
 	"github.com/openshift-online/rh-trex-ai/pkg/api"
 	pkgcmd "github.com/openshift-online/rh-trex-ai/pkg/cmd"
 
@@ -19,13 +22,18 @@ import (
 //go:generate go-bindata -nometadata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
 
 func main() {
+	rootCmd := newRootCommand()
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func newRootCommand() *cobra.Command {
 	rootCmd := pkgcmd.NewRootCommand("trex", "rh-trex serves as a template for new microservices")
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("rh-trex"),
 		pkgcmd.NewServeCommand(api.GetOpenAPISpec),
+		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 	)
-
-	if err := rootCmd.Execute(); err != nil {
-		glog.Fatalf("error running command: %v", err)
-	}
+	return rootCmd
 }

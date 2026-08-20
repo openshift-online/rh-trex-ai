@@ -78,18 +78,21 @@ All URIs are relative to *http://localhost:8000*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
-*DefaultAPI* | [**ApiRhTrexAiV1DinosaursGet**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursget) | **Get** /api/rh-trex-ai/v1/dinosaurs | Returns a list of dinosaurs
-*DefaultAPI* | [**ApiRhTrexAiV1DinosaursIdGet**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursidget) | **Get** /api/rh-trex-ai/v1/dinosaurs/{id} | Get an dinosaur by id
-*DefaultAPI* | [**ApiRhTrexAiV1DinosaursIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1dinosaursidpatch) | **Patch** /api/rh-trex-ai/v1/dinosaurs/{id} | Update an dinosaur
-*DefaultAPI* | [**ApiRhTrexAiV1DinosaursPost**](docs/DefaultAPI.md#apirhtrexaiv1dinosaurspost) | **Post** /api/rh-trex-ai/v1/dinosaurs | Create a new dinosaur
-*DefaultAPI* | [**ApiRhTrexAiV1FossilsGet**](docs/DefaultAPI.md#apirhtrexaiv1fossilsget) | **Get** /api/rh-trex-ai/v1/fossils | Returns a list of fossils
-*DefaultAPI* | [**ApiRhTrexAiV1FossilsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1fossilsidget) | **Get** /api/rh-trex-ai/v1/fossils/{id} | Get an fossil by id
-*DefaultAPI* | [**ApiRhTrexAiV1FossilsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1fossilsidpatch) | **Patch** /api/rh-trex-ai/v1/fossils/{id} | Update an fossil
-*DefaultAPI* | [**ApiRhTrexAiV1FossilsPost**](docs/DefaultAPI.md#apirhtrexaiv1fossilspost) | **Post** /api/rh-trex-ai/v1/fossils | Create a new fossil
-*DefaultAPI* | [**ApiRhTrexAiV1ScientistsGet**](docs/DefaultAPI.md#apirhtrexaiv1scientistsget) | **Get** /api/rh-trex-ai/v1/scientists | Returns a list of scientists
-*DefaultAPI* | [**ApiRhTrexAiV1ScientistsIdGet**](docs/DefaultAPI.md#apirhtrexaiv1scientistsidget) | **Get** /api/rh-trex-ai/v1/scientists/{id} | Get an scientist by id
-*DefaultAPI* | [**ApiRhTrexAiV1ScientistsIdPatch**](docs/DefaultAPI.md#apirhtrexaiv1scientistsidpatch) | **Patch** /api/rh-trex-ai/v1/scientists/{id} | Update an scientist
-*DefaultAPI* | [**ApiRhTrexAiV1ScientistsPost**](docs/DefaultAPI.md#apirhtrexaiv1scientistspost) | **Post** /api/rh-trex-ai/v1/scientists | Create a new scientist
+*DefaultAPI* | [**CreateDinosaur**](docs/DefaultAPI.md#createdinosaur) | **Post** /api/rh-trex-ai/v1/dinosaurs | Create a new dinosaur
+*DefaultAPI* | [**CreateFossil**](docs/DefaultAPI.md#createfossil) | **Post** /api/rh-trex-ai/v1/fossils | Create a new fossil
+*DefaultAPI* | [**CreateScientist**](docs/DefaultAPI.md#createscientist) | **Post** /api/rh-trex-ai/v1/scientists | Create a new scientist
+*DefaultAPI* | [**DeleteDinosaur**](docs/DefaultAPI.md#deletedinosaur) | **Delete** /api/rh-trex-ai/v1/dinosaurs/{id} | Delete a dinosaur
+*DefaultAPI* | [**DeleteFossil**](docs/DefaultAPI.md#deletefossil) | **Delete** /api/rh-trex-ai/v1/fossils/{id} | Delete a fossil
+*DefaultAPI* | [**DeleteScientist**](docs/DefaultAPI.md#deletescientist) | **Delete** /api/rh-trex-ai/v1/scientists/{id} | Delete a scientist
+*DefaultAPI* | [**GetDinosaur**](docs/DefaultAPI.md#getdinosaur) | **Get** /api/rh-trex-ai/v1/dinosaurs/{id} | Get an dinosaur by id
+*DefaultAPI* | [**GetFossil**](docs/DefaultAPI.md#getfossil) | **Get** /api/rh-trex-ai/v1/fossils/{id} | Get an fossil by id
+*DefaultAPI* | [**GetScientist**](docs/DefaultAPI.md#getscientist) | **Get** /api/rh-trex-ai/v1/scientists/{id} | Get an scientist by id
+*DefaultAPI* | [**ListDinosaurs**](docs/DefaultAPI.md#listdinosaurs) | **Get** /api/rh-trex-ai/v1/dinosaurs | Returns a list of dinosaurs
+*DefaultAPI* | [**ListFossils**](docs/DefaultAPI.md#listfossils) | **Get** /api/rh-trex-ai/v1/fossils | Returns a list of fossils
+*DefaultAPI* | [**ListScientists**](docs/DefaultAPI.md#listscientists) | **Get** /api/rh-trex-ai/v1/scientists | Returns a list of scientists
+*DefaultAPI* | [**UpdateDinosaur**](docs/DefaultAPI.md#updatedinosaur) | **Patch** /api/rh-trex-ai/v1/dinosaurs/{id} | Update an dinosaur
+*DefaultAPI* | [**UpdateFossil**](docs/DefaultAPI.md#updatefossil) | **Patch** /api/rh-trex-ai/v1/fossils/{id} | Update an fossil
+*DefaultAPI* | [**UpdateScientist**](docs/DefaultAPI.md#updatescientist) | **Patch** /api/rh-trex-ai/v1/scientists/{id} | Update an scientist
 
 
 ## Documentation For Models

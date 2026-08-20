@@ -97,9 +97,10 @@ help:
 	@echo "make generate-sdk-python  generate Python SDK only"
 	@echo "make generate-sdk-ts      generate TypeScript SDK only"
 	@echo "make generate-cli         generate CLI from OpenAPI"
-	@echo "make generate-all         generate SDK + CLI + console plugin"
+	@echo "make generate-tui         regenerate embedded TUI descriptor only"
+	@echo "make generate-all         generate SDK + CLI + console plugin + TUI"
 	@echo "make generate-console-plugin  generate OpenShift Console dynamic plugin"
-	@echo "make generate-clean       remove all generated SDK/CLI/plugin output"
+	@echo "make generate-clean       remove generated SDK/CLI/plugin output"
 	@echo "$(fake)"
 .PHONY: help
 
@@ -172,13 +173,13 @@ lint:
 
 # Build binaries
 # NOTE it may be necessary to use CGO_ENABLED=0 for backwards compatibility with centos7 if not using centos7
-binary: check-gopath
+binary: check-gopath generate-tui
 	echo "Building version: ${build_version}"
 	${GO} build -ldflags="$(ldflags)" ./cmd/trex
 .PHONY: binary
 
 # Install
-install: check-gopath
+install: check-gopath generate-tui
 	CGO_ENABLED=$(CGO_ENABLED) GOEXPERIMENT=boringcrypto ${GO} install -ldflags="$(ldflags)" ./cmd/trex
 	@ ${GO} version | grep -q "$(GO_VERSION)" || \
 		( \
@@ -223,7 +224,8 @@ test-generators:
 		scripts/openapi-ir \
 		scripts/sdk-generator \
 		scripts/cli-generator \
-		scripts/console-plugin-generator; do \
+		scripts/console-plugin-generator \
+		scripts/tui-generator; do \
 			echo "Testing $$module"; \
 			(cd "$$module" && \
 				GOWORK=off \
@@ -306,6 +308,7 @@ generate:
 	$(eval OPENAPI_IMAGE_ID=`$(container_tool) create -t ams-openapi -f Dockerfile.openapi .`)
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/pkg/api/openapi ./pkg/api/openapi
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/data/generated/openapi/openapi.go ./data/generated/openapi/openapi.go
+	$(MAKE) generate-tui
 .PHONY: generate
 
 run: binary
@@ -436,7 +439,7 @@ db/teardown:
 	$(container_tool) stop psql-rhtrex
 	$(container_tool) rm psql-rhtrex
 
-### SDK and CLI Generation
+### SDK, CLI, Console, and TUI Generation
 
 # SDK generation output directories
 SDK_GO_OUT ?= $(PWD)/generated/sdk/go
@@ -453,6 +456,9 @@ CLI_MODULE ?= github.com/openshift-online/rh-trex-ai-cli
 # Console plugin generation output directory
 CONSOLE_PLUGIN_OUT ?= $(PWD)/generated/console-plugin
 CONSOLE_PLUGIN_NAME ?= rh-trex-ai-console
+
+# Integrated TUI descriptor output directory
+TUI_OUT ?= $(PWD)/data/generated/tui
 
 .PHONY: generate-sdk
 generate-sdk:
@@ -521,8 +527,15 @@ generate-console-plugin:
 		--project rh-trex-ai
 	@echo "Console plugin generated in $(CONSOLE_PLUGIN_OUT)"
 
+.PHONY: generate-tui
+generate-tui:
+	@echo "Refreshing embedded TUI descriptor from OpenAPI specs..."
+	cd scripts/tui-generator && TERM=dumb $(GO) run . \
+		--spec $(PWD)/openapi/openapi.yaml \
+		--out $(TUI_OUT)
+
 .PHONY: generate-all
-generate-all: generate-sdk generate-cli generate-console-plugin
+generate-all: generate-sdk generate-cli generate-console-plugin generate-tui
 	@echo "All generators complete."
 
 .PHONY: generate-clean

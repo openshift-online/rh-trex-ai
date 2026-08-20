@@ -3,7 +3,7 @@ paths:
   /api/rh-trex-ai/v1/fossils:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1FossilsGet
+      operationId: listFossils
       summary: Returns a list of fossils
       security:
         - Bearer: []
@@ -39,7 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
-      operationId: apiRhTrexAiV1FossilsPost
+      operationId: createFossil
       summary: Create a new fossil
       security:
         - Bearer: []
@@ -91,7 +91,7 @@ paths:
   /api/rh-trex-ai/v1/fossils/{id}:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1FossilsIdGet
+      operationId: getFossil
       summary: Get an fossil by id
       security:
         - Bearer: []
@@ -127,7 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
-      operationId: apiRhTrexAiV1FossilsIdPatch
+      operationId: updateFossil
       summary: Update an fossil
       security:
         - Bearer: []
@@ -177,6 +177,38 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
         '500':
           description: Unexpected error updating fossil
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+    delete:
+      operationId: deleteFossil
+      summary: Delete a fossil
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: Fossil deleted successfully
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '404':
+          description: No fossil with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting fossil
           content:
             application/json:
               schema:

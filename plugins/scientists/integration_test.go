@@ -19,17 +19,17 @@ func TestScientistGet(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	_, _, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsIdGet(context.Background(), "foo").Execute()
+	_, _, err := client.DefaultAPI.GetScientist(context.Background(), "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
 
-	_, resp, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsIdGet(ctx, "foo").Execute()
+	_, resp, err := client.DefaultAPI.GetScientist(ctx, "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	scientistModel, err := newScientist(h.NewID())
 	Expect(err).NotTo(HaveOccurred())
 
-	scientistOutput, resp, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsIdGet(ctx, scientistModel.ID).Execute()
+	scientistOutput, resp, err := client.DefaultAPI.GetScientist(ctx, scientistModel.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
@@ -51,7 +51,7 @@ func TestScientistPost(t *testing.T) {
 		Field: "test-field",
 	}
 
-	scientistOutput, resp, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsPost(ctx).Scientist(scientistInput).Execute()
+	scientistOutput, resp, err := client.DefaultAPI.CreateScientist(ctx).Scientist(scientistInput).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 	Expect(*scientistOutput.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
@@ -77,7 +77,7 @@ func TestScientistPatch(t *testing.T) {
 	scientistModel, err := newScientist(h.NewID())
 	Expect(err).NotTo(HaveOccurred())
 
-	scientistOutput, resp, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsIdPatch(ctx, scientistModel.ID).ScientistPatchRequest(openapi.ScientistPatchRequest{}).Execute()
+	scientistOutput, resp, err := client.DefaultAPI.UpdateScientist(ctx, scientistModel.ID).ScientistPatchRequest(openapi.ScientistPatchRequest{}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*scientistOutput.Id).To(Equal(scientistModel.ID))
@@ -95,6 +95,24 @@ func TestScientistPatch(t *testing.T) {
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
 }
 
+func TestScientistDelete(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	scientistModel, err := newScientist(h.NewID())
+	Expect(err).NotTo(HaveOccurred())
+
+	resp, err := client.DefaultAPI.DeleteScientist(ctx, scientistModel.ID).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error deleting object: %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+	_, resp, err = client.DefaultAPI.GetScientist(ctx, scientistModel.ID).Execute()
+	Expect(err).To(HaveOccurred(), "Expected deleted object to be absent")
+	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+}
+
 func TestScientistPaging(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
@@ -104,14 +122,14 @@ func TestScientistPaging(t *testing.T) {
 	_, err := newScientistList("Bronto", 20)
 	Expect(err).NotTo(HaveOccurred())
 
-	list, _, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsGet(ctx).Execute()
+	list, _, err := client.DefaultAPI.ListScientists(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting scientist list: %v", err)
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Size).To(Equal(int32(20)))
 	Expect(list.Total).To(Equal(int32(20)))
 	Expect(list.Page).To(Equal(int32(1)))
 
-	list, _, err = client.DefaultAPI.ApiRhTrexAiV1ScientistsGet(ctx).Page(2).Size(5).Execute()
+	list, _, err = client.DefaultAPI.ListScientists(ctx).Page(2).Size(5).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting scientist list: %v", err)
 	Expect(len(list.Items)).To(Equal(5))
 	Expect(list.Size).To(Equal(int32(5)))
@@ -129,7 +147,7 @@ func TestScientistListSearch(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	search := fmt.Sprintf("id in ('%s')", scientists[0].ID)
-	list, _, err := client.DefaultAPI.ApiRhTrexAiV1ScientistsGet(ctx).Search(search).Execute()
+	list, _, err := client.DefaultAPI.ListScientists(ctx).Search(search).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting scientist list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))

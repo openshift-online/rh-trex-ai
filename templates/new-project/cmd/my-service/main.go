@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/golang/glog"
+	"os"
 
+	generatedtui "github.com/example/my-service/data/generated/tui"
 	localapi "github.com/example/my-service/pkg/api"
 	pkgcmd "github.com/openshift-online/rh-trex-ai/pkg/cmd"
 
@@ -16,9 +17,10 @@ func main() {
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("my-service"),
 		pkgcmd.NewServeCommand(localapi.GetOpenAPISpec),
+		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
-		glog.Fatalf("error running command: %v", err)
+		os.Exit(1)
 	}
 }

@@ -99,6 +99,16 @@ make run-no-auth
 
 The service will be available at `http://localhost:8000`.
 
+### Terminal UI
+
+In another terminal, browse and operate on resources exposed by the service's OpenAPI specification:
+
+```bash
+./my-service tui --server http://localhost:8000
+```
+
+Use `--token-file` when the server requires authentication.
+
 ## API Endpoints
 
 After generating Kinds, API endpoints follow this pattern:

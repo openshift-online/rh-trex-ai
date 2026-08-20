@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info: {title: invalid operation link, version: 1.0.0}
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: things
+          links:
+            missingThing:
+              operationId: getMissingThing

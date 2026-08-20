@@ -3,8 +3,8 @@
 **Date:** 2026-08-03
 **Status:** Active
 **ID:** CG-005
-**Related:** [REST Conventions](../api/rest-conventions.spec.md), [Testing Standards](../standards/testing.spec.md), [Dependency Supply Chain](../standards/dependency-supply-chain.spec.md), [CLI Generator](cli-generator.spec.md), [SDK Generator](sdk-generator.spec.md), [Console Plugin Generator](console-plugin-generator.spec.md)
-**Implements:** `scripts/openapi-ir/`, `scripts/sdk-generator/parser.go`, `scripts/cli-generator/main.go`, `scripts/console-plugin-generator/main.go`
+**Related:** [REST Conventions](../api/rest-conventions.spec.md), [Testing Standards](../standards/testing.spec.md), [Dependency Supply Chain](../standards/dependency-supply-chain.spec.md), [CLI Generator](cli-generator.spec.md), [SDK Generator](sdk-generator.spec.md), [Console Plugin Generator](console-plugin-generator.spec.md), [TUI Generator](tui-generator.spec.md)
+**Implements:** `scripts/openapi-ir/`
 
 ---
 
@@ -24,8 +24,8 @@ The normalized IR is a graph with the following implementation-independent node 
 | Parameter | Location, name, requiredness, style, explode behavior, and schema |
 | Schema | Stable canonical reference plus structural and validation semantics |
 | Schema Use | An edge from an operation input or output to a schema with a contextual role |
-| Resource View | One collection or item exposure at a particular route and scope, with links to its supported operations and represented schemas |
-| Relationship | A directed edge between operations or resource views, with parameter mappings and explicit-link or inferred-path provenance |
+| Resource View | One collection or item exposure with a stable identity at a particular route and scope, with links to its supported operations and represented schemas |
+| Relationship | A directed edge with stable source and target operation and resource-view identities, parameter bindings, and explicit-link or inferred-path provenance |
 | Capability | A projection of an actual CRUD, action, or streaming operation available through a resource view |
 
 Target generators MAY define additional presentation models, but those models are projections of this graph and are not alternative OpenAPI interpretations.
@@ -37,7 +37,7 @@ Target generators MAY define additional presentation models, but those models ar
 TRex generators SHALL obtain OpenAPI semantics through one shared loader and normalized IR. A generator MAY add target-specific projections after normalization, but SHALL NOT independently traverse raw OpenAPI YAML to rediscover operations, schemas, or relationships.
 
 #### Scenario: Multiple consumers use one interpretation
-- GIVEN the CLI, SDK, and console generators receive the same OpenAPI document
+- GIVEN the CLI, SDK, console, and TUI generators receive the same OpenAPI document
 - WHEN each generator prepares its target-specific model
 - THEN each SHALL consume the shared normalized IR
 - AND operation, schema, and relationship discovery SHALL have identical semantics across the generators
@@ -119,18 +119,21 @@ The IR SHALL classify schema uses from their positions in operations, including 
 
 ### Requirement: Resource View Graph
 
-The IR SHALL model every collection or item exposure as a distinct resource view connected to its operations and schemas. A schema MAY be exposed by multiple views at different paths or scopes, and the IR SHALL NOT require one canonical parent or one canonical collection path for a schema.
+The IR SHALL model every collection or item exposure as a distinct resource view connected to its operations and schemas. Each resource view SHALL have a unique, deterministic identity that distinguishes route, scope, and collection or item role without relying only on schema name. A schema MAY be exposed by multiple views at different paths or scopes, and the IR SHALL NOT require one canonical parent or one canonical collection path for a schema.
 
 #### Scenario: One schema in global and scoped collections
 - GIVEN `GET /inbox` and `GET /agents/{agent_id}/inbox` both return `MessageList`
 - WHEN normalization runs
 - THEN the IR SHALL contain two collection views of `Message`
 - AND the scoped view SHALL retain `agent_id` as scope
+- AND each view SHALL have a distinct stable identity
 - AND neither view SHALL overwrite the other
 
 ### Requirement: Relationship Semantics
 
-The IR SHALL represent standard OpenAPI Link Objects as directed operation relationships, including target operation and parameter mappings. It MAY infer a containment relationship from path structure only when the parent item and child collection operations are unambiguous, and every inferred relationship SHALL record its inferred provenance.
+The IR SHALL represent standard OpenAPI Link Objects as directed operation relationships, including stable source and target operation identities, stable source and target resource-view identities when the operations belong to views, and the target parameter mapping values and runtime expressions needed by a consumer to construct a binding plan. An explicit relationship SHALL retain the exact source response and target capability selected by the Link rather than substituting another operation over the same schema.
+
+The IR MAY infer a containment relationship from path structure only when exactly one parent item view and one child collection view are unambiguous. An inferred relationship SHALL identify the parent item-read operation and child collection-list operation that provide the navigable capabilities; it SHALL NOT select an update, delete, create, action, or streaming operation merely because that operation uses the same schema or path. Every inferred relationship SHALL record its inferred provenance and the structural parameter bindings or unsatisfied target parameters used to reach that conclusion.
 
 #### Scenario: Explicit relationship takes precedence
 - GIVEN a response Link Object targets `listAgentInbox` and maps `agent_id` from the source response
@@ -138,6 +141,22 @@ The IR SHALL represent standard OpenAPI Link Objects as directed operation relat
 - WHEN normalization runs
 - THEN the explicit link SHALL define the relationship edge
 - AND the IR SHALL NOT invent a canonical parent from the ambiguous path structure
+
+#### Scenario: Explicit relationship retains endpoints and bindings
+- GIVEN the `getAgent` response defines a Link to `listAgentInbox`
+- AND the Link maps target `agent_id` from `$response.body#/id`
+- WHEN normalization runs
+- THEN the relationship SHALL identify `getAgent` and its item view as its source
+- AND it SHALL identify `listAgentInbox` and its collection view as its target
+- AND it SHALL retain the `agent_id` runtime expression without interpreting it as a schema-name convention
+
+#### Scenario: Inference selects navigation capabilities
+- GIVEN an Agent item view supports get, update, delete, and action operations
+- AND its nested Inbox collection view supports list and create operations
+- WHEN an unambiguous containment relationship is inferred
+- THEN its source operation SHALL be the Agent item-read capability
+- AND its target operation SHALL be the Inbox collection-list capability
+- AND normalization SHALL NOT depend on map iteration or operation declaration order
 
 ### Requirement: Operation-Derived Capabilities
 
@@ -208,7 +227,7 @@ Continuous integration SHALL run every IR-consuming generator against the reposi
 #### Scenario: Real specification smoke test
 - GIVEN the repository root OpenAPI document and all referenced entity documents
 - WHEN the generator test job runs
-- THEN CLI, SDK, and console artifacts SHALL be generated in temporary directories
+- THEN CLI, SDK, console, and TUI artifacts SHALL be generated in temporary directories
 - AND each artifact SHALL pass its target-specific build, type-check, and behavioral acceptance checks
 - AND the test SHALL leave the working tree unchanged
 
@@ -262,13 +281,13 @@ The shared OpenAPI front end SHALL have schema fixtures covering recursive and c
 
 ### Requirement: Resource View and Metadata Conformance Fixtures
 
-The shared OpenAPI front end SHALL have graph fixtures covering one schema exposed at multiple scopes, Link Objects, ambiguous path relationships, inferred relationship provenance, and preserved extensions at every supported scope.
+The shared OpenAPI front end SHALL have graph fixtures covering one schema exposed at multiple scopes, stable resource-view identities, Link Objects with endpoint identities and parameter mappings, ambiguous path relationships, capability-correct inferred endpoints and bindings, inferred relationship provenance, and preserved extensions at every supported scope.
 
 #### Scenario: Resource graph fixture suite
 - GIVEN global and parent-scoped operations expose the same item schema
 - AND explicit links, ambiguous paths, and extensions are present
 - WHEN the fixture is normalized
-- THEN distinct resource views, explicit and inferred relationship provenance, parameter mappings, and scoped extension values SHALL match the expected canonical IR
+- THEN distinct stable resource-view identities, capability-correct relationship endpoints, explicit and inferred provenance, parameter mappings and bindings, and scoped extension values SHALL match the expected canonical IR
 
 ### Requirement: Consumer Fixture Conformance
 
@@ -294,4 +313,4 @@ Every generator that consumes the canonical IR SHALL run target tests from share
 | Internal contract changes are atomic | The IR need not provide public version compatibility, but every separately built consumer must move and be tested together |
 | Characterize behavior, not implementation | Black-box assertions survive parser replacement without freezing private data structures, formatting, or known defects |
 | Real and synthetic inputs are complementary | Fixtures isolate semantics while the repository OpenAPI document proves integration with the API that TRex actually ships |
-| Normalize once, project many times | Shared semantics prevent the CLI, SDK, console, and future TUI from disagreeing about the API |
+| Normalize once, project many times | Shared semantics prevent the CLI, SDK, console, and TUI from disagreeing about the API |

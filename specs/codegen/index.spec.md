@@ -14,3 +14,4 @@
 | CG-003 | [SDK Generator](sdk-generator.spec.md) | Multi-language SDK generation from OpenAPI specs |
 | CG-004 | [Console Plugin Generator](console-plugin-generator.spec.md) | OpenShift Console UI plugin scaffolding |
 | CG-005 | [OpenAPI Intermediate Representation](openapi-ir.spec.md) | Shared operation, schema, view, and relationship model for generators |
+| CG-006 | [TUI Generator](tui-generator.spec.md) | OpenAPI-generated terminal resource browser integrated into the primary service command |

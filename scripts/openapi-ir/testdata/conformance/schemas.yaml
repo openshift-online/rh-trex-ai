@@ -94,3 +94,6 @@ components:
     Account:
       type: object
       properties: {id: {type: string}}
+    Owner:
+      type: object
+      properties: {id: {type: string}}

@@ -75,11 +75,11 @@ func TestGRPCFossilCRUD(t *testing.T) {
 	// Test Update
 	newAge := int32(70000000)
 	updateReq := &pb.UpdateFossilRequest{
-		Id:               fossilID,
+		Id:                fossilID,
 		DiscoveryLocation: func() *string { s := "Colorado, USA"; return &s }(),
-		EstimatedAge:     &newAge,
-		FossilType:       func() *string { s := "Updated Fossil Type"; return &s }(),
-		ExcavatorName:    func() *string { s := "Dr. Updated Paleontologist"; return &s }(),
+		EstimatedAge:      &newAge,
+		FossilType:        func() *string { s := "Updated Fossil Type"; return &s }(),
+		ExcavatorName:     func() *string { s := "Dr. Updated Paleontologist"; return &s }(),
 	}
 	updated, err := grpcClient.UpdateFossil(ctx, updateReq)
 	Expect(err).NotTo(HaveOccurred())
@@ -147,7 +147,7 @@ func TestGRPCWatchFossils(t *testing.T) {
 			fossilInput := openapi.Fossil{
 				DiscoveryLocation: location,
 			}
-			_, resp, postErr := client.DefaultAPI.ApiRhTrexAiV1FossilsPost(ctx).Fossil(fossilInput).Execute()
+			_, resp, postErr := client.DefaultAPI.CreateFossil(ctx).Fossil(fossilInput).Execute()
 			if postErr != nil {
 				sourceErr = fmt.Errorf("REST POST failed for %s: %v", location, postErr)
 				return

@@ -40,6 +40,10 @@ paths:
               operationId: getWidget
               parameters:
                 widget_id: $response.body#/items/0/id
+            accountWidgets:
+              operationRef: "#/paths/~1accounts~1{account_id}~1widgets/get"
+              parameters:
+                account_id: account-from-link
         "400":
           description: error
           content:
@@ -161,6 +165,19 @@ paths:
           content:
             application/json:
               schema: {$ref: schemas.yaml#/components/schemas/Account}
+    patch:
+      operationId: aaaUpdateAccount
+      responses:
+        "200":
+          description: updated account
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Account}
+          links:
+            accountWidgets:
+              operationId: listAccountWidgets
+              parameters:
+                account_id: $response.body#/id
   /accounts/{account_id}/widgets:
     parameters:
       - {name: account_id, in: path, required: true, schema: {type: string}}
@@ -172,6 +189,52 @@ paths:
           content:
             application/json:
               schema: {$ref: schemas.yaml#/components/schemas/WidgetList}
+    post:
+      operationId: aaaCreateAccountWidget
+      responses:
+        "201":
+          description: created account widget
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Widget}
+  /owners/{owner_id}:
+    parameters:
+      - {name: owner_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getOwner
+      responses:
+        "200":
+          description: owner
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Owner}
+    patch:
+      operationId: aaaUpdateOwner
+      responses:
+        "200":
+          description: updated owner
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Owner}
+  /owners/{owner_id}/widgets:
+    parameters:
+      - {name: owner_id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: listOwnerWidgets
+      responses:
+        "200":
+          description: owner widgets
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/WidgetList}
+    post:
+      operationId: aaaCreateOwnerWidget
+      responses:
+        "201":
+          description: created owner widget
+          content:
+            application/json:
+              schema: {$ref: schemas.yaml#/components/schemas/Widget}
 components:
   securitySchemes:
     bearer: {type: http, scheme: bearer, bearerFormat: JWT}
@@ -188,3 +251,4 @@ components:
     WidgetPatchRequest: {$ref: schemas.yaml#/components/schemas/WidgetPatchRequest}
     Error: {$ref: schemas.yaml#/components/schemas/Error}
     Event: {$ref: schemas.yaml#/components/schemas/Event}
+    Owner: {$ref: schemas.yaml#/components/schemas/Owner}

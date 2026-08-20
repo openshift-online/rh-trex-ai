@@ -13,6 +13,7 @@ servers:
 paths:
   /api/{{.ApiProject}}/v1/{{.KindLowerPlural}}:
     get:
+      operationId: list{{.KindPlural}}
       summary: Returns a list of {{.KindLowerPlural}}
       security:
         - Bearer: []
@@ -48,6 +49,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
+      operationId: create{{.Kind}}
       summary: Create a new {{.KindLowerSingular}}
       security:
         - Bearer: []
@@ -97,6 +99,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
   /api/{{.ApiProject}}/v1/{{.KindLowerPlural}}/{id}:
     get:
+      operationId: get{{.Kind}}
       summary: Get an {{.KindLowerSingular}} by id
       security:
         - Bearer: []
@@ -132,6 +135,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
+      operationId: update{{.Kind}}
       summary: Update an {{.KindLowerSingular}}
       security:
         - Bearer: []
@@ -181,6 +185,38 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
         '500':
           description: Unexpected error updating {{.KindLowerSingular}}
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+    delete:
+      operationId: delete{{.Kind}}
+      summary: Delete an {{.KindLowerSingular}}
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: {{.Kind}} deleted successfully
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '404':
+          description: No {{.KindLowerSingular}} with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting {{.KindLowerSingular}}
           content:
             application/json:
               schema:

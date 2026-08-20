@@ -12,12 +12,15 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 - Plugin-based entity architecture with auto-registration
 - Entity code generator (`go run ./scripts/generator.go --kind YourKind`)
 - CLI code generator (`scripts/cli-generator/`) — generates a typed CLI from your OpenAPI spec
+- Integrated Bubble Tea TUI (`trex tui`) generated from the OpenAPI spec
 - PostgreSQL with GORM, migrations, and advisory locks
 - Event-driven controllers via PostgreSQL LISTEN/NOTIFY
 - JWT authentication with multi-issuer support (multiple JWK URLs + file)
 - Server-streaming gRPC (watch for real-time events)
 - Prometheus metrics, health checks, structured logging
 - Spec-Driven Development with agent-executable skills
+
+![TRex terminal UI showing the Fossil resource table](trex-tui.png)
 
 ## Quick Start
 
@@ -35,6 +38,9 @@ make db/setup
 
 # Run (no auth, for local dev)
 make run-no-auth
+
+# In another terminal, browse and operate on API resources
+./trex tui --server http://localhost:8000
 ```
 
 REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
@@ -50,6 +56,9 @@ curl -X POST http://localhost:8000/api/rh-trex/v1/dinosaurs \
 # gRPC
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
+
+# Terminal UI (use --token-file when the server requires authentication)
+./trex tui --server http://localhost:8000
 ```
 
 ## Generate a New Entity
@@ -126,7 +135,8 @@ make lint              # golangci-lint
 ## Architecture
 
 ```
-cmd/trex/              CLI entrypoint (serve, migrate)
+cmd/trex/              CLI entrypoint (serve, migrate, tui)
+data/generated/tui/    OpenAPI-derived embedded TUI descriptor
 pkg/api/               Models and OpenAPI client
 pkg/handlers/          REST handlers
 pkg/services/          Business logic + event handlers
@@ -134,10 +144,12 @@ pkg/dao/               Data access layer (GORM)
 pkg/db/migrations/     Schema migrations
 pkg/auth/              JWT authentication
 pkg/server/            gRPC server, routing, event broker
+pkg/tui/               Shared descriptor-driven Bubble Tea runtime
 plugins/               Self-registering entity plugins
 proto/                 Protobuf definitions
 scripts/generator.go   Entity code generator
 scripts/cli-generator/ CLI code generator
+scripts/tui-generator/ TUI descriptor generator
 specs/                 Formal requirements (SDD)
 skills/                Agent-executable procedures
 ```

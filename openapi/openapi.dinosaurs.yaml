@@ -3,7 +3,7 @@ paths:
   /api/rh-trex-ai/v1/dinosaurs:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1DinosaursGet
+      operationId: listDinosaurs
       summary: Returns a list of dinosaurs
       security:
         - Bearer: []
@@ -39,7 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
-      operationId: apiRhTrexAiV1DinosaursPost
+      operationId: createDinosaur
       summary: Create a new dinosaur
       security:
         - Bearer: []
@@ -91,7 +91,7 @@ paths:
   /api/rh-trex-ai/v1/dinosaurs/{id}:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1DinosaursIdGet
+      operationId: getDinosaur
       summary: Get an dinosaur by id
       security:
         - Bearer: []
@@ -127,7 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
-      operationId: apiRhTrexAiV1DinosaursIdPatch
+      operationId: updateDinosaur
       summary: Update an dinosaur
       security:
         - Bearer: []
@@ -177,6 +177,38 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
         '500':
           description: Unexpected error updating dinosaur
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+    delete:
+      operationId: deleteDinosaur
+      summary: Delete a dinosaur
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: Dinosaur deleted successfully
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '404':
+          description: No dinosaur with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting dinosaur
           content:
             application/json:
               schema:

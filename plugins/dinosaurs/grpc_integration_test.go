@@ -77,7 +77,7 @@ func TestGRPCDinosaurCRUD(t *testing.T) {
 
 	// Test Update
 	updateReq := &pb.UpdateDinosaurRequest{
-		Id: dinoID,
+		Id:      dinoID,
 		Species: func() *string { s := "UpdatedDinosaurus"; return &s }(),
 	}
 	updated, err := grpcClient.UpdateDinosaur(ctx, updateReq)
@@ -144,7 +144,7 @@ func TestGRPCSourceSinkDinosaurs(t *testing.T) {
 
 		for species := range speciesSet {
 			dino := openapi.Dinosaur{Species: species}
-			_, resp, postErr := client.DefaultAPI.ApiRhTrexAiV1DinosaursPost(ctx).Dinosaur(dino).Execute()
+			_, resp, postErr := client.DefaultAPI.CreateDinosaur(ctx).Dinosaur(dino).Execute()
 			if postErr != nil {
 				sourceErr = fmt.Errorf("REST POST failed for %s: %v", species, postErr)
 				return

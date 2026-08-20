@@ -41,8 +41,20 @@ func TestOperationAndSecurityConformance(t *testing.T) {
 		t.Fatalf("action capability missing: %v", action.Capabilities)
 	}
 	stream := requiredOperation(t, document, "streamWidgetEvents")
-	if !stream.Capabilities.Has(CapabilityStream) {
-		t.Fatalf("stream capability missing: %v", stream.Capabilities)
+	if got, want := stream.Capabilities, (Capabilities{CapabilityStream}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("stream capabilities = %v, want %v", got, want)
+	}
+	event := namedSchema(t, document, "Event")
+	for _, view := range document.ResourceViews {
+		if view.Path == stream.Path || view.SchemaRef == event.Ref {
+			t.Fatalf("stream became a JSON resource view: %#v", view)
+		}
+	}
+	widgetItem := requiredView(t, document, "item:/widgets/{widget_id}")
+	for _, operationID := range []string{"archiveWidget", "streamWidgetEvents"} {
+		if !containsString(widgetItem.OperationIDs, operationID) {
+			t.Fatalf("operation %s not attached to widget item view: %#v", operationID, widgetItem)
+		}
 	}
 }
 
@@ -106,28 +118,49 @@ func TestResourceGraphAndMetadataConformance(t *testing.T) {
 			collections[view.Path] = view
 		}
 	}
-	for _, path := range []string{"/widgets", "/organizations/{organization_id}/projects/{project_id}/widgets", "/accounts/{account_id}/widgets"} {
+	for _, path := range []string{"/widgets", "/organizations/{organization_id}/projects/{project_id}/widgets", "/accounts/{account_id}/widgets", "/owners/{owner_id}/widgets"} {
 		if collections[path] == nil {
 			t.Fatalf("scoped collection %q missing: %#v", path, collections)
 		}
+	}
+	if got, want := collections["/widgets"].ID, "collection:/widgets"; got != want {
+		t.Fatalf("global collection ID = %q, want %q", got, want)
 	}
 	if got := collections["/organizations/{organization_id}/projects/{project_id}/widgets"].ScopeParameters; !reflect.DeepEqual(got, []string{"organization_id", "project_id"}) {
 		t.Fatalf("scope parameters = %v", got)
 	}
 
-	var explicit, inferred bool
+	globalCollection := collections["/widgets"]
+	accountCollection := collections["/accounts/{account_id}/widgets"]
+	ownerCollection := collections["/owners/{owner_id}/widgets"]
+	widgetItem := requiredView(t, document, "item:/widgets/{widget_id}")
+	accountItem := requiredView(t, document, "item:/accounts/{account_id}")
+	ownerItem := requiredView(t, document, "item:/owners/{owner_id}")
+	var explicitByID, explicitByRef, explicitPrecedence, inferred bool
 	for _, relationship := range document.Relationships {
 		if relationship.Provenance == RelationshipExplicit && relationship.SourceOperationID == "listWidgets" && relationship.TargetOperationID == "getWidget" {
-			explicit = len(relationship.ParameterMappings) == 1
+			explicitByID = relationship.SourceResponseStatus == "200" && relationship.TargetOperationRef == "" && len(relationship.ParameterMappings) == 1 && relationship.SourceViewID == globalCollection.ID && relationship.TargetViewID == widgetItem.ID
 		}
-		if relationship.Provenance == RelationshipInferred && relationship.TargetOperationID == "listAccountWidgets" {
-			inferred = true
+		if relationship.Provenance == RelationshipExplicit && relationship.SourceOperationID == "listWidgets" && relationship.TargetOperationID == "listAccountWidgets" {
+			explicitByRef = relationship.TargetOperationRef == "#/paths/~1accounts~1{account_id}~1widgets/get" && len(relationship.ParameterMappings) == 1 && relationship.SourceViewID == globalCollection.ID && relationship.TargetViewID == accountCollection.ID
+		}
+		if relationship.Provenance == RelationshipExplicit && relationship.SourceOperationID == "aaaUpdateAccount" && relationship.TargetOperationID == "listAccountWidgets" {
+			explicitPrecedence = relationship.SourceViewID == accountItem.ID && relationship.TargetViewID == accountCollection.ID
+		}
+		if relationship.Provenance == RelationshipInferred && relationship.SourceOperationID == "getOwner" && relationship.TargetOperationID == "listOwnerWidgets" {
+			inferred = relationship.SourceViewID == ownerItem.ID && relationship.TargetViewID == ownerCollection.ID && reflect.DeepEqual(relationship.ParameterMappings, []ParameterMapping{{Target: "owner_id", Expression: "$request.path.owner_id"}})
 		}
 		if relationship.Provenance == RelationshipInferred && relationship.TargetOperationID == "listProjectWidgets" {
 			t.Fatalf("ambiguous organization/project containment was inferred: %#v", relationship)
 		}
+		if relationship.Provenance == RelationshipInferred && relationship.TargetOperationID == "listAccountWidgets" {
+			t.Fatalf("explicit account relationship did not suppress inference: %#v", relationship)
+		}
+		if relationship.Provenance == RelationshipInferred && (relationship.SourceOperationID == "aaaUpdateOwner" || relationship.TargetOperationID == "aaaCreateOwnerWidget") {
+			t.Fatalf("inference selected a non-navigation capability: %#v", relationship)
+		}
 	}
-	if !explicit || !inferred {
+	if !explicitByID || !explicitByRef || !explicitPrecedence || !inferred {
 		t.Fatalf("relationship provenance incomplete: %#v", document.Relationships)
 	}
 
@@ -135,6 +168,26 @@ func TestResourceGraphAndMetadataConformance(t *testing.T) {
 	if document.Extensions["x-document-extension"].Value != "document-value" || list.PathExtensions["x-path-extension"].Value != "widgets-path" || list.Extensions["x-operation-extension"].Value != "list-widgets" || list.Parameters[0].Extensions["x-parameter-extension"].Value != "filter-parameter" {
 		t.Fatalf("extensions were not preserved at all scopes: document=%v path=%v operation=%v parameter=%v", document.Extensions, list.PathExtensions, list.Extensions, list.Parameters[0].Extensions)
 	}
+}
+
+func requiredView(t *testing.T, document *Document, id string) *ResourceView {
+	t.Helper()
+	for _, view := range document.ResourceViews {
+		if view.ID == id {
+			return view
+		}
+	}
+	t.Fatalf("resource view %s not found", id)
+	return nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSafeProjection(t *testing.T) {

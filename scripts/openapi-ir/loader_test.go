@@ -36,6 +36,7 @@ func TestLoaderConformance(t *testing.T) {
 		{"missing operation id", "testdata/invalid/missing-operation-id.yaml", "/paths/~1things/get"},
 		{"duplicate operation id", "testdata/invalid/duplicate-operation-id.yaml", "first declared"},
 		{"missing path parameter", "testdata/invalid/missing-path-parameter.yaml", "thing_id"},
+		{"unresolved operation link", "testdata/invalid/unresolved-operation-link.yaml", "getMissingThing"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := Load(testCase.path, LoadOptions{})
@@ -98,13 +99,42 @@ func TestDeterministicNormalization(t *testing.T) {
 	}
 }
 
+func TestUnresolvedOperationLinkDiagnostic(t *testing.T) {
+	_, err := Load("testdata/invalid/unresolved-operation-link.yaml", LoadOptions{})
+	if err == nil {
+		t.Fatal("unresolved operation link unexpectedly normalized")
+	}
+	for _, expected := range []string{
+		"#/paths/~1things/get/responses/200/links/missingThing",
+		"link missingThing",
+		`target operationId "getMissingThing" was not found`,
+	} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("diagnostic = %v, want text %q", err, expected)
+		}
+	}
+}
+
 func TestRepositoryOpenAPISmoke(t *testing.T) {
 	document, err := Load(filepath.Join("..", "..", "openapi", "openapi.yaml"), LoadOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := len(document.Operations), 12; got != want {
+	if got, want := len(document.Operations), 15; got != want {
 		t.Fatalf("repository operations = %d, want %d", got, want)
+	}
+	operationIDs := make(map[string]struct{}, len(document.Operations))
+	for _, operation := range document.Operations {
+		operationIDs[operation.ID] = struct{}{}
+	}
+	for _, operationID := range []string{
+		"listDinosaurs", "createDinosaur", "getDinosaur", "updateDinosaur", "deleteDinosaur",
+		"listFossils", "createFossil", "getFossil", "updateFossil", "deleteFossil",
+		"listScientists", "createScientist", "getScientist", "updateScientist", "deleteScientist",
+	} {
+		if _, exists := operationIDs[operationID]; !exists {
+			t.Errorf("repository operation %s not normalized", operationID)
+		}
 	}
 	for _, name := range []string{"Dinosaur", "Fossil", "Scientist"} {
 		if namedSchemaOrNil(document, name) == nil {

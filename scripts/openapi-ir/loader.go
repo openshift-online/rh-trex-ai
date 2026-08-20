@@ -363,6 +363,22 @@ func (scan *scanner) sourceForOperation(id string) SourceLocation {
 	return SourceLocation{}
 }
 
+func (scan *scanner) resolveOperationReference(reference string, source SourceLocation) (string, error) {
+	file, pointer, err := scan.resolveReference(source.File, reference, source)
+	if err != nil {
+		return "", err
+	}
+	if pointer == "" {
+		return "", fmt.Errorf("operationRef has no JSON Pointer fragment")
+	}
+	for _, operation := range scan.operations {
+		if operation.source.File == file && operation.source.Pointer == pointer {
+			return operation.id, nil
+		}
+	}
+	return "", fmt.Errorf("target %s#%s is not a declared operation", file, pointer)
+}
+
 func documentNode(root *yaml.Node) *yaml.Node {
 	if root != nil && root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
 		return root.Content[0]

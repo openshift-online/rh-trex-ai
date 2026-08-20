@@ -1,0 +1,1574 @@
+{
+  "title": "rh-trex-ai Service API",
+  "servers": [
+    {
+      "url": "http://localhost:8000"
+    },
+    {
+      "url": "https://api.openshift.com"
+    },
+    {
+      "url": "https://api.stage.openshift.com"
+    }
+  ],
+  "securitySchemes": [
+    {
+      "name": "Bearer",
+      "type": "http",
+      "scheme": "bearer"
+    }
+  ],
+  "views": [
+    {
+      "id": "collection:/api/rh-trex-ai/v1/dinosaurs:#/schemas/Dinosaur",
+      "kind": "collection",
+      "schemaRef": "#/schemas/Dinosaur",
+      "label": "Dinosaur",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "species",
+          "label": "SPECIES",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "createDinosaur",
+        "listDinosaurs"
+      ],
+      "capabilities": [
+        "create",
+        "list"
+      ],
+      "listOperationId": "listDinosaurs",
+      "source": {}
+    },
+    {
+      "id": "collection:/api/rh-trex-ai/v1/fossils:#/schemas/Fossil",
+      "kind": "collection",
+      "schemaRef": "#/schemas/Fossil",
+      "label": "Fossil",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "discovery_location",
+          "label": "DISCOVERY LOCATION",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "estimated_age",
+          "label": "ESTIMATED AGE",
+          "priority": 0,
+          "type": "integer",
+          "format": "int32"
+        },
+        {
+          "property": "excavator_name",
+          "label": "EXCAVATOR NAME",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "fossil_type",
+          "label": "FOSSIL TYPE",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "createFossil",
+        "listFossils"
+      ],
+      "capabilities": [
+        "create",
+        "list"
+      ],
+      "listOperationId": "listFossils",
+      "source": {}
+    },
+    {
+      "id": "collection:/api/rh-trex-ai/v1/scientists:#/schemas/Scientist",
+      "kind": "collection",
+      "schemaRef": "#/schemas/Scientist",
+      "label": "Scientist",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "field",
+          "label": "FIELD",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "name",
+          "label": "NAME",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "createScientist",
+        "listScientists"
+      ],
+      "capabilities": [
+        "create",
+        "list"
+      ],
+      "listOperationId": "listScientists",
+      "source": {}
+    },
+    {
+      "id": "item:/api/rh-trex-ai/v1/dinosaurs/{id}:#/schemas/Dinosaur",
+      "kind": "item",
+      "schemaRef": "#/schemas/Dinosaur",
+      "label": "Dinosaur",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "species",
+          "label": "SPECIES",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "deleteDinosaur",
+        "getDinosaur",
+        "updateDinosaur"
+      ],
+      "capabilities": [
+        "delete",
+        "get",
+        "update"
+      ],
+      "getOperationId": "getDinosaur",
+      "source": {}
+    },
+    {
+      "id": "item:/api/rh-trex-ai/v1/fossils/{id}:#/schemas/Fossil",
+      "kind": "item",
+      "schemaRef": "#/schemas/Fossil",
+      "label": "Fossil",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "discovery_location",
+          "label": "DISCOVERY LOCATION",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "estimated_age",
+          "label": "ESTIMATED AGE",
+          "priority": 0,
+          "type": "integer",
+          "format": "int32"
+        },
+        {
+          "property": "excavator_name",
+          "label": "EXCAVATOR NAME",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "fossil_type",
+          "label": "FOSSIL TYPE",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "deleteFossil",
+        "getFossil",
+        "updateFossil"
+      ],
+      "capabilities": [
+        "delete",
+        "get",
+        "update"
+      ],
+      "getOperationId": "getFossil",
+      "source": {}
+    },
+    {
+      "id": "item:/api/rh-trex-ai/v1/scientists/{id}:#/schemas/Scientist",
+      "kind": "item",
+      "schemaRef": "#/schemas/Scientist",
+      "label": "Scientist",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "field",
+          "label": "FIELD",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "name",
+          "label": "NAME",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "deleteScientist",
+        "getScientist",
+        "updateScientist"
+      ],
+      "capabilities": [
+        "delete",
+        "get",
+        "update"
+      ],
+      "getOperationId": "getScientist",
+      "source": {}
+    }
+  ],
+  "operations": [
+    {
+      "id": "createDinosaur",
+      "method": "POST",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/dinosaurs"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "created_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          },
+          {
+            "name": "href",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "id",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "kind",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "species",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "updated_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "201"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "create"
+      ],
+      "summary": "Create a new dinosaur",
+      "presentation": {}
+    },
+    {
+      "id": "createFossil",
+      "method": "POST",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/fossils"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "created_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          },
+          {
+            "name": "discovery_location",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "estimated_age",
+            "type": "integer",
+            "format": "int32",
+            "required": false
+          },
+          {
+            "name": "excavator_name",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "fossil_type",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "href",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "id",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "kind",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "updated_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "201"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "create"
+      ],
+      "summary": "Create a new fossil",
+      "presentation": {}
+    },
+    {
+      "id": "createScientist",
+      "method": "POST",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/scientists"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "created_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          },
+          {
+            "name": "field",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "href",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "id",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "kind",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "updated_at",
+            "type": "string",
+            "format": "date-time",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "201"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "create"
+      ],
+      "summary": "Create a new scientist",
+      "presentation": {}
+    },
+    {
+      "id": "deleteDinosaur",
+      "method": "DELETE",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/dinosaurs/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {},
+      "successStatuses": [
+        "204"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "delete"
+      ],
+      "summary": "Delete a dinosaur",
+      "presentation": {
+        "confirmation": {
+          "title": "Delete",
+          "message": "Delete a dinosaur?",
+          "destructive": true
+        }
+      }
+    },
+    {
+      "id": "deleteFossil",
+      "method": "DELETE",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/fossils/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {},
+      "successStatuses": [
+        "204"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "delete"
+      ],
+      "summary": "Delete a fossil",
+      "presentation": {
+        "confirmation": {
+          "title": "Delete",
+          "message": "Delete a fossil?",
+          "destructive": true
+        }
+      }
+    },
+    {
+      "id": "deleteScientist",
+      "method": "DELETE",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/scientists/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {},
+      "successStatuses": [
+        "204"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "delete"
+      ],
+      "summary": "Delete a scientist",
+      "presentation": {
+        "confirmation": {
+          "title": "Delete",
+          "message": "Delete a scientist?",
+          "destructive": true
+        }
+      }
+    },
+    {
+      "id": "getDinosaur",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/dinosaurs/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "get"
+      ],
+      "summary": "Get an dinosaur by id",
+      "presentation": {}
+    },
+    {
+      "id": "getFossil",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/fossils/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "get"
+      ],
+      "summary": "Get an fossil by id",
+      "presentation": {}
+    },
+    {
+      "id": "getScientist",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/scientists/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "get"
+      ],
+      "summary": "Get an scientist by id",
+      "presentation": {}
+    },
+    {
+      "id": "listDinosaurs",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/dinosaurs"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Page number of record list when record list exceeds specified page size",
+          "default": 1
+        },
+        {
+          "name": "size",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Maximum number of records to return",
+          "default": 100
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the search criteria. The syntax of this parameter is\nsimilar to the syntax of the _where_ clause of an SQL statement,\nusing the names of the json attributes / column names of the account.\nFor example, in order to retrieve all the accounts with a username\nstarting with `my`:\n\n```sql\nusername like 'my%'\n```\n\nThe search criteria can also be applied on related resource.\nFor example, in order to retrieve all the subscriptions labeled by `foo=bar`,\n\n```sql\nsubscription_labels.key = 'foo' and subscription_labels.value = 'bar'\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nall the accounts that the user has permission to see will be\nreturned."
+        },
+        {
+          "name": "orderBy",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the order by criteria. The syntax of this parameter is\nsimilar to the syntax of the _order by_ clause of an SQL statement,\nbut using the names of the json attributes / column of the account.\nFor example, in order to retrieve all accounts ordered by username:\n\n```sql\nusername asc\n```\n\nOr in order to retrieve all accounts ordered by username _and_ first name:\n\n```sql\nusername asc, firstName asc\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nno explicit ordering will be applied."
+        },
+        {
+          "name": "fields",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Supplies a comma-separated list of fields to be returned.\nFields of sub-structures and of arrays use \u003cstructure\u003e.\u003cfield\u003e notation.\n\u003cstucture\u003e.* means all field of a structure\nExample: For each Subscription to get id, href, plan(id and kind) and labels (all fields)\n\n```\ncurl '/api/v1/subscriptions?fields=id,href,plan.id,plan.kind,labels.*\u0026fetchLabels=true'\n```"
+        }
+      ],
+      "response": {
+        "contentType": "application/json",
+        "itemsPointer": "/items"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "list"
+      ],
+      "summary": "Returns a list of dinosaurs",
+      "presentation": {}
+    },
+    {
+      "id": "listFossils",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/fossils"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Page number of record list when record list exceeds specified page size",
+          "default": 1
+        },
+        {
+          "name": "size",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Maximum number of records to return",
+          "default": 100
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the search criteria. The syntax of this parameter is\nsimilar to the syntax of the _where_ clause of an SQL statement,\nusing the names of the json attributes / column names of the account.\nFor example, in order to retrieve all the accounts with a username\nstarting with `my`:\n\n```sql\nusername like 'my%'\n```\n\nThe search criteria can also be applied on related resource.\nFor example, in order to retrieve all the subscriptions labeled by `foo=bar`,\n\n```sql\nsubscription_labels.key = 'foo' and subscription_labels.value = 'bar'\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nall the accounts that the user has permission to see will be\nreturned."
+        },
+        {
+          "name": "orderBy",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the order by criteria. The syntax of this parameter is\nsimilar to the syntax of the _order by_ clause of an SQL statement,\nbut using the names of the json attributes / column of the account.\nFor example, in order to retrieve all accounts ordered by username:\n\n```sql\nusername asc\n```\n\nOr in order to retrieve all accounts ordered by username _and_ first name:\n\n```sql\nusername asc, firstName asc\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nno explicit ordering will be applied."
+        },
+        {
+          "name": "fields",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Supplies a comma-separated list of fields to be returned.\nFields of sub-structures and of arrays use \u003cstructure\u003e.\u003cfield\u003e notation.\n\u003cstucture\u003e.* means all field of a structure\nExample: For each Subscription to get id, href, plan(id and kind) and labels (all fields)\n\n```\ncurl '/api/v1/subscriptions?fields=id,href,plan.id,plan.kind,labels.*\u0026fetchLabels=true'\n```"
+        }
+      ],
+      "response": {
+        "contentType": "application/json",
+        "itemsPointer": "/items"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "list"
+      ],
+      "summary": "Returns a list of fossils",
+      "presentation": {}
+    },
+    {
+      "id": "listScientists",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/scientists"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Page number of record list when record list exceeds specified page size",
+          "default": 1
+        },
+        {
+          "name": "size",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "integer",
+          "description": "Maximum number of records to return",
+          "default": 100
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the search criteria. The syntax of this parameter is\nsimilar to the syntax of the _where_ clause of an SQL statement,\nusing the names of the json attributes / column names of the account.\nFor example, in order to retrieve all the accounts with a username\nstarting with `my`:\n\n```sql\nusername like 'my%'\n```\n\nThe search criteria can also be applied on related resource.\nFor example, in order to retrieve all the subscriptions labeled by `foo=bar`,\n\n```sql\nsubscription_labels.key = 'foo' and subscription_labels.value = 'bar'\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nall the accounts that the user has permission to see will be\nreturned."
+        },
+        {
+          "name": "orderBy",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Specifies the order by criteria. The syntax of this parameter is\nsimilar to the syntax of the _order by_ clause of an SQL statement,\nbut using the names of the json attributes / column of the account.\nFor example, in order to retrieve all accounts ordered by username:\n\n```sql\nusername asc\n```\n\nOr in order to retrieve all accounts ordered by username _and_ first name:\n\n```sql\nusername asc, firstName asc\n```\n\nIf the parameter isn't provided, or if the value is empty, then\nno explicit ordering will be applied."
+        },
+        {
+          "name": "fields",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "type": "string",
+          "description": "Supplies a comma-separated list of fields to be returned.\nFields of sub-structures and of arrays use \u003cstructure\u003e.\u003cfield\u003e notation.\n\u003cstucture\u003e.* means all field of a structure\nExample: For each Subscription to get id, href, plan(id and kind) and labels (all fields)\n\n```\ncurl '/api/v1/subscriptions?fields=id,href,plan.id,plan.kind,labels.*\u0026fetchLabels=true'\n```"
+        }
+      ],
+      "response": {
+        "contentType": "application/json",
+        "itemsPointer": "/items"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "list"
+      ],
+      "summary": "Returns a list of scientists",
+      "presentation": {}
+    },
+    {
+      "id": "updateDinosaur",
+      "method": "PATCH",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/dinosaurs/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "species",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "update"
+      ],
+      "summary": "Update an dinosaur",
+      "presentation": {}
+    },
+    {
+      "id": "updateFossil",
+      "method": "PATCH",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/fossils/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "discovery_location",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "estimated_age",
+            "type": "integer",
+            "format": "int32",
+            "required": false
+          },
+          {
+            "name": "excavator_name",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "fossil_type",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "update"
+      ],
+      "summary": "Update an fossil",
+      "presentation": {}
+    },
+    {
+      "id": "updateScientist",
+      "method": "PATCH",
+      "pathParts": [
+        {
+          "literal": "/api/rh-trex-ai/v1/scientists/"
+        },
+        {
+          "parameter": "id"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "style": "simple",
+          "explode": false,
+          "type": "string",
+          "description": "The id of record"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentType": "application/json",
+        "fields": [
+          {
+            "name": "field",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "https://api.openshift.com"
+        },
+        {
+          "url": "https://api.stage.openshift.com"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "update"
+      ],
+      "summary": "Update an scientist",
+      "presentation": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "collection:/api/rh-trex-ai/v1/dinosaurs:#/schemas/Dinosaur-\u003eitem:/api/rh-trex-ai/v1/dinosaurs/{id}:#/schemas/Dinosaur:item",
+      "name": "details",
+      "sourceViewId": "collection:/api/rh-trex-ai/v1/dinosaurs:#/schemas/Dinosaur",
+      "targetViewId": "item:/api/rh-trex-ai/v1/dinosaurs/{id}:#/schemas/Dinosaur",
+      "sourceOperationId": "listDinosaurs",
+      "targetOperationId": "getDinosaur",
+      "provenance": "collection-item",
+      "bindings": [
+        {
+          "target": "id",
+          "sourceKind": "row-property",
+          "source": "id"
+        }
+      ],
+      "navigable": true
+    },
+    {
+      "id": "collection:/api/rh-trex-ai/v1/fossils:#/schemas/Fossil-\u003eitem:/api/rh-trex-ai/v1/fossils/{id}:#/schemas/Fossil:item",
+      "name": "details",
+      "sourceViewId": "collection:/api/rh-trex-ai/v1/fossils:#/schemas/Fossil",
+      "targetViewId": "item:/api/rh-trex-ai/v1/fossils/{id}:#/schemas/Fossil",
+      "sourceOperationId": "listFossils",
+      "targetOperationId": "getFossil",
+      "provenance": "collection-item",
+      "bindings": [
+        {
+          "target": "id",
+          "sourceKind": "row-property",
+          "source": "id"
+        }
+      ],
+      "navigable": true
+    },
+    {
+      "id": "collection:/api/rh-trex-ai/v1/scientists:#/schemas/Scientist-\u003eitem:/api/rh-trex-ai/v1/scientists/{id}:#/schemas/Scientist:item",
+      "name": "details",
+      "sourceViewId": "collection:/api/rh-trex-ai/v1/scientists:#/schemas/Scientist",
+      "targetViewId": "item:/api/rh-trex-ai/v1/scientists/{id}:#/schemas/Scientist",
+      "sourceOperationId": "listScientists",
+      "targetOperationId": "getScientist",
+      "provenance": "collection-item",
+      "bindings": [
+        {
+          "target": "id",
+          "sourceKind": "row-property",
+          "source": "id"
+        }
+      ],
+      "navigable": true
+    }
+  ]
+}
