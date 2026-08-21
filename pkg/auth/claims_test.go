@@ -99,3 +99,10 @@ func TestValidateJWTClaimsRejectsNilToken(t *testing.T) {
 		t.Fatal("ValidateJWTClaims() expected an error for a nil token")
 	}
 }
+
+func TestValidateJWTClaimsRejectsInvalidToken(t *testing.T) {
+	token := &jwt.Token{Claims: jwt.MapClaims{}, Valid: false}
+	if err := ValidateJWTClaims(token, "", ""); err == nil {
+		t.Fatal("ValidateJWTClaims() expected an error for an invalid token")
+	}
+}

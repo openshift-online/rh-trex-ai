@@ -149,6 +149,13 @@ gRPC requests SHALL support JWT authentication via the `authorization` metadata 
 - AND any configured issuer and audience requirements SHALL be enforced
 - AND the authenticated username SHALL be injected into the gRPC context
 
+#### Scenario: gRPC key provider is unavailable
+- GIVEN JWT authentication is enabled
+- AND no `JWKKeyProvider` is available
+- WHEN a gRPC request presents a JWT
+- THEN authentication SHALL fail with an unauthenticated response
+- AND the token SHALL NOT be parsed without signature verification
+
 ### Requirement: Multi-Issuer Support
 
 The authentication system SHALL support multiple JWK certificate URLs for multi-issuer token validation on both HTTP and gRPC paths.

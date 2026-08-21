@@ -211,15 +211,11 @@ func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyPr
 	tokenStr := strings.TrimPrefix(authHeader[0], "Bearer ")
 	tokenStr = strings.TrimPrefix(tokenStr, "bearer ")
 
-	var jwtToken *jwt.Token
-	var err error
-
-	if keyProvider != nil {
-		jwtToken, err = jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, keyProvider.KeyFunc)
-	} else {
-		parser := jwt.NewParser()
-		jwtToken, _, err = parser.ParseUnverified(tokenStr, jwt.MapClaims{})
+	if keyProvider == nil {
+		return "", status.Error(codes.Unauthenticated, "jwt key provider is not configured")
 	}
+
+	jwtToken, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, keyProvider.KeyFunc)
 	if err != nil {
 		return "", status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 	}
