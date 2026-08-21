@@ -121,7 +121,7 @@ trex-cli list dinosaurs
 curl -H "Authorization: Bearer $OIDC_TOKEN" http://localhost:8000/api/rh-trex/v1/dinosaurs
 ```
 
-Supports any OIDC provider. Default: Red Hat SSO. Configure via `--jwk-cert-url`.
+Supports any OIDC provider. Default: Red Hat SSO. Configure signing keys via `--jwk-cert-url`. Resource servers should also set `--jwt-issuer` and `--jwt-audience` to reject signed tokens intended for another issuer or API.
 
 ## Testing
 

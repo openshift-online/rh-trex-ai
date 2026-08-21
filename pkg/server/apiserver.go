@@ -47,6 +47,8 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 		jwtHandler, err := auth.NewJWTHandler().
 			WithKeysFile(authConfig.JwkCertFile).
 			WithKeysURLs(authConfig.JwkCertURLs).
+			WithIssuer(authConfig.JWTIssuer).
+			WithAudience(authConfig.JWTAudience).
 			WithACLFile(env.Config.Server.ACLFile).
 			WithPublicPath(strings.TrimSuffix(trex.GetConfig().BasePath, "/v1")).
 			WithPublicPath(trex.GetConfig().BasePath).

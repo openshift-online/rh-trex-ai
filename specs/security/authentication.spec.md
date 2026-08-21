@@ -31,6 +31,28 @@ The `JWTHandler` SHALL validate JWT tokens using RSA public keys loaded from JWK
 - THEN the server SHALL respond with `401 Unauthorized`
 - AND a warning SHALL be logged (without exposing token content)
 
+### Requirement: OIDC Issuer and Audience Validation
+
+The authentication system SHALL optionally validate the JWT issuer and audience on both HTTP and gRPC requests.
+
+#### Scenario: Matching configured issuer and audience
+- GIVEN `--jwt-issuer` and `--jwt-audience` are configured
+- AND a signed JWT contains the exact configured `iss` value
+- AND its `aud` claim is either the configured value or an array containing that value
+- WHEN the token is validated over HTTP or gRPC
+- THEN authentication SHALL succeed
+
+#### Scenario: Missing or mismatched configured claim
+- GIVEN `--jwt-issuer` or `--jwt-audience` is configured
+- AND a signed JWT omits or does not match the configured claim
+- WHEN the token is validated over HTTP or gRPC
+- THEN authentication SHALL fail with an unauthenticated response
+
+#### Scenario: Expected claims are not configured
+- GIVEN `--jwt-issuer` and `--jwt-audience` are empty
+- WHEN a signed JWT is validated
+- THEN issuer and audience validation SHALL be skipped to preserve backward compatibility
+
 ### Requirement: JWK Key Loading
 
 The handler SHALL support loading keys from multiple URLs (`--jwk-cert-url`) and a local file (`--jwk-cert-file`). All configured sources SHALL be loaded additively into a single merged key map.
@@ -124,6 +146,7 @@ gRPC requests SHALL support JWT authentication via the `authorization` metadata 
 - WHEN the `AuthUnaryInterceptor` processes the request
 - THEN the token SHALL be extracted from gRPC metadata
 - AND validated using the same `JWKKeyProvider` as the HTTP handler
+- AND any configured issuer and audience requirements SHALL be enforced
 - AND the authenticated username SHALL be injected into the gRPC context
 
 ### Requirement: Multi-Issuer Support
@@ -134,18 +157,18 @@ The authentication system SHALL support multiple JWK certificate URLs for multi-
 - GIVEN `--jwk-cert-url` is configured with multiple comma-separated URLs (e.g., a cluster-local Keycloak and sso.redhat.com)
 - WHEN a token signed by any configured issuer is presented to an HTTP REST endpoint
 - THEN keys from all configured JWK endpoints SHALL be available for validation
-- AND the token SHALL be accepted if its `kid` matches any loaded key
+- AND the token SHALL be accepted if its `kid` matches any loaded key and any configured issuer and audience requirements match
 
 #### Scenario: Multiple OIDC providers on gRPC
 - GIVEN `--jwk-cert-url` or `--grpc-jwk-cert-url` is configured with multiple URLs
 - WHEN a token signed by any configured issuer is presented via gRPC metadata
 - THEN keys from all configured JWK endpoints SHALL be available for validation
-- AND the token SHALL be accepted if its `kid` matches any loaded key
+- AND the token SHALL be accepted if its `kid` matches any loaded key and any configured issuer and audience requirements match
 
 #### Scenario: Mixed file and URL multi-issuer
 - GIVEN `--jwk-cert-file` contains keys from issuer A and `--jwk-cert-url` points to issuer B
 - WHEN a token from either issuer A or issuer B is presented
-- THEN the token SHALL be accepted on both HTTP and gRPC paths
+- THEN the token SHALL be accepted on both HTTP and gRPC paths when any configured issuer and audience requirements match
 - AND neither source SHALL shadow or exclude the other
 
 ## Design Decisions
@@ -157,5 +180,6 @@ The authentication system SHALL support multiple JWK certificate URLs for multi-
 | 30-second cooldown on kid-refresh | Prevents refresh storms from invalid tokens |
 | Exact path matching for public paths | Prevents auth bypass via path prefix exploitation |
 | Same JWK infrastructure for HTTP and gRPC | Consistent authentication; single key management surface |
+| Shared issuer and audience requirements for HTTP and gRPC | Prevents a token intended for another resource or issuer from being replayed across protocols |
 | Additive multi-source key merging | File and URL sources are complementary, not mutually exclusive; enables mixed-issuer deployments (e.g., cluster-local Keycloak + sso.redhat.com) |
 | File-based keys refresh every 5 minutes | Supports Kubernetes secret rotation lifecycle |
