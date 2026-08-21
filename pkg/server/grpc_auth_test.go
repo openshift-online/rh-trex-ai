@@ -95,6 +95,37 @@ func TestAuthenticateGRPCRequestValidatesExpectedClaims(t *testing.T) {
 	}
 }
 
+func TestAuthenticateGRPCRequestRejectsMissingKeyProvider(t *testing.T) {
+	const kid = "grpc-missing-provider-kid"
+	privateKey, _ := testGRPCKeyProvider(t, kid)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"preferred_username": "test-user",
+		"iss":                "https://issuer.example.com/realms/example",
+		"aud":                "example-api",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+	token.Header["kid"] = kid
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("SignedString() unexpected error: %v", err)
+	}
+
+	ctx := metadata.NewIncomingContext(
+		context.Background(),
+		metadata.Pairs("authorization", "Bearer "+tokenString),
+	)
+	_, err = authenticateGRPCRequest(
+		ctx,
+		nil,
+		"https://issuer.example.com/realms/example",
+		"example-api",
+	)
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("authenticateGRPCRequest() code = %v, want %v", status.Code(err), codes.Unauthenticated)
+	}
+}
+
 func testGRPCKeyProvider(t *testing.T, kid string) (*rsa.PrivateKey, *grpcutil.JWKKeyProvider) {
 	t.Helper()
 

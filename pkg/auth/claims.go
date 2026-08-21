@@ -6,11 +6,15 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// ValidateJWTClaims validates configured OIDC issuer and audience requirements.
+// ValidateJWTClaims requires a valid parsed token and validates configured
+// OIDC issuer and audience requirements.
 // Empty expected values preserve the legacy behavior of signature and time validation only.
 func ValidateJWTClaims(token *jwt.Token, expectedIssuer, expectedAudience string) error {
 	if token == nil {
 		return fmt.Errorf("token is nil")
+	}
+	if !token.Valid {
+		return fmt.Errorf("token is invalid")
 	}
 	if expectedIssuer == "" && expectedAudience == "" {
 		return nil
