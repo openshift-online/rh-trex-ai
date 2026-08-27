@@ -155,7 +155,7 @@ verify: check-gopath
 # Requires golangci-lint to be installed @ $(go env GOPATH)/bin/golangci-lint
 # Linter is set to ignore `unused` stuff due to example being incomplete by definition
 lint:
-	$(GOLANGCI_LINT_BIN) run -e unused \
+	$(GOLANGCI_LINT_BIN) run  \
 		./cmd/... \
 		./pkg/...
 .PHONY: lint

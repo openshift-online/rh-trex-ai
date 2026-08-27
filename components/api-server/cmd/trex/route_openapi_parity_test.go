@@ -11,9 +11,9 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/auth"
-	"github.com/openshift-online/rh-trex-ai/pkg/environments"
-	"github.com/openshift-online/rh-trex-ai/pkg/server"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/server"
 )
 
 const applicationAPIPrefix = "/api/rh-trex-ai/v1"

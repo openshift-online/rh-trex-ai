@@ -1631,7 +1631,7 @@ func responseItems(body any, pointer string) ([]map[string]any, error) {
 
 func pumpStream(ctx context.Context, reader io.ReadCloser, contentType string, events chan<- streamEvent) {
 	defer close(events)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64<<10), 1<<20)
 	var data []string

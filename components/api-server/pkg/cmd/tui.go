@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/tui"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/tui"
 )
 
 type tuiModelFactory func(tui.Descriptor, tui.ClientConfig) (*tui.Model, error)

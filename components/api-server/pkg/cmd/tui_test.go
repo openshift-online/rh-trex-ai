@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/tui"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/tui"
 )
 
 func TestTUICommandBuildsModelDirectlyWithEstablishedOptions(t *testing.T) {

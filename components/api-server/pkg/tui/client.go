@@ -100,7 +100,7 @@ func (client *Client) Execute(ctx context.Context, operation Operation, input Re
 	if err != nil {
 		return Result{}, newAPIError(operation.ID, request, nil, nil, fmt.Errorf("send request: %w", err))
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return Result{}, newAPIError(operation.ID, request, response, data, fmt.Errorf("read response: %w", err))
@@ -136,7 +136,7 @@ func (client *Client) OpenStream(ctx context.Context, operation Operation, input
 		return nil, newAPIError(operation.ID, request, nil, nil, fmt.Errorf("open stream: %w", err))
 	}
 	if !acceptsStatus(operation.SuccessStatuses, response.StatusCode) {
-		defer response.Body.Close()
+		defer func() { _ = response.Body.Close() }()
 		data, readErr := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 		if len(data) > maxResponseBytes {
 			return nil, newAPIError(operation.ID, request, response, data[:maxResponseBytes], fmt.Errorf("response exceeds %d bytes", maxResponseBytes))

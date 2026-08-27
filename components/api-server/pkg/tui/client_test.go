@@ -211,7 +211,7 @@ func TestStreamDoesNotInheritFiniteRequestTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	data, err := io.ReadAll(response.Body)
 	if err != nil || string(data) != "first\nsecond\n" {
 		t.Fatalf("stream body = %q, error %v", data, err)
