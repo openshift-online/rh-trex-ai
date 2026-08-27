@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package rh_trex.v1;
+
+option go_package = "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/grpc/rh_trex/v1;rh_trex_v1";
+
+import "rh_trex/v1/common.proto";
+
+message Scientist {
+  ObjectReference metadata = 1;
+  string name = 2;
+  string field = 3;
+}
+
+message CreateScientistRequest {
+  string name = 1;
+  string field = 2;
+}
+
+message GetScientistRequest {
+  string id = 1;
+}
+
+message UpdateScientistRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string field = 3;
+}
+
+message DeleteScientistRequest {
+  string id = 1;
+}
+
+message ListScientistsRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message ListScientistsResponse {
+  repeated Scientist items = 1;
+  ListMeta metadata = 2;
+}
+
+message DeleteScientistResponse {}
+
+message WatchScientistsRequest {}
+
+message ScientistWatchEvent {
+  EventType type = 1;
+  Scientist scientist = 2;
+  string resource_id = 3;
+}
+
+service ScientistService {
+  rpc GetScientist(GetScientistRequest) returns (Scientist);
+  rpc CreateScientist(CreateScientistRequest) returns (Scientist);
+  rpc UpdateScientist(UpdateScientistRequest) returns (Scientist);
+  rpc DeleteScientist(DeleteScientistRequest) returns (DeleteScientistResponse);
+  rpc ListScientists(ListScientistsRequest) returns (ListScientistsResponse);
+  rpc WatchScientists(WatchScientistsRequest) returns (stream ScientistWatchEvent);
+}
