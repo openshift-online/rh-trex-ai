@@ -13,7 +13,7 @@ servers:
 paths:
   /api/rh-trex-ai/v1/dinosaurs:
     get:
-      operationId: apiRhTrexAiV1DinosaursGet
+      operationId: listDinosaurs
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -123,7 +123,7 @@ paths:
       - Bearer: []
       summary: Returns a list of dinosaurs
     post:
-      operationId: apiRhTrexAiV1DinosaursPost
+      operationId: createDinosaur
       requestBody:
         content:
           application/json:
@@ -172,8 +172,49 @@ paths:
       - Bearer: []
       summary: Create a new dinosaur
   /api/rh-trex-ai/v1/dinosaurs/{id}:
+    delete:
+      operationId: deleteDinosaur
+      parameters:
+      - description: The id of record
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Dinosaur deleted successfully
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Auth token is invalid
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized to perform operation
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: No dinosaur with specified id exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unexpected error deleting dinosaur
+      security:
+      - Bearer: []
+      summary: Delete a dinosaur
     get:
-      operationId: apiRhTrexAiV1DinosaursIdGet
+      operationId: getDinosaur
       parameters:
       - description: The id of record
         explode: false
@@ -218,7 +259,7 @@ paths:
       - Bearer: []
       summary: Get an dinosaur by id
     patch:
-      operationId: apiRhTrexAiV1DinosaursIdPatch
+      operationId: updateDinosaur
       parameters:
       - description: The id of record
         explode: false
@@ -283,7 +324,7 @@ paths:
       summary: Update an dinosaur
   /api/rh-trex-ai/v1/fossils:
     get:
-      operationId: apiRhTrexAiV1FossilsGet
+      operationId: listFossils
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -393,7 +434,7 @@ paths:
       - Bearer: []
       summary: Returns a list of fossils
     post:
-      operationId: apiRhTrexAiV1FossilsPost
+      operationId: createFossil
       requestBody:
         content:
           application/json:
@@ -442,8 +483,49 @@ paths:
       - Bearer: []
       summary: Create a new fossil
   /api/rh-trex-ai/v1/fossils/{id}:
+    delete:
+      operationId: deleteFossil
+      parameters:
+      - description: The id of record
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Fossil deleted successfully
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Auth token is invalid
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized to perform operation
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: No fossil with specified id exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unexpected error deleting fossil
+      security:
+      - Bearer: []
+      summary: Delete a fossil
     get:
-      operationId: apiRhTrexAiV1FossilsIdGet
+      operationId: getFossil
       parameters:
       - description: The id of record
         explode: false
@@ -488,7 +570,7 @@ paths:
       - Bearer: []
       summary: Get an fossil by id
     patch:
-      operationId: apiRhTrexAiV1FossilsIdPatch
+      operationId: updateFossil
       parameters:
       - description: The id of record
         explode: false
@@ -553,7 +635,7 @@ paths:
       summary: Update an fossil
   /api/rh-trex-ai/v1/scientists:
     get:
-      operationId: apiRhTrexAiV1ScientistsGet
+      operationId: listScientists
       parameters:
       - description: Page number of record list when record list exceeds specified
           page size
@@ -663,7 +745,7 @@ paths:
       - Bearer: []
       summary: Returns a list of scientists
     post:
-      operationId: apiRhTrexAiV1ScientistsPost
+      operationId: createScientist
       requestBody:
         content:
           application/json:
@@ -712,8 +794,49 @@ paths:
       - Bearer: []
       summary: Create a new scientist
   /api/rh-trex-ai/v1/scientists/{id}:
+    delete:
+      operationId: deleteScientist
+      parameters:
+      - description: The id of record
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Scientist deleted successfully
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Auth token is invalid
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized to perform operation
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: No scientist with specified id exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unexpected error deleting scientist
+      security:
+      - Bearer: []
+      summary: Delete a scientist
     get:
-      operationId: apiRhTrexAiV1ScientistsIdGet
+      operationId: getScientist
       parameters:
       - description: The id of record
         explode: false
@@ -758,7 +881,7 @@ paths:
       - Bearer: []
       summary: Get an scientist by id
     patch:
-      operationId: apiRhTrexAiV1ScientistsIdPatch
+      operationId: updateScientist
       parameters:
       - description: The id of record
         explode: false

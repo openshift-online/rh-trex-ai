@@ -14,6 +14,8 @@ type AuthConfig struct {
 	EnableAuthz bool     `json:"enable_authz"`
 	JwkCertURLs []string `json:"jwk_cert_urls"`
 	JwkCertFile string   `json:"jwk_cert_file"`
+	JWTIssuer   string   `json:"jwt_issuer"`
+	JWTAudience string   `json:"jwt_audience"`
 
 	// gRPC-specific JWK config (overrides JWT config for gRPC when set)
 	GRPCJwkCertURLs []string `json:"grpc_jwk_cert_urls"`
@@ -34,6 +36,8 @@ func NewAuthConfig() *AuthConfig {
 		EnableAuthz: true,
 		JwkCertURLs: []string{"https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs"},
 		JwkCertFile: "",
+		JWTIssuer:   "",
+		JWTAudience: "",
 
 		// gRPC-specific JWK defaults (empty = fall back to HTTP JWK config)
 		GRPCJwkCertURLs: []string{},
@@ -54,6 +58,8 @@ func (c *AuthConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.EnableAuthz, "enable-authz", c.EnableAuthz, "Enable authorization on endpoints")
 	fs.StringSliceVar(&c.JwkCertURLs, "jwk-cert-url", c.JwkCertURLs, "JWK Certificate URL(s) for JWT validation (comma-separated or repeated flag)")
 	fs.StringVar(&c.JwkCertFile, "jwk-cert-file", c.JwkCertFile, "Local JWK Certificate file")
+	fs.StringVar(&c.JWTIssuer, "jwt-issuer", c.JWTIssuer, "Expected JWT issuer claim (empty disables issuer validation)")
+	fs.StringVar(&c.JWTAudience, "jwt-audience", c.JWTAudience, "Expected JWT audience claim (empty disables audience validation)")
 	fs.StringSliceVar(&c.GRPCJwkCertURLs, "grpc-jwk-cert-url", c.GRPCJwkCertURLs, "JWK Certificate URL(s) for gRPC JWT validation (overrides --jwk-cert-url for gRPC)")
 	fs.StringVar(&c.GRPCJwkCertFile, "grpc-jwk-cert-file", c.GRPCJwkCertFile, "Local JWK Certificate file for gRPC JWT validation (overrides --jwk-cert-file for gRPC)")
 

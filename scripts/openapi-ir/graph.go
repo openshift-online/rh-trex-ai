@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-func (normalizer *normalizer) buildSchemaUsesAndGraph() {
+func (normalizer *normalizer) buildSchemaUsesAndGraph() error {
 	views := make(map[string]*ResourceView)
+	operationViews := make(map[string][]*ResourceView)
 	for _, operation := range normalizer.document.Operations {
 		stream := operationIsStream(operation)
 		for _, parameter := range operation.Parameters {
@@ -39,79 +40,51 @@ func (normalizer *normalizer) buildSchemaUsesAndGraph() {
 					normalizer.addUse(operation.ID, itemRef, SchemaRoleListItem, response.Status+":"+mediaType.ContentType)
 				}
 			}
-			for _, link := range response.Links {
-				normalizer.document.Relationships = append(normalizer.document.Relationships, &Relationship{
-					Name: link.Name, SourceOperationID: operation.ID, TargetOperationID: link.TargetOperationID,
-					ParameterMappings: append([]ParameterMapping(nil), link.Parameters...),
-					Provenance:        RelationshipExplicit, Source: link.Source,
-				})
-			}
 		}
 
-		schemaRef, isList := normalizer.representedSchema(operation)
+		schemaRef, isList := normalizer.representedSchema(operation, stream)
 		kind := resourceKind(operation.Path, isList)
 		operation.Capabilities = operationCapabilities(operation, kind, stream)
 		if schemaRef == "" {
 			continue
 		}
 		viewPath := operation.Path
-		key := viewPath + "\x00" + string(kind) + "\x00" + schemaRef
+		key := resourceViewID(kind, viewPath)
 		view := views[key]
 		if view == nil {
 			view = &ResourceView{
-				ID:   string(kind) + ":" + viewPath + ":" + schemaRef,
+				ID:   key,
 				Kind: kind, Path: viewPath, SchemaRef: schemaRef,
 				ScopeParameters: scopeParameterNames(operation.PathParameters, kind),
 			}
 			views[key] = view
 			normalizer.document.ResourceViews = append(normalizer.document.ResourceViews, view)
+		} else if view.SchemaRef != schemaRef {
+			return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
 		}
-		view.OperationIDs = append(view.OperationIDs, operation.ID)
-		view.Capabilities = append(view.Capabilities, operation.Capabilities...)
+		attachOperationToView(operation, view, operationViews)
 		if len(view.Extensions) == 0 && len(operation.Extensions) > 0 {
 			view.Extensions = operation.Extensions
 		}
 	}
 
+	for _, operation := range normalizer.document.Operations {
+		if len(operationViews[operation.ID]) > 0 {
+			continue
+		}
+		if view := normalizer.operationOwnerView(operation); view != nil {
+			attachOperationToView(operation, view, operationViews)
+		}
+	}
 	for _, view := range normalizer.document.ResourceViews {
 		sort.Strings(view.OperationIDs)
 		view.Capabilities = sortCapabilities(view.Capabilities)
 	}
-	for _, operation := range normalizer.document.Operations {
-		if operationHasRepresentedSchema(operation) {
-			continue
-		}
-		for _, view := range normalizer.document.ResourceViews {
-			if view.Path != operation.Path {
-				continue
-			}
-			view.OperationIDs = append(view.OperationIDs, operation.ID)
-			view.Capabilities = sortCapabilities(append(view.Capabilities, operation.Capabilities...))
-			sort.Strings(view.OperationIDs)
-		}
+	if err := normalizer.buildExplicitRelationships(operationViews); err != nil {
+		return err
 	}
 	normalizer.inferRelationships()
-}
-
-func operationHasRepresentedSchema(operation *Operation) bool {
-	for _, response := range operation.Responses {
-		if !responseIsSuccess(response.Status) {
-			continue
-		}
-		for _, content := range response.Content {
-			if content.Schema != nil {
-				return true
-			}
-		}
-	}
-	if operation.RequestBody != nil {
-		for _, content := range operation.RequestBody.Content {
-			if content.Schema != nil {
-				return true
-			}
-		}
-	}
-	return false
+	return nil
 }
 
 func (normalizer *normalizer) addUse(operationID, schemaRef string, role SchemaRole, context string) {
@@ -123,13 +96,16 @@ func (normalizer *normalizer) addUse(operationID, schemaRef string, role SchemaR
 	})
 }
 
-func (normalizer *normalizer) representedSchema(operation *Operation) (string, bool) {
+func (normalizer *normalizer) representedSchema(operation *Operation, stream bool) (string, bool) {
+	if stream {
+		return "", false
+	}
 	for _, response := range operation.Responses {
 		if !responseIsSuccess(response.Status) {
 			continue
 		}
 		for _, content := range response.Content {
-			if content.Schema == nil {
+			if content.Schema == nil || !isJSONContentType(content.ContentType) {
 				continue
 			}
 			if item := normalizer.listItemReference(content.Schema.Ref, make(map[string]bool)); item != "" {
@@ -138,14 +114,12 @@ func (normalizer *normalizer) representedSchema(operation *Operation) (string, b
 			return content.Schema.Ref, false
 		}
 	}
-	if operation.RequestBody != nil {
-		for _, content := range operation.RequestBody.Content {
-			if content.Schema != nil {
-				return content.Schema.Ref, false
-			}
-		}
-	}
 	return "", false
+}
+
+func isJSONContentType(contentType string) bool {
+	mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]))
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 func (normalizer *normalizer) listItemReference(ref string, visiting map[string]bool) string {
@@ -232,10 +206,135 @@ func (document *Document) EffectiveProperties(ref string) map[string]*Property {
 	return result
 }
 
+func resourceViewID(kind ResourceViewKind, path string) string {
+	return string(kind) + ":" + path
+}
+
+func attachOperationToView(operation *Operation, view *ResourceView, operationViews map[string][]*ResourceView) {
+	for _, operationID := range view.OperationIDs {
+		if operationID == operation.ID {
+			return
+		}
+	}
+	view.OperationIDs = append(view.OperationIDs, operation.ID)
+	view.Capabilities = append(view.Capabilities, operation.Capabilities...)
+	operationViews[operation.ID] = append(operationViews[operation.ID], view)
+}
+
+func (normalizer *normalizer) operationOwnerView(operation *Operation) *ResourceView {
+	if exact := uniqueViewAtPath(normalizer.document.ResourceViews, operation.Path); exact != nil {
+		return exact
+	}
+	if strings.Contains(operation.Path, ":") {
+		base := operation.Path[:strings.LastIndex(operation.Path, ":")]
+		if actionOwner := uniqueViewAtPath(normalizer.document.ResourceViews, base); actionOwner != nil {
+			return actionOwner
+		}
+	}
+	if operation.Capabilities.Has(CapabilityStream) {
+		var candidates []*ResourceView
+		longest := -1
+		for _, view := range normalizer.document.ResourceViews {
+			if view.Kind != ResourceItem || !pathContainsPrefix(operation.Path, view.Path) {
+				continue
+			}
+			if len(view.Path) > longest {
+				candidates = []*ResourceView{view}
+				longest = len(view.Path)
+			} else if len(view.Path) == longest {
+				candidates = append(candidates, view)
+			}
+		}
+		if len(candidates) == 1 {
+			return candidates[0]
+		}
+	}
+	return nil
+}
+
+func uniqueViewAtPath(views []*ResourceView, path string) *ResourceView {
+	var result *ResourceView
+	for _, view := range views {
+		if view.Path != path {
+			continue
+		}
+		if result != nil {
+			return nil
+		}
+		result = view
+	}
+	return result
+}
+
+func (normalizer *normalizer) buildExplicitRelationships(operationViews map[string][]*ResourceView) error {
+	for _, operation := range normalizer.document.Operations {
+		for _, response := range operation.Responses {
+			for _, link := range response.Links {
+				targetOperationID, err := normalizer.resolveLinkTarget(link)
+				if err != nil {
+					return err
+				}
+				sourceViewID, err := uniqueOperationViewID(operationViews[operation.ID], link.Source, "source", operation.ID)
+				if err != nil {
+					return err
+				}
+				targetViewID, err := uniqueOperationViewID(operationViews[targetOperationID], link.Source, "target", targetOperationID)
+				if err != nil {
+					return err
+				}
+				normalizer.document.Relationships = append(normalizer.document.Relationships, &Relationship{
+					Name: link.Name, SourceOperationID: operation.ID, SourceResponseStatus: response.Status,
+					TargetOperationID:  targetOperationID,
+					TargetOperationRef: link.TargetOperationRef, SourceViewID: sourceViewID, TargetViewID: targetViewID,
+					ParameterMappings: append([]ParameterMapping(nil), link.Parameters...),
+					Provenance:        RelationshipExplicit, Source: link.Source,
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func (normalizer *normalizer) resolveLinkTarget(link *OperationLink) (string, error) {
+	hasID := strings.TrimSpace(link.TargetOperationID) != ""
+	hasRef := strings.TrimSpace(link.TargetOperationRef) != ""
+	if hasID == hasRef {
+		return "", newDiagnostic(link.Source, "link "+link.Name, "exactly one of operationId or operationRef is required")
+	}
+	if hasID {
+		if normalizer.document.Operation(link.TargetOperationID) == nil {
+			return "", newDiagnostic(link.Source, "link "+link.Name, "target operationId %q was not found", link.TargetOperationID)
+		}
+		return link.TargetOperationID, nil
+	}
+	targetOperationID, err := normalizer.scan.resolveOperationReference(link.TargetOperationRef, link.Source)
+	if err != nil {
+		return "", newDiagnostic(link.Source, "link "+link.Name, "resolve operationRef %q: %v", link.TargetOperationRef, err)
+	}
+	return targetOperationID, nil
+}
+
+func uniqueOperationViewID(views []*ResourceView, source SourceLocation, endpoint, operationID string) (string, error) {
+	if len(views) == 0 {
+		return "", nil
+	}
+	if len(views) > 1 {
+		ids := make([]string, 0, len(views))
+		for _, view := range views {
+			ids = append(ids, view.ID)
+		}
+		sort.Strings(ids)
+		return "", newDiagnostic(source, "operation "+operationID, "%s relationship endpoint belongs to multiple resource views: %s", endpoint, strings.Join(ids, ", "))
+	}
+	return views[0].ID, nil
+}
+
 func (normalizer *normalizer) inferRelationships() {
 	explicitPairs := make(map[string]bool)
 	for _, relationship := range normalizer.document.Relationships {
-		explicitPairs[relationship.SourceOperationID+"\x00"+relationship.TargetOperationID] = true
+		if relationship.SourceViewID != "" && relationship.TargetViewID != "" {
+			explicitPairs[relationship.SourceViewID+"\x00"+relationship.TargetViewID] = true
+		}
 	}
 	for _, child := range normalizer.document.ResourceViews {
 		if child.Kind != ResourceCollection || len(child.ScopeParameters) == 0 {
@@ -254,25 +353,62 @@ func (normalizer *normalizer) inferRelationships() {
 			continue
 		}
 		parent := candidates[0]
-		if len(parent.OperationIDs) == 0 || len(child.OperationIDs) == 0 {
+		source := normalizer.uniqueCapabilityOperation(parent, CapabilityGet)
+		target := normalizer.uniqueCapabilityOperation(child, CapabilityList)
+		if source == nil || target == nil {
 			continue
 		}
-		sourceOperation, targetOperation := parent.OperationIDs[0], child.OperationIDs[0]
-		if explicitPairs[sourceOperation+"\x00"+targetOperation] {
+		if explicitPairs[parent.ID+"\x00"+child.ID] {
+			continue
+		}
+		mappings, complete := structuralPathMappings(source, target)
+		if !complete {
 			continue
 		}
 		normalizer.document.Relationships = append(normalizer.document.Relationships, &Relationship{
-			Name: "contains", SourceOperationID: sourceOperation, TargetOperationID: targetOperation,
-			SourceViewID: parent.ID, TargetViewID: child.ID, Provenance: RelationshipInferred,
+			Name: "contains", SourceOperationID: source.ID, TargetOperationID: target.ID,
+			SourceViewID: parent.ID, TargetViewID: child.ID, ParameterMappings: mappings,
+			Provenance: RelationshipInferred, Source: target.Source,
 		})
 	}
 }
 
-func operationCapabilities(operation *Operation, kind ResourceViewKind, stream bool) Capabilities {
-	var result Capabilities
-	if stream {
-		result = append(result, CapabilityStream)
+func (normalizer *normalizer) uniqueCapabilityOperation(view *ResourceView, capability Capability) *Operation {
+	var result *Operation
+	for _, operationID := range view.OperationIDs {
+		operation := normalizer.document.Operation(operationID)
+		if operation == nil || operation.Method != "GET" || !operation.Capabilities.Has(capability) {
+			continue
+		}
+		if result != nil {
+			return nil
+		}
+		result = operation
 	}
+	return result
+}
+
+func structuralPathMappings(source, target *Operation) ([]ParameterMapping, bool) {
+	sourcePathParameters := make(map[string]*Parameter, len(source.PathParameters))
+	for _, parameter := range source.PathParameters {
+		sourcePathParameters[parameter.Name] = parameter
+	}
+	mappings := make([]ParameterMapping, 0, len(target.PathParameters))
+	for _, parameter := range target.PathParameters {
+		sourceParameter := sourcePathParameters[parameter.Name]
+		if sourceParameter == nil || sourceParameter.In != parameter.In {
+			return nil, false
+		}
+		mappings = append(mappings, ParameterMapping{Target: parameter.Name, Expression: "$request.path." + sourceParameter.Name})
+	}
+	return mappings, true
+}
+
+func operationCapabilities(operation *Operation, kind ResourceViewKind, stream bool) Capabilities {
+	if stream {
+		return Capabilities{CapabilityStream}
+	}
+	var result Capabilities
 	if strings.Contains(operation.Path, ":") {
 		result = append(result, CapabilityAction)
 		return sortCapabilities(result)

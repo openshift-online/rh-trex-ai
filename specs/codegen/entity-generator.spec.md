@@ -108,6 +108,12 @@ The entity generator SHALL emit deterministic, globally unique `operationId` val
 - THEN its list, create, get, update, and delete operations SHALL declare `listWidgets`, `createWidget`, `getWidget`, `updateWidget`, and `deleteWidget` respectively
 - AND rerunning generation for the same kind SHALL produce the same operation IDs
 
+#### Scenario: Complete generated CRUD path item
+- GIVEN the generator creates the Widget OpenAPI document
+- THEN `/api/{project}/v1/widgets` SHALL document `GET` and `POST`
+- AND `/api/{project}/v1/widgets/{id}` SHALL document `GET`, `PATCH`, and `DELETE`
+- AND the DELETE response SHALL declare `204 No Content`
+
 ### Requirement: Post-Generation Code Formatting
 
 All generated `.go` files SHALL be formatted with `gofmt -w`.

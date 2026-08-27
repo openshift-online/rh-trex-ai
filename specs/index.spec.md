@@ -29,6 +29,7 @@ This file is the machine-readable registry of all specifications governing the r
 | CG-002 | CLI Generator | codegen | Active | CG-005 | `codegen/cli-generator.spec.md` |
 | CG-003 | SDK Generator | codegen | Active | CG-005 | `codegen/sdk-generator.spec.md` |
 | CG-004 | Console Plugin Generator | codegen | Active | CG-005 | `codegen/console-plugin-generator.spec.md` |
+| CG-006 | TUI Generator | codegen | Active | CG-005, SEC-001, STD-003, STD-004 | `codegen/tui-generator.spec.md` |
 | STD-001 | Naming Conventions | standards | Active | — | `standards/naming-conventions.spec.md` |
 | STD-002 | Error Handling | standards | Active | API-001 | `standards/error-handling.spec.md` |
 | STD-003 | Testing Standards | standards | Active | FW-002 | `standards/testing.spec.md` |
@@ -45,7 +46,7 @@ Topological layers for reconciliation:
 - **Layer 4 (data + security):** DA-002, SEC-001, STD-002
 - **Layer 5 (auth + standards):** SEC-002, STD-003
 - **Layer 6 (codegen foundations):** CG-001, CG-005
-- **Layer 7 (codegen consumers):** CG-002, CG-003, CG-004
+- **Layer 7 (codegen consumers):** CG-002, CG-003, CG-004, CG-006
 
 ## SDLC Workflow
 

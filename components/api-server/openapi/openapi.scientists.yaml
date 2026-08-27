@@ -3,7 +3,7 @@ paths:
   /api/rh-trex-ai/v1/scientists:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1ScientistsGet
+      operationId: listScientists
       summary: Returns a list of scientists
       security:
         - Bearer: []
@@ -39,7 +39,7 @@ paths:
         - $ref: '#/components/parameters/orderBy'
         - $ref: '#/components/parameters/fields'
     post:
-      operationId: apiRhTrexAiV1ScientistsPost
+      operationId: createScientist
       summary: Create a new scientist
       security:
         - Bearer: []
@@ -91,7 +91,7 @@ paths:
   /api/rh-trex-ai/v1/scientists/{id}:
   # NEW ENDPOINT END
     get:
-      operationId: apiRhTrexAiV1ScientistsIdGet
+      operationId: getScientist
       summary: Get an scientist by id
       security:
         - Bearer: []
@@ -127,7 +127,7 @@ paths:
               schema:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
-      operationId: apiRhTrexAiV1ScientistsIdPatch
+      operationId: updateScientist
       summary: Update an scientist
       security:
         - Bearer: []
@@ -177,6 +177,38 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
         '500':
           description: Unexpected error updating scientist
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+    delete:
+      operationId: deleteScientist
+      summary: Delete a scientist
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: Scientist deleted successfully
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '404':
+          description: No scientist with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: 'openapi.yaml#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting scientist
           content:
             application/json:
               schema:

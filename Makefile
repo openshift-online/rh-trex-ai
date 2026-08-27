@@ -142,8 +142,17 @@ generate-console-plugin:
 		--api-prefix $(SDK_API_PREFIX) \
 		--project rh-trex-ai
 
+TUI_OUT ?= $(PWD)/components/api-server/data/generated/tui
+
+.PHONY: generate-tui
+generate-tui:
+	@echo "Refreshing embedded TUI descriptor from OpenAPI specs..."
+	cd scripts/tui-generator && TERM=dumb $(GO) run . \
+		--spec $(OPENAPI_SPEC) \
+		--out $(TUI_OUT)
+
 .PHONY: generate-all
-generate-all: generate-sdk generate-cli generate-console-plugin
+generate-all: generate-sdk generate-cli generate-console-plugin generate-tui
 
 .PHONY: generate-clean
 generate-clean:

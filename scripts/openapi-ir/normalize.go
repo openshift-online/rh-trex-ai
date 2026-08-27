@@ -54,7 +54,9 @@ func normalize(rootPath string, raw *openapi3.T, scan *scanner) (*Document, erro
 	if err := normalizer.normalizeOperations(); err != nil {
 		return nil, err
 	}
-	normalizer.buildSchemaUsesAndGraph()
+	if err := normalizer.buildSchemaUsesAndGraph(); err != nil {
+		return nil, err
+	}
 	normalizer.finish()
 	return normalizer.document, nil
 }
@@ -415,7 +417,9 @@ func (normalizer *normalizer) finish() {
 		if left.Provenance != right.Provenance {
 			return left.Provenance == RelationshipExplicit
 		}
-		return left.SourceOperationID+"\x00"+left.Name+"\x00"+left.TargetOperationID < right.SourceOperationID+"\x00"+right.Name+"\x00"+right.TargetOperationID
+		leftKey := left.SourceViewID + "\x00" + left.SourceOperationID + "\x00" + left.SourceResponseStatus + "\x00" + left.Name + "\x00" + left.TargetViewID + "\x00" + left.TargetOperationID + "\x00" + left.TargetOperationRef
+		rightKey := right.SourceViewID + "\x00" + right.SourceOperationID + "\x00" + right.SourceResponseStatus + "\x00" + right.Name + "\x00" + right.TargetViewID + "\x00" + right.TargetOperationID + "\x00" + right.TargetOperationRef
+		return leftKey < rightKey
 	})
 }
 

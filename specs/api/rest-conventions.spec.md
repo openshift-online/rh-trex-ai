@@ -100,6 +100,12 @@ Every public OpenAPI operation SHALL declare a globally unique, stable `operatio
 - THEN its operation IDs SHALL include `listDinosaurs`, `createDinosaur`, `getDinosaur`, `updateDinosaur`, and `deleteDinosaur`
 - AND no other operation in the root OpenAPI document SHALL reuse those IDs
 
+#### Scenario: Operation ID migration remains buildable
+- GIVEN an existing operation ID is replaced with its semantic operation ID
+- WHEN the OpenAPI client is regenerated
+- THEN all in-repository consumers SHALL be updated atomically to use the regenerated client method
+- AND the repository SHALL build without retaining a second compatibility operation for the obsolete operation ID
+
 ### Requirement: Navigable Operation Relationships
 
 A relationship intended for generated client navigation SHALL be declared with an OpenAPI Link Object when it cannot be represented unambiguously by a resource view's own path and parameters. The Link Object SHALL target a stable `operationId` and SHALL map every target parameter supplied by the source operation.
@@ -167,6 +173,7 @@ The API server SHALL strip trailing slashes from request paths before routing.
 | Separate OpenAPI files per entity | Prevents monolithic spec file; enables independent generation |
 | `$ref` composition in main openapi.yaml | Auto-composable; generator appends references without conflicts |
 | Stable `operationId` values | Gives generators and OpenAPI Links an unambiguous cross-file operation key |
+| Atomic client regeneration for operation ID changes | Generated method names derive from operation IDs; updating the document, client, and consumers together avoids a mixed contract |
 | Link Objects for semantic navigation | Standard OpenAPI relationships can disambiguate hierarchy without imposing one schema tree |
 | Root document is canonical | All generated clients must see the same complete public API surface |
 | 204 for DELETE (no body) | RESTful convention; nothing to return after deletion |

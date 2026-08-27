@@ -174,7 +174,7 @@ func TestGRPCWatch{{.KindPlural}}(t *testing.T) {
 				{{- end}}
 				{{- end}}
 			}
-			_, resp, postErr := client.DefaultAPI.Api{{.ProjectPascalCase}}V1{{.KindPlural}}Post(ctx).{{.Kind}}({{.KindLowerSingular}}Input).Execute()
+			_, resp, postErr := client.DefaultAPI.Create{{.Kind}}(ctx).{{.Kind}}({{.KindLowerSingular}}Input).Execute()
 			if postErr != nil {
 				sourceErr = fmt.Errorf("REST POST failed for %s: %v", name, postErr)
 				return

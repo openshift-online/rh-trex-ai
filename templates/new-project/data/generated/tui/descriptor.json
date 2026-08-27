@@ -1,0 +1,110 @@
+{
+  "title": "My Service API",
+  "servers": [
+    {
+      "url": "http://localhost:8000"
+    },
+    {
+      "url": "/"
+    }
+  ],
+  "securitySchemes": [
+    {
+      "name": "Bearer",
+      "type": "http",
+      "scheme": "bearer"
+    }
+  ],
+  "views": [
+    {
+      "id": "collection:/api/my-service/v1/metadata:#/schemas/ObjectReference",
+      "kind": "collection",
+      "schemaRef": "#/schemas/ObjectReference",
+      "label": "ObjectReference",
+      "identityProperty": "id",
+      "defaultSort": "created_at",
+      "columns": [
+        {
+          "property": "created_at",
+          "label": "CREATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "property": "href",
+          "label": "HREF",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "id",
+          "label": "ID",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "kind",
+          "label": "KIND",
+          "priority": 0,
+          "type": "string"
+        },
+        {
+          "property": "updated_at",
+          "label": "UPDATED AT",
+          "priority": 0,
+          "type": "string",
+          "format": "date-time"
+        }
+      ],
+      "operationIds": [
+        "getMetadata"
+      ],
+      "capabilities": [
+        "list"
+      ],
+      "listOperationId": "getMetadata",
+      "source": {}
+    }
+  ],
+  "operations": [
+    {
+      "id": "getMetadata",
+      "method": "GET",
+      "pathParts": [
+        {
+          "literal": "/api/my-service/v1/metadata"
+        }
+      ],
+      "response": {
+        "contentType": "application/json"
+      },
+      "successStatuses": [
+        "200"
+      ],
+      "servers": [
+        {
+          "url": "http://localhost:8000"
+        },
+        {
+          "url": "/"
+        }
+      ],
+      "security": {
+        "none": false,
+        "requirements": [
+          {
+            "schemes": [
+              "Bearer"
+            ]
+          }
+        ]
+      },
+      "capabilities": [
+        "list"
+      ],
+      "summary": "Service metadata",
+      "presentation": {}
+    }
+  ]
+}

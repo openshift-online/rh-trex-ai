@@ -37,8 +37,8 @@ scripts/*/cli-generator
 scripts/*/sdk-generator
 scripts/*/console-plugin-generator
 
-# Ignore generated directories
-generated/
+# Ignore top-level standalone generator output
+/generated/
 
 # Ignore Python bytecode and test caches
 __pycache__/

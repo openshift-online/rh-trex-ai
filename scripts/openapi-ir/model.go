@@ -266,14 +266,16 @@ const (
 )
 
 type Relationship struct {
-	Name              string                 `json:"name"`
-	SourceOperationID string                 `json:"sourceOperationId,omitempty"`
-	TargetOperationID string                 `json:"targetOperationId,omitempty"`
-	SourceViewID      string                 `json:"sourceViewId,omitempty"`
-	TargetViewID      string                 `json:"targetViewId,omitempty"`
-	ParameterMappings []ParameterMapping     `json:"parameterMappings,omitempty"`
-	Provenance        RelationshipProvenance `json:"provenance"`
-	Source            SourceLocation         `json:"source"`
+	Name                 string                 `json:"name"`
+	SourceOperationID    string                 `json:"sourceOperationId,omitempty"`
+	SourceResponseStatus string                 `json:"sourceResponseStatus,omitempty"`
+	TargetOperationID    string                 `json:"targetOperationId,omitempty"`
+	TargetOperationRef   string                 `json:"targetOperationRef,omitempty"`
+	SourceViewID         string                 `json:"sourceViewId,omitempty"`
+	TargetViewID         string                 `json:"targetViewId,omitempty"`
+	ParameterMappings    []ParameterMapping     `json:"parameterMappings,omitempty"`
+	Provenance           RelationshipProvenance `json:"provenance"`
+	Source               SourceLocation         `json:"source"`
 }
 
 type Capability string

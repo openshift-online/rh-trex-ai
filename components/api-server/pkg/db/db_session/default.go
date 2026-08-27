@@ -85,6 +85,12 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 		f.config = config
 		f.g2 = g2
 		f.db = dbx
+
+		// Install cross-cutting GORM plugins (such as OpenTelemetry tracing) on
+		// the base connection, once, so per-request New(ctx) sessions inherit
+		// them. Registration is opt-in via db.RegisterGormPlugin; with none
+		// registered this is a no-op.
+		db.ApplyGormPlugins(g2)
 	})
 }
 

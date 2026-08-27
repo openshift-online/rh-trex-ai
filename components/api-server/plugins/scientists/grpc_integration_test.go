@@ -136,7 +136,7 @@ func TestGRPCWatchScientists(t *testing.T) {
 				Name:  name,
 				Field: "Paleontology",
 			}
-			_, resp, postErr := client.DefaultAPI.ApiRhTrexAiV1ScientistsPost(ctx).Scientist(scientistInput).Execute()
+			_, resp, postErr := client.DefaultAPI.CreateScientist(ctx).Scientist(scientistInput).Execute()
 			if postErr != nil {
 				sourceErr = fmt.Errorf("REST POST failed for %s: %v", name, postErr)
 				return

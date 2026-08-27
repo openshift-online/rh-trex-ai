@@ -20,16 +20,18 @@ import (
 
 // JWTHandler provides JWT authentication without OCM dependencies
 type JWTHandler struct {
-	keysURLs       []string
-	keysFile       string
-	publicKeys     map[string]*rsa.PublicKey
-	keysMutex      sync.RWMutex
-	aclFile        string
-	publicPaths    []string
-	httpClient     *http.Client
-	refreshStop    chan struct{}
-	lastKidRefresh time.Time
-	kidRefreshWait time.Duration
+	keysURLs         []string
+	keysFile         string
+	expectedIssuer   string
+	expectedAudience string
+	publicKeys       map[string]*rsa.PublicKey
+	keysMutex        sync.RWMutex
+	aclFile          string
+	publicPaths      []string
+	httpClient       *http.Client
+	refreshStop      chan struct{}
+	lastKidRefresh   time.Time
+	kidRefreshWait   time.Duration
 }
 
 // NewJWTHandler creates a new JWT handler instance
@@ -51,6 +53,18 @@ func (j *JWTHandler) WithKeysURLs(urls []string) *JWTHandler {
 // WithKeysFile sets a local file path for JWK keys
 func (j *JWTHandler) WithKeysFile(file string) *JWTHandler {
 	j.keysFile = file
+	return j
+}
+
+// WithIssuer sets the expected JWT issuer. An empty value disables issuer validation.
+func (j *JWTHandler) WithIssuer(issuer string) *JWTHandler {
+	j.expectedIssuer = issuer
+	return j
+}
+
+// WithAudience sets the expected JWT audience. An empty value disables audience validation.
+func (j *JWTHandler) WithAudience(audience string) *JWTHandler {
+	j.expectedAudience = audience
 	return j
 }
 
@@ -174,6 +188,10 @@ func (j *JWTHandler) validateToken(tokenString string) (*jwt.Token, error) {
 
 	if !token.Valid {
 		return nil, fmt.Errorf("invalid token")
+	}
+
+	if err := ValidateJWTClaims(token, j.expectedIssuer, j.expectedAudience); err != nil {
+		return nil, fmt.Errorf("invalid token claims: %w", err)
 	}
 
 	return token, nil

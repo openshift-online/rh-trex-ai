@@ -85,8 +85,8 @@ func TestJWTHandler_extractToken(t *testing.T) {
 	}{
 		{
 			name:          "valid bearer token",
-			header:        "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
-			expectedToken: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
+			header:        "Bearer test-token",
+			expectedToken: "test-token",
 			expectError:   false,
 		},
 		{
@@ -486,6 +486,69 @@ func TestJWTHandler_ValidateToken_MultiURL(t *testing.T) {
 	}
 	if !parsed2.Valid {
 		t.Error("expected valid token from issuer 2")
+	}
+}
+
+func TestJWTHandler_ValidateToken_ExpectedClaims(t *testing.T) {
+	const (
+		kid      = "expected-claims-kid"
+		issuer   = "https://issuer.example.com/realms/example"
+		audience = "example-api"
+	)
+
+	key := testGenerateKey(t)
+	handler := NewJWTHandler().
+		WithIssuer(issuer).
+		WithAudience(audience)
+	handler.publicKeys[kid] = &key.PublicKey
+
+	tests := []struct {
+		name        string
+		claims      jwt.MapClaims
+		expectError bool
+	}{
+		{
+			name: "valid claims",
+			claims: jwt.MapClaims{
+				"sub": "user",
+				"iss": issuer,
+				"aud": []interface{}{"account", audience},
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+		},
+		{
+			name: "wrong issuer",
+			claims: jwt.MapClaims{
+				"sub": "user",
+				"iss": "https://attacker.example.com/realms/example",
+				"aud": audience,
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectError: true,
+		},
+		{
+			name: "wrong audience",
+			claims: jwt.MapClaims{
+				"sub": "user",
+				"iss": issuer,
+				"aud": "another-api",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token := testSignedToken(t, kid, key, tt.claims)
+			_, err := handler.validateToken(token)
+			if tt.expectError && err == nil {
+				t.Fatal("validateToken() expected an error")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("validateToken() unexpected error: %v", err)
+			}
+		})
 	}
 }
 

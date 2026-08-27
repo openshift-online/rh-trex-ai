@@ -118,7 +118,7 @@ func AuthUnaryInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPro
 			return handler(ctx, req)
 		}
 
-		username, err := authenticateGRPCRequest(ctx, keyProvider)
+		username, err := authenticateGRPCRequest(ctx, keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +185,7 @@ func AuthStreamInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPr
 			return handler(srv, ss)
 		}
 
-		username, err := authenticateGRPCRequest(ss.Context(), keyProvider)
+		username, err := authenticateGRPCRequest(ss.Context(), keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func AuthStreamInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPr
 	}
 }
 
-func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyProvider) (string, error) {
+func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyProvider, expectedIssuer, expectedAudience string) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", status.Error(codes.Unauthenticated, "missing metadata")
@@ -211,17 +211,16 @@ func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyPr
 	tokenStr := strings.TrimPrefix(authHeader[0], "Bearer ")
 	tokenStr = strings.TrimPrefix(tokenStr, "bearer ")
 
-	var jwtToken *jwt.Token
-	var err error
-
-	if keyProvider != nil {
-		jwtToken, err = jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, keyProvider.KeyFunc)
-	} else {
-		parser := jwt.NewParser()
-		jwtToken, _, err = parser.ParseUnverified(tokenStr, jwt.MapClaims{})
+	if keyProvider == nil {
+		return "", status.Error(codes.Unauthenticated, "jwt key provider is not configured")
 	}
+
+	jwtToken, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, keyProvider.KeyFunc)
 	if err != nil {
 		return "", status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
+	}
+	if err := auth.ValidateJWTClaims(jwtToken, expectedIssuer, expectedAudience); err != nil {
+		return "", status.Errorf(codes.Unauthenticated, "invalid token claims: %v", err)
 	}
 
 	claims, ok := jwtToken.Claims.(jwt.MapClaims)

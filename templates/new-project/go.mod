@@ -1,11 +1,10 @@
 module github.com/example/my-service
 
-go 1.24.0
+go 1.24.2
 
 toolchain go1.24.9
 
 require (
-	github.com/golang/glog v1.2.5
 	github.com/openshift-online/rh-trex-ai v0.0.0-00010101000000-000000000000
 	github.com/spf13/pflag v1.0.5
 	gorm.io/gorm v1.20.5

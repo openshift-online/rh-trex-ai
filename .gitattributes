@@ -1,1 +1,4 @@
 scripts/console-plugin-generator/templates/package-lock.json.tmpl linguist-generated
+data/generated/openapi/** linguist-generated
+data/generated/tui/** linguist-generated
+pkg/api/openapi/** linguist-generated

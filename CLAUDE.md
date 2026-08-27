@@ -174,7 +174,7 @@ make generate
 
 ## Authentication
 
-JWT-based with configurable OIDC providers. Default: Red Hat SSO. Multi-issuer via `--jwk-cert-url` (repeatable) + `--jwk-cert-file`.
+JWT-based with configurable OIDC providers. Default: Red Hat SSO. Multi-issuer keys via `--jwk-cert-url` (repeatable) + `--jwk-cert-file`. Resource servers should set `--jwt-issuer` and `--jwt-audience` to enforce token claims on HTTP and gRPC.
 
 ```bash
 # Disable for local dev
