@@ -1,0 +1,2212 @@
+# Data Model
+
+**Date:** 2026-03-20
+**Status:** Active
+**Last Updated:** 2026-07-13 — added `Cluster` as a first-class API Kind for multi-cluster scheduling; added `cluster_id` FK to Session, Gateway, and Application; introduced `ClusterRole` enum (`gateway`, `workload`, `hybrid`) and `PlacementStrategy` interface with round-robin default; added `gateway_cluster_id` to Session for cross-cluster gateway→workload routing; updated ER diagram, RBAC, CLI, and API reference
+**Previous:** 2026-07-08 — added `Policy` as supported kind in `acpctl apply` and Application sync; added `sandbox_policy`, `sandbox_template`, `entrypoint` to Agent apply fields; documented implementation gaps in acpctl apply resource struct
+**Previous:** 2026-07-03 — added Agent sandbox fields (entrypoint, providers, payloads, environment, sandbox_template, sandbox_policy) for OpenShell gateway integration; split SessionMessage from new SessionEvent (comprehensive AG-UI event stream with compression); added Events API endpoints, gRPC protocol, storage model, compression strategy, migration plan
+**Previous:** 2026-06-03 — added Application (GitOps continuous sync for agent fleets); addressed review feedback: credential_id FK for remote auth, RoleBinding escalation rules, prune safety, health status semantics, gitops role grantability, sync engine kind filtering
+**Previous-2:** 2026-05-12 — migrate Credentials from project-scoped to global routes (`/credentials`); remove `project_id` from model, OpenAPI, and SDK; add drop-column migration; update coverage matrix
+**Workflow:** *(merged into skills/build/full-stack-pipeline)* — implementation waves, gap table, build commands, run log
+**Design:** `credentials-session.md` — full Credential Kind design spec and rationale
+
+---
+
+## Overview
+
+The Ambient API server provides a coordination layer for orchestrating fleets of persistent agents across projects. The model is intentionally simple:
+
+- **Project** — a workspace. Groups agents and provides shared context (`prompt`) injected into every agent start.
+- **Agent** — a project-scoped, mutable definition. Agents belong to exactly one Project. `prompt` defines who the agent is and is directly editable (subject to RBAC).
+- **Session** — an ephemeral Kubernetes execution run, created exclusively via agent start. Only one active Session per Agent at a time.
+- **Message** — a single AG-UI event in the LLM conversation. Append-only; the canonical record of what happened in a session.
+- **Inbox** — a persistent message queue on an Agent. Messages survive across sessions and are drained into the start context at the next run.
+- **Credential** — a global secret. Stores a Personal Access Token or equivalent for an external provider (GitHub, GitLab, Jira, Google, Vertex AI, Kubeconfig). Consumed by runners at session start. Bound to Projects via RoleBindings — a single Credential can be shared across multiple Projects without duplication.
+- **RoleBinding** — binds a Role to a subject (user or project) at a given scope. Ownership and access for all Kinds is expressed through RoleBindings. The subject and scope are each represented as typed nullable FKs — exactly one FK is non-null, determined by `scope`.
+- **Application** — a GitOps binding that continuously syncs agent fleet definitions from a git repository to an Ambient instance. The Ambient equivalent of an Argo CD Application.
+- **Cluster** — a global registration of a Kubernetes cluster endpoint. Each cluster has a `role` (`gateway`, `workload`, or `hybrid`) that determines what can be scheduled on it. The control plane maintains a `KubeClient` pool keyed by cluster ID and dispatches reconciliation to the appropriate cluster. Cluster credentials are stored as a write-only `kubeconfig` field (encrypted at rest, same storage pattern as Credential tokens).
+
+The stable address of an agent is `{project_name}/{agent_name}`. It holds the inbox and links to the active session.
+
+---
+
+## Entity Relationship Diagram
+
+```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'attributeColor': '#111111', 'lineColor': '#ffffff', 'edgeLabelBackground': '#333333', 'fontFamily': 'monospace'}}}%%
+erDiagram
+
+    User {
+        string ID PK
+        string username
+        string name
+        string email
+        jsonb  labels
+        jsonb  annotations
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    Project {
+        string ID PK "name-as-ID"
+        string name
+        string description
+        string prompt "workspace-level context injected into every agent start"
+        jsonb  labels
+        jsonb  annotations
+        string status
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    ProjectSettings {
+        string ID PK
+        string project_id FK
+        string group_access
+        string repositories
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Agent (project-scoped, mutable) ──────────────────────────────────────
+
+    Agent {
+        string ID PK "KSUID"
+        string project_id FK
+        string name "human-readable; unique within project"
+        string display_name "nullable — human-friendly display label"
+        string description "nullable — purpose description"
+        string prompt "who this agent is — mutable; access controlled via RBAC"
+        string repo_url "nullable — primary repository for agent sessions"
+        string workflow_id "nullable — default workflow for agent sessions"
+        string llm_model "active LLM; default claude-sonnet-4-6"
+        float  llm_temperature "default 0.7"
+        int32  llm_max_tokens "default 4000"
+        string bot_account_name "nullable — service account for git ops"
+        string resource_overrides "nullable — JSON pod resource overrides"
+        string environment_variables "nullable — JSON extra env vars"
+        string entrypoint "nullable — CLI to invoke in sandbox (e.g. claude)"
+        jsonb  providers "nullable — provider names bound to this agent"
+        jsonb  payloads "nullable — files and repos staged into sandbox before start"
+        jsonb  environment "nullable — structured key-value env vars for sandbox"
+        jsonb  sandbox_template "nullable — sandbox container resource requests"
+        string sandbox_policy "nullable — name of a policy declaration to apply"
+        string current_session_id FK "nullable — denormalized for fast reads"
+        jsonb  labels
+        jsonb  annotations
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Inbox (queue on Agent — messages waiting for next session) ────────────
+
+    Inbox {
+        string ID PK
+        string agent_id FK "recipient — project/agent address"
+        string from_agent_id FK "nullable — sender; null = human"
+        string from_name "denormalized sender display name"
+        text   body
+        bool   read "false = unread; drained at session start"
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Session (ephemeral run — created by user or via agent start) ─────────
+
+    Session {
+        string  ID PK
+        string  name "human-readable display name"
+        string  project_id FK "nullable — direct project context (no agent)"
+        string  agent_id FK "nullable — set when started via agent ignite"
+        string  cluster_id FK "nullable — workload cluster; null = local; set by PlacementStrategy"
+        string  gateway_cluster_id FK "nullable — gateway cluster; null = same as cluster_id"
+        string  parent_session_id FK "nullable — source session for clones"
+        string  source_scheduled_session_id "nullable — FK to ScheduledSession that triggered this"
+        time    scheduled_for "nullable — cron tick time; idempotency key with source_scheduled_session_id"
+        string  prompt "task scope for this run"
+        string  repo_url "nullable — primary repo for the session"
+        string  repos "JSON array of RepoEntry (additional attached repos)"
+        string  workflow_id "nullable — JSON-encoded workflow config"
+        string  llm_model "active LLM; default claude-sonnet-4-6"
+        float   llm_temperature "default 0.7"
+        int32   llm_max_tokens "default 4000"
+        int32   timeout "nullable — max session duration in seconds"
+        string  bot_account_name "nullable — service account for git ops"
+        string  resource_overrides "nullable — JSON pod resource overrides"
+        string  environment_variables "nullable — JSON extra env vars"
+        string  labels "JSON map; queryable tags"
+        string  annotations "JSON map; freeform metadata"
+        string  phase
+        time    start_time
+        time    completion_time
+        string  kube_cr_name "Kubernetes CR / pod name (set to session ID on create)"
+        string  kube_cr_uid
+        string  kube_namespace
+        string  sdk_session_id
+        int32   sdk_restart_count
+        string  conditions
+        string  reconciled_repos
+        string  reconciled_workflow
+        string  sandbox_logs_snapshot "nullable — JSON array of SandboxLogEntry; last snapshot before stop"
+        string  sandbox_policy_snapshot "nullable — JSON SandboxPolicyResponse; last snapshot before stop"
+        time    created_at
+        time    updated_at
+        time    deleted_at
+    }
+
+    %% ── SessionMessage (high-level conversation — human-readable) ────────────
+
+    SessionMessage {
+        string ID PK
+        string session_id FK
+        int    seq "monotonic within session"
+        string event_type "user | assistant | tool_use | tool_result | system | error"
+        string payload "message body or JSON-encoded event"
+        time   created_at
+    }
+
+    %% ── SessionEvent (comprehensive AG-UI event stream) ───────────────────────
+
+    SessionEvent {
+        string ID PK
+        string session_id FK
+        int64  seq "monotonic within session; gaps allowed after compression"
+        string event_type "AG-UI event type (33 types: TEXT_MESSAGE_START, TOOL_CALL_START, etc.)"
+        string payload "JSON-encoded event payload"
+        time   created_at
+        time   completed_at "nullable — last event timestamp for compressed events"
+        int32  event_count "number of raw events compressed; 1 = uncompressed"
+    }
+
+    %% ── RBAC ─────────────────────────────────────────────────────────────────
+
+    Role {
+        string ID PK
+        string name
+        string display_name
+        string description
+        jsonb  permissions
+        bool   built_in
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    RoleBinding {
+        string ID PK
+        string role_id FK
+        string scope         "global | project | agent | session | credential"
+        string user_id FK    "nullable — set when scope identifies a user subject"
+        string project_id FK "nullable — set when scope=project"
+        string agent_id FK   "nullable — set when scope=agent"
+        string session_id FK "nullable — set when scope=session"
+        string credential_id FK "nullable — set when scope=credential"
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Credential (global PAT/token store, bound via RoleBindings) ──────────
+
+    Credential {
+        string ID PK "KSUID"
+        string name "human-readable; globally unique"
+        string description
+        string provider "github | gitlab | jira | google | vertex | kubeconfig"
+        string token "write-only; stored encrypted"
+        string url "nullable; service instance URL"
+        string email "nullable; required for Jira"
+        jsonb  labels
+        jsonb  annotations
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── ScheduledSession (project-scoped recurring agent trigger) ──────────
+
+    ScheduledSession {
+        string ID PK "KSUID"
+        string project_id FK
+        string agent_id FK "nullable — which Agent to ignite on each trigger"
+        string name "human-readable; unique within project"
+        string description
+        string schedule "cron expression"
+        string timezone "IANA timezone; default UTC"
+        bool   enabled "false = suspended; schedule not evaluated"
+        string overlap_policy "skip (default) or allow"
+        string session_prompt "injected as Session.prompt on each trigger"
+        int32  timeout "nullable — max session duration in seconds for triggered sessions"
+        int32  inactivity_timeout "nullable — idle timeout in seconds"
+        bool   stop_on_run_finished "nullable — stop session when run completes"
+        string runner_type "nullable — override runner type for triggered sessions"
+        time   last_run_at "nullable; wall-clock time of last trigger"
+        time   next_run_at "nullable; computed from schedule + timezone"
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Gateway (project-scoped OpenShell gateway declaration) ──────────
+
+    Gateway {
+        string ID PK "KSUID"
+        string project_id FK "target project (= namespace)"
+        string cluster_id FK "nullable — target cluster; null = local cluster"
+        string name "resource name; typically openshell-gateway"
+        string image "nullable — gateway container image; defaults to OPENSHELL_GATEWAY_IMAGE"
+        jsonb  server_dns_names "DNS names for TLS certificate generation"
+        string config "nullable — OpenShell gateway TOML configuration"
+        jsonb  oidc "nullable — OIDC authentication config (issuer, audience, etc.)"
+        jsonb  route "nullable — route exposure config (host)"
+        string route_address "nullable — read-only; external address populated by control plane"
+        jsonb  labels
+        jsonb  annotations
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Application (GitOps sync — Argo CD for Ambient) ──────────────
+
+    Application {
+        string ID PK "KSUID"
+        string name "unique; human-readable"
+        string source_repo_url "git repository URL"
+        string source_target_revision "branch, tag, or commit SHA"
+        string source_path "path within repo to kustomize overlay"
+        string destination_ambient_url "nullable — target Ambient API URL; null = local"
+        string destination_project "target project name; created if CreateProject=true"
+        string destination_cluster_id FK "nullable — target cluster for reconciled K8s resources; null = local"
+        string credential_id FK "nullable — Credential for remote Ambient auth; required when destination_ambient_url is set"
+        bool   auto_sync "enable automated sync on git change"
+        bool   auto_prune "delete resources removed from git"
+        bool   self_heal "re-sync when live state drifts"
+        string sync_options "comma-separated: CreateProject=true, etc."
+        int    retry_limit "max sync retries on failure"
+        string sync_status "Synced | OutOfSync | Unknown"
+        string health_status "Healthy | Degraded | Progressing | Unknown"
+        string sync_revision "last successfully synced git commit SHA"
+        string operation_phase "Succeeded | Failed | Running | idle"
+        string operation_message "human-readable sync result summary"
+        jsonb  resource_status "per-resource sync/health detail"
+        jsonb  conditions "error conditions array"
+        jsonb  labels
+        jsonb  annotations
+        time   last_synced_at "timestamp of last successful sync"
+        time   created_at
+        time   updated_at
+        time   deleted_at
+    }
+
+    %% ── Relationships ────────────────────────────────────────────────────────
+
+    Project         ||--o{ ProjectSettings  : "has"
+    Project         ||--o{ Agent            : "owns"
+    RoleBinding     }o--o| Credential       : "credential_id"
+    Project         ||--o{ ScheduledSession : "owns"
+
+    User            }o--o{ RoleBinding      : "user_id"
+    Project         }o--o{ RoleBinding      : "project_id"
+
+    RoleBinding     }o--o| Agent            : "agent_id"
+    RoleBinding     }o--o| Session          : "session_id"
+
+    Agent           ||--o{ Session          : "runs"
+    Agent           ||--o| Session          : "current_session"
+    Agent           ||--o{ Inbox            : "receives"
+    Agent           ||--o{ ScheduledSession : "scheduled_by"
+
+    Inbox           }o--o| Agent            : "sent_from"
+
+    Project         ||--o{ Gateway          : "owns"
+    Cluster         ||--o{ Gateway          : "hosts"
+    Cluster         ||--o{ Session          : "runs_on"
+    Cluster         ||--o{ Session          : "gateway_on"
+
+    Application }o--o| Project        : "syncs_to"
+    Application }o--o| Credential     : "credential_id"
+    Application }o--o| Cluster        : "targets"
+
+    Session         ||--o{ SessionMessage   : "streams"
+    Session         ||--o{ SessionEvent     : "emits"
+
+    Role            ||--o{ RoleBinding      : "granted_by"
+```
+
+---
+
+## Cluster — Multi-Cluster Scheduling
+
+A Cluster is a global registration of a Kubernetes cluster endpoint. The control plane uses registered clusters to dispatch workloads (sessions, gateways) to the appropriate infrastructure based on cluster role and placement strategy.
+
+### Cluster Roles
+
+Each cluster declares a `role` that determines what can be scheduled on it:
+
+| Role | Gateways | Sessions | Description |
+|------|----------|----------|-------------|
+| `gateway` | Yes | No | Dedicated gateway infrastructure. Hosts only OpenShell gateways. Sessions are never placed here. |
+| `workload` | No | Yes | Dedicated workload cluster. Hosts only session pods. Gateways are never deployed here. |
+| `hybrid` | Yes | Yes | Hosts both gateways and sessions. Default for backward-compatible single-cluster deployments. |
+
+The local cluster (where the control plane runs) is implicitly registered as `hybrid` with a well-known sentinel ID (`_local`). When `cluster_id` is null on any resource, it resolves to the local cluster. This preserves full backward compatibility — existing single-cluster deployments require zero changes.
+
+### Field Reference
+
+| Field | Notes |
+|-------|-------|
+| `name` | Human-readable, globally unique. The stable address of this cluster registration. |
+| `description` | Nullable. Free-text purpose description (e.g., "US-East gateway cluster"). |
+| `api_server_url` | Kubernetes API server endpoint URL. Used for display and health checks; the actual connection uses `kubeconfig`. |
+| `kubeconfig` | Write-only. Serialized kubeconfig for this cluster. Stored encrypted at rest using the same encryption mechanism as `Credential.token`. Never returned by standard read endpoints. Contains server URL, client certificate/key or bearer token, and CA data. |
+| `role` | Cluster scheduling role: `gateway`, `workload`, or `hybrid`. |
+| `status` | Computed by the ClusterHealthSyncer: `Ready` (API server reachable, auth valid), `NotReady` (unreachable or auth failed), `Unknown` (never checked). |
+| `status_message` | Nullable. Human-readable detail about current status (e.g., "connection refused", "certificate expired"). |
+| `labels` | Queryable key/value tags. Used by PlacementStrategy selectors (e.g., `region=us-east`, `tier=dedicated`, `gpu=true`). |
+| `capacity` | Nullable. JSONB object with reported cluster capacity: `{"cpu": "128", "memory": "512Gi", "gpu": "8"}`. Updated by ClusterHealthSyncer. |
+| `last_heartbeat_at` | Nullable. Timestamp of the last successful health check. Used by PlacementStrategy to exclude stale clusters. |
+
+### Cluster Status Lifecycle
+
+```
+Registered → Unknown → Ready ⇄ NotReady → (soft deleted)
+```
+
+The ClusterHealthSyncer runs on a configurable interval (default: 30 seconds) and probes each registered cluster's API server using its stored kubeconfig. On success, it updates `status=Ready`, `last_heartbeat_at=now()`, and optionally refreshes `capacity` from the cluster's node allocatable resources. On failure, it sets `status=NotReady` with a descriptive `status_message`.
+
+### Cross-Cluster Networking
+
+When sessions run on a different cluster than their gateway, the control plane must route gRPC traffic cross-cluster. The gateway endpoint changes from `svc.cluster.local` (intra-cluster DNS) to the gateway cluster's externally reachable endpoint:
+
+| Topology | Gateway Endpoint |
+|----------|-----------------|
+| Same cluster (gateway + workload on one cluster) | `<service>.<namespace>.svc.cluster.local:<port>` |
+| Different clusters (gateway on cluster A, workload on cluster B) | `<gateway-ingress-url>:<port>` (via Ingress, Route, or LoadBalancer on the gateway cluster) |
+
+When a Gateway resource has `cluster_id` set, the GatewayReconciler SHALL also create an externally reachable Service (LoadBalancer or Ingress/Route) so that workload clusters can reach the gateway. The external endpoint URL is stored in the Gateway's `annotations` (`ambient-code.io/gateway-external-url`) by the GatewayReconciler after the Service is provisioned.
+
+The control plane's `GatewayClient` resolves the endpoint using:
+1. If `Session.gateway_cluster_id == Session.cluster_id` (or both null): use intra-cluster DNS
+2. If different: read `ambient-code.io/gateway-external-url` from the Gateway's annotations
+
+---
+
+## PlacementStrategy — Session-to-Cluster Scheduling
+
+PlacementStrategy is an interface that determines which cluster a session runs on. The control plane invokes PlacementStrategy at session creation time (in `ignite_handler.go`) to set `Session.cluster_id` and `Session.gateway_cluster_id` before the session enters `Pending` phase.
+
+### Interface
+
+```go
+type PlacementStrategy interface {
+    PlaceSession(ctx context.Context, req PlacementRequest) (PlacementDecision, error)
+}
+
+type PlacementRequest struct {
+    ProjectID  string
+    AgentID    string
+    Labels     map[string]string
+    GatewayID  string            // nullable — specific gateway requested
+}
+
+type PlacementDecision struct {
+    ClusterID        string  // workload cluster for the session pod
+    GatewayClusterID string  // gateway cluster; may differ from ClusterID
+}
+```
+
+### Default Implementation: RoundRobinPlacement
+
+The default implementation round-robins across clusters matching the required role:
+
+1. **Gateway cluster selection**: Find all clusters with `role=gateway` or `role=hybrid` and `status=Ready`. If a specific Gateway is associated with the project, use its `cluster_id`. Otherwise, round-robin across eligible gateway clusters.
+
+2. **Workload cluster selection**: Find all clusters with `role=workload` or `role=hybrid` and `status=Ready`. Round-robin across eligible clusters, excluding clusters with `role=gateway` (gateway-only clusters never receive sessions).
+
+3. **Label-based filtering**: If the Agent or Project carries placement labels (e.g., `placement/cluster-selector: gpu=true`), filter the eligible cluster set by matching labels before round-robin.
+
+4. **Fallback**: If no eligible clusters are found, return an error. The session remains in `Pending` phase with a descriptive condition.
+
+### Gateway Affinity
+
+Some deployments require that sessions created through a specific gateway MUST run on the same cluster as that gateway (e.g., when the gateway and session communicate via `svc.cluster.local` without external exposure). This is expressed via a Gateway-level annotation:
+
+```yaml
+kind: Gateway
+name: openshell-gateway
+annotations:
+  ambient-code.io/session-affinity: "colocated"
+```
+
+When `session-affinity: colocated` is set, the PlacementStrategy SHALL place sessions on the same cluster as the gateway (`Session.cluster_id = Session.gateway_cluster_id`). This is the default for backward compatibility — sessions and gateways on the same cluster require no cross-cluster networking.
+
+When `session-affinity: any` is set (or the annotation is absent on a multi-cluster deployment), the PlacementStrategy is free to place sessions on any eligible workload cluster.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PLACEMENT_STRATEGY` | `round-robin` | Active placement strategy name |
+| `PLACEMENT_HEARTBEAT_THRESHOLD` | `120s` | Clusters with `last_heartbeat_at` older than this are excluded from placement |
+
+---
+
+## Application — GitOps Continuous Sync
+
+Application is the Ambient equivalent of an [Argo CD Application](https://argo-cd.readthedocs.io/en/stable/core_concepts/). It binds a git repository source (containing kustomize-based agent fleet definitions) to a destination Ambient instance and project, then continuously reconciles the desired state from git against the live state in the platform.
+
+### Core Concepts (Argo CD Mapping)
+
+| Argo CD Concept | Ambient Equivalent | Description |
+|---|---|---|
+| Application | **Application** | Declarative binding of source → destination |
+| Source (repo + path + revision) | `source_repo_url` + `source_path` + `source_target_revision` | Git repo containing kustomize overlays of Projects, Agents, Credentials, RoleBindings |
+| Application Source Type | Always **Kustomize** | The CLI's built-in kustomize engine renders the manifests |
+| Destination (cluster + namespace) | `destination_ambient_url` + `destination_project` | Target Ambient instance + project name |
+| Target State | Rendered kustomize output | The desired set of Projects, Agents, Credentials, RoleBindings, and Inbox seeds from git |
+| Live State | Current API server state | What actually exists in the destination Ambient's project |
+| Sync Status | `sync_status` | Whether live state matches target state: `Synced`, `OutOfSync`, `Unknown` |
+| Sync Operation | `/sync` sub-resource | The act of applying target state to live state |
+| Refresh | `/refresh` sub-resource | Fetch latest from git, render kustomize, diff against live state |
+| Health | `health_status` | Are all synced agents healthy? `Healthy`, `Degraded`, `Progressing`, `Unknown` |
+| Self-Heal | `self_heal` flag | Re-sync when live state drifts (agent modified via UI, deleted manually) |
+| Prune | `auto_prune` flag | Delete agents/resources from Ambient that no longer exist in git |
+
+### What Gets Synced
+
+An Application syncs **project-scoped fleet definitions** — a subset of resource kinds that `acpctl apply -k` handles (excluding infrastructure inventory kinds like Cluster and Ambient):
+
+| Kind | Sync Behavior |
+|---|---|
+| `Project` | Created if `CreateProject=true` in `sync_options`; patched (description, prompt, labels, annotations) on subsequent syncs |
+| `Agent` | Created or patched within the destination project; prompt, providers, payloads, environment, entrypoint, sandbox_policy, sandbox_template, labels, annotations updated |
+| `Credential` | Created if not present; idempotent by name |
+| `RoleBinding` | Created if not present; idempotent by user+role+scope key. **Escalation-bound:** the sync engine can only create RoleBindings at or below the level of the service credential it uses (see Design Decisions). |
+| `Gateway` | Created or patched within the destination project; image, serverDnsNames, config updated. Reconciled into K8s gateway resources by the GatewayReconciler. |
+| `Cluster` | Created or patched globally; name is the idempotency key. Kubeconfig is only synced if the Credential used by the Application has `platform:admin` scope. |
+| `Policy` | Created or patched within the destination project; spec, labels, annotations updated. Contains the upstream OpenShell `SandboxPolicy` JSON. Referenced by agents via `sandbox_policy` field. |
+| `Inbox` (seed messages) | Idempotent delivery — only new messages (by `from_agent_id` + `body` content hash dedup) are posted. Uses immutable `from_agent_id` FK, not mutable `from_name`. |
+
+### What Does NOT Get Synced
+
+| Kind | Why |
+|---|---|
+| `Session` | Ephemeral run artifact. Created via agent start, not via GitOps. |
+| `SessionMessage` | Append-only event stream. |
+| `ScheduledSession` | Project-scoped trigger config; future sync candidate. |
+| `User` | Identity record. |
+| `Role` | RBAC definition (platform-scoped, not project-scoped). |
+
+### Field Reference
+
+| Field | Notes |
+|---|---|
+| `name` | Unique, human-readable. The stable address of this sync binding. |
+| `source_repo_url` | Git repository URL. HTTPS or SSH. |
+| `source_target_revision` | Branch name, tag, or commit SHA. Default: `main`. |
+| `source_path` | Relative path within the repo to a kustomize directory (must contain `kustomization.yaml`). |
+| `credential_id` | Nullable FK → Credential. The stored credential providing authentication for the destination Ambient's REST API. Required when `destination_ambient_url` is set. Uses the same write-only encrypted storage as all Credentials. The credential's token is resolved at sync time via `GET /credentials/{cred_id}/token` (gated by `credential:token-reader`). Null when targeting the local Ambient (controller uses its own service identity). |
+| `destination_ambient_url` | Nullable. The Ambient API server URL to sync to. Null = local Ambient (this API server). When set, `credential_id` must also be set — async polling controllers have no request context to forward a token from. |
+| `destination_cluster_id` | Nullable FK to Cluster. The target cluster where reconciled Kubernetes resources (namespaces, gateway deployments) are created. Null = local cluster. When set alongside `destination_ambient_url`, the Application syncs fleet definitions to the remote Ambient AND reconciles K8s resources to the specified cluster. |
+| `destination_project` | Target project name. The project is created on first sync if `CreateProject=true` is in `sync_options`. |
+| `auto_sync` | If true, the controller polls the git repo and syncs automatically when changes are detected. If false, sync is manual via `POST /sync`. |
+| `auto_prune` | If true, resources in the live state that are absent from the target state are deleted. If false, orphaned resources are left in place. **WARNING: Pruning a Project is permanently destructive.** All Agents, Sessions, Inbox messages, and SessionMessages in the project are cascade-deleted. The sync engine will never auto-prune a Project — Project removal requires manual confirmation via `POST /sync` with explicit `prune: true` and `prune_project: true` flags. Agent-level pruning operates normally under `auto_prune`. |
+| `self_heal` | If true, the controller re-syncs when live state drifts from target state (e.g., an agent's prompt is changed via the UI). If false, drift is allowed. |
+| `sync_options` | Comma-separated option flags. Initial options: `CreateProject=true`. |
+| `retry_limit` | Max number of automatic retries on sync failure. Default: 3. |
+| `sync_status` | Computed on refresh. `Synced` = live matches target. `OutOfSync` = differences detected. `Unknown` = not yet refreshed. |
+| `health_status` | Computed from synced resources. `Healthy` = all synced resources exist in the destination and match the target state (name, prompt, labels, annotations match git). `Degraded` = one or more synced resources are missing, have field drift from target state, or failed to apply. `Progressing` = sync operation is currently running. `Unknown` = not yet assessed (never refreshed). Health is assessed per-resource and aggregated — any single `Degraded` resource makes the whole application `Degraded`. |
+| `sync_revision` | The git commit SHA of the last successful sync. |
+| `operation_phase` | State of the last sync operation: `Succeeded`, `Failed`, `Running`, or empty if never synced. |
+| `operation_message` | Human-readable summary, e.g. `"3 created, 1 configured, 0 pruned"`. |
+| `resource_status` | JSONB array of per-resource sync results: `[{"kind": "Agent", "name": "lead", "status": "Synced", "health": "Healthy", "message": "configured"}]`. |
+| `conditions` | JSONB array of error conditions: `[{"type": "SyncError", "message": "...", "lastTransitionTime": "..."}]`. |
+| `last_synced_at` | Timestamp of the last successful sync completion. |
+
+### Sync Lifecycle
+
+```
+1. Refresh: clone/fetch repo at source_target_revision
+2. Render:  build kustomize at source_path → flat manifest stream
+3. Diff:    compare rendered manifests against live state in destination project
+4. Sync:    apply creates/patches/deletes to reconcile live → target
+5. Status:  update sync_status, health_status, resource_status, operation_*
+```
+
+For automated sync (`auto_sync=true`), this lifecycle runs on a configurable polling interval (default: 3 minutes). For manual sync, it runs on `POST /api/ambient/v1/applications/{id}/sync`.
+
+### Destination Resolution
+
+```
+Application.destination_ambient_url set?
+  |── null  ──> local Ambient (this API server's own service layer)
+  |            ──> controller uses its own service identity
+  |── set   ──> remote Ambient (SDK client pointed at the URL)
+              ──> credential_id MUST be set (FK → Credential)
+              ──> token resolved at sync time via GET /credentials/{id}/token
+```
+
+When targeting a remote Ambient, the sync engine acts as an API client to the remote Ambient's REST API, authenticated via the stored Credential. The credential is resolved at sync time — the controller never caches tokens beyond a single sync cycle. This is different from how Sessions use kubeconfig for direct K8s provisioning — the Application works entirely at the Ambient API layer.
+
+### Unsupported Kinds in Sync
+
+The kustomize rendering engine (`acpctl apply -k`) supports additional resource kinds beyond what Application syncs (e.g., `Cluster`, `Ambient` — infrastructure inventory kinds). When a rendered kustomize tree contains documents of unsupported kinds, the sync engine **silently skips** them. Each skipped document is recorded in `resource_status` with a `Skipped` status:
+
+```json
+{"kind": "Ambient", "name": "staging-cluster", "status": "Skipped", "health": "Unknown", "message": "infrastructure inventory — not synced by Application"}
+```
+
+This is not an error. The sync operation proceeds with the supported kinds and reports `operation_phase: Succeeded` if all syncable resources apply cleanly.
+
+### Multi-Environment Promotion
+
+Promotion across environments is expressed as **multiple Applications**, each pointing to a different overlay and destination:
+
+```yaml
+## Dev — auto-sync from main, auto-prune
+kind: Application
+name: my-fleet-dev
+source:
+  repo_url: https://gitlab.cee.redhat.com/ambient-code/ambient-code-gitops.git
+  target_revision: main
+  path: ambient/overlays/dev
+destination:
+  ambient_url: null   # local
+  project: my-fleet
+auto_sync: true
+auto_prune: true
+self_heal: true
+
+---
+## Staging — manual sync from release branch, no prune
+kind: Application
+name: my-fleet-staging
+source:
+  repo_url: https://gitlab.cee.redhat.com/ambient-code/ambient-code-gitops.git
+  target_revision: release/v1.2
+  path: ambient/overlays/staging
+destination:
+  ambient_url: https://ambient-staging.apps.example.com
+  credential: staging-ambient-pat   # Credential name; resolved to credential_id
+  project: my-fleet
+auto_sync: false
+auto_prune: false
+self_heal: false
+```
+
+Promotion is a git operation: merge the dev overlay changes into the release branch, then sync the staging Application.
+
+---
+
+## Agent — Project-Scoped Mutable Definition
+
+Agent is scoped to a Project. The stable address is `{project_name}/{agent_name}`.
+
+| Field | Notes |
+|-------|-------|
+| `name` | Human-readable, unique within the project. Used as display name and in addressing. |
+| `display_name` | Nullable. Human-friendly label for UI display; does not affect addressing. |
+| `description` | Nullable. Free-text purpose description. |
+| `prompt` | Defines who the agent is. Mutable via PATCH. Access controlled by RBAC (`agent:editor` or higher). |
+| `repo_url` | Nullable. Primary repository URL cloned into every session the agent starts. Copied to `Session.repo_url` on ignite. |
+| `workflow_id` | Nullable. Default workflow identifier injected into sessions. Copied to `Session.workflow_id` on ignite. |
+| `llm_model` | Active LLM model name. Default: `claude-sonnet-4-6`. Copied to `Session.llm_model` on ignite. |
+| `llm_temperature` | LLM sampling temperature. Default: `0.7`. Copied to `Session.llm_temperature` on ignite. |
+| `llm_max_tokens` | Max tokens per LLM response. `int32`, default: `4000`. Copied to `Session.llm_max_tokens` on ignite. |
+| `bot_account_name` | Nullable. Service account name for git operations inside sessions. Copied to `Session.bot_account_name` on ignite. |
+| `resource_overrides` | Nullable. JSON-encoded pod resource requests/limits override for sessions spawned by this agent. Copied to `Session.resource_overrides` on ignite. |
+| `environment_variables` | Nullable. JSON-encoded extra environment variables injected into session pods. Copied to `Session.environment_variables` on ignite. |
+| `entrypoint` | Nullable. The CLI binary to invoke inside the sandbox (e.g. `claude`). Consumed by the control plane reconciler when building the sandbox exec command. Not propagated to Session. |
+| `providers` | Nullable. JSONB array of provider names bound to this agent (e.g. `["vertex", "github"]`). References provider declarations in the same namespace. The control plane resolves provider secrets and configures credential sidecars or gateway providers at session start. Not propagated to Session. |
+| `payloads` | Nullable. JSONB array of file/repo payloads staged into the sandbox before the agent runs. Each entry specifies a `sandbox_path` and either inline `content` or a `repo_url` + `ref` to clone. Not propagated to Session. |
+| `environment` | Nullable. JSONB object of structured key-value environment variables injected into the sandbox container. Distinct from `environment_variables` (legacy string field). Not propagated to Session. |
+| `sandbox_template` | Nullable. JSONB object specifying sandbox container resource requests (e.g. `{"resources": {"cpu": "2", "memory": "4Gi"}}`). Consumed by the control plane when creating the sandbox via the gateway. Not propagated to Session. |
+| `sandbox_policy` | Nullable. Name of a policy declaration (ConfigMap with `ambient.ai/kind: policy` label) that defines network, filesystem, process, and landlock rules for the sandbox. Not propagated to Session. |
+| `current_session_id` | Denormalized FK to the active Session. Null when no session is running. Used by Project Home for fast reads. |
+
+**Agent is mutable.** PATCH updates in place. There is no versioning. If you need to track prompt history, use `labels`/`annotations` or an external audit log.
+
+**Field propagation on ignite:** When `POST /agents/{id}/start` creates a new Session, the `ignite_handler` copies `repo_url`, `workflow_id`, `llm_model`, `llm_temperature`, `llm_max_tokens`, `bot_account_name`, `resource_overrides`, and `environment_variables` from the Agent to the new Session. The start request body accepts `prompt` (overrides the agent's standing instructions for this run) and `stop_on_run_finished` (boolean — when `true`, the sandbox is deprovisioned after the runner exec finishes). `stop_on_run_finished` must be set at session creation time because the control plane injects it as an env var during sandbox provisioning; PATCHing it after start is too late for the runner to act on.
+
+**Sandbox fields (not propagated):** The six sandbox-related fields (`entrypoint`, `providers`, `payloads`, `environment`, `sandbox_template`, `sandbox_policy`) are consumed directly by the control plane reconciler when building the OpenShell gateway sandbox — they are not copied to the Session model. The control plane reads them from the Agent record at reconcile time. These fields can be declared via `acpctl apply -k` with native ACP kinds for declarative fleet management. The `sandbox_policy` field references a `Policy` resource by name within the same project — policies are applied separately via `acpctl apply` as `kind: Policy` documents.
+
+```
+POST /projects/{id}/agents          → create agent in this project
+PATCH /projects/{id}/agents/{id}    → update agent (name, prompt, labels, annotations)
+GET /projects/{id}/agents/{id}      → read agent
+DELETE /projects/{id}/agents/{id}   → soft delete
+```
+
+Only one active Session per Agent at a time. Start is idempotent — if an active session exists, start returns it. If not, a new session is created.
+
+---
+
+## Inbox — Persistent Message Queue
+
+Inbox messages are addressed to an Agent (`agent_id`). They are distinct from Session Messages:
+
+| | Inbox | SessionMessage |
+|--|-------|----------------|
+| Scope | Agent (persists across sessions) | Session (ephemeral) |
+| Created by | Human or another Agent | LLM turn / runner gRPC push |
+| Drained | At session start | Never — append-only stream |
+| Purpose | Queued intent waiting for next run | Real LLM event stream |
+
+At session start, all unread Inbox messages are drained: marked `read=true` and injected as context into the Session prompt before the first SessionMessage turn.
+
+---
+
+## Session — Ephemeral Run
+
+Sessions are **not directly creatable**. They are run artifacts created exclusively via `POST /projects/{project_id}/agents/{agent_id}/start`.
+
+`Session.prompt` scopes the task for this specific run — separate from `Agent.prompt` which defines who the agent is.
+
+```
+Project.prompt  → "This workspace builds the Ambient platform API server in Go."
+Agent.prompt    → "You are a backend engineer specializing in Go APIs..."
+Inbox messages  → "Please also review the RBAC middleware while you're in there"
+Session.prompt  → "Implement the session messages handler. Repo: github.com/..."
+```
+
+All four are assembled into the start context in that order. Pokes roll downhill.
+
+### Sandbox Snapshot Fields
+
+| Field | Type | Written by | Purpose |
+|-------|------|-----------|---------|
+| `sandbox_logs_snapshot` | TEXT (nullable) | CP `PodStatusSyncer` + pre-delete snapshot | JSON array of `SandboxLogEntry` — the last 500 log lines from the OpenShell gateway |
+| `sandbox_policy_snapshot` | TEXT (nullable) | CP `PodStatusSyncer` + pre-delete snapshot | JSON `SandboxPolicyResponse` envelope — the full effective sandbox policy |
+
+Both fields are **read-only from the API perspective** — they are set exclusively by the control plane via `UpdateStatus` patches. The CP writes them on every 15s sync cycle and as a final snapshot before sandbox deletion. The UI reads them to display historical sandbox data for terminal sessions (Stopped, Completed, Failed). The UI reads them to display historical sandbox data for terminal sessions (Stopped, Completed, Failed).
+
+---
+
+## SessionMessage — High-Level Conversation (Messages API)
+
+SessionMessages provide a **concise, human-readable** view of the conversation. This is the Messages API — prompts, replies, and high-level tool invocations summarized for human consumption.
+
+`seq` is monotonically increasing within a session, using an **independent counter** from `SessionEvent.seq` (the two tables serve different APIs at different granularities and must not share a sequence). `event_type` uses **simplified legacy types** (distinct from AG-UI event types used in SessionEvent):
+
+**Messages API Event Types** (6 types):
+- `user` — User prompt or message
+- `assistant` — Agent reply or response
+- `tool_use` — Tool invocation summary
+- `tool_result` — Tool execution result summary
+- `system` — System notification or status
+- `error` — Error condition
+
+These are **not** AG-UI event types. For the complete AG-UI protocol with 33 granular event types, see SessionEvent below.
+
+SessionMessages are never deleted or edited. They represent the conversation summary — what the user asked, what the agent replied, which tools were used.
+
+**Examples:**
+- User message: `"Please review the PR and suggest improvements"`
+- Assistant message: `"I'll review the pull request. Let me read the files."`
+- Tool use: `Read(file_path="src/main.go")`
+- Tool result: Summary of file contents
+
+**REST API:**
+```
+GET    /api/ambient/v1/sessions/{id}/messages     # List conversation messages (paginated)
+POST   /api/ambient/v1/sessions/{id}/messages     # Push user message
+```
+
+**gRPC:**
+```
+rpc PushSessionMessage(PushSessionMessageRequest) returns (SessionMessage)
+rpc WatchSessionMessages(WatchSessionMessagesRequest) returns (stream SessionMessage)
+```
+
+---
+
+## SessionEvent — Comprehensive Event Stream (Events API)
+
+SessionEvents provide the **complete, granular** AG-UI event stream emitted during session execution. This is the Events API — every tool call, every thinking token, every content delta, every state transition.
+
+`seq` is monotonically increasing within a session (gaps allowed after compression), using an **independent counter** from `SessionMessage.seq`. The two tables serve different APIs at different granularities and compress at different rates — sharing a counter would create false ordering dependencies. `event_type` follows the full AG-UI protocol with 33 event types.
+
+SessionEvents are never deleted or edited. They are the canonical **audit trail** of everything that happened during a session — ideal for debugging, replays, analytics, and compliance.
+
+**Examples:**
+- `RUN_STARTED` — session execution began
+- `TEXT_MESSAGE_START` (role=assistant, message_id=msg_abc) — assistant started a message
+- `TEXT_MESSAGE_CONTENT` (content="Let me check") — assistant emitted text (compressed from many deltas)
+- `TOOL_CALL_START` (tool_name=Read, tool_call_id=tc_123) — tool invocation started
+- `TOOL_CALL_ARGS` (args='{"file_path":"/app/main.go"}') — tool arguments (compressed from fragments)
+- `TOOL_CALL_END` — tool invocation complete
+- `TOOL_CALL_RESULT` (result="package main...") — tool execution result
+- `THINKING_TEXT_MESSAGE_CONTENT` — extended thinking content (Claude 4+)
+- `REASONING_MESSAGE_CONTENT` — reasoning trace (Gemini Deep Research)
+- `RUN_FINISHED` — session execution completed
+
+### Messages API vs Events API
+
+| Aspect | Messages API (`session_messages`) | Events API (`session_events`) |
+|--------|-----------------------------------|-------------------------------|
+| **Purpose** | Human-readable conversation summary | Complete AG-UI event audit trail |
+| **Granularity** | Message-level (prompts, replies, tool summaries) | Token-level (every delta, every event) |
+| **Audience** | End users, conversation history UIs | Developers, debugging, analytics, compliance |
+| **Event Types** | 6 simplified types (user, assistant, tool_use, etc.) | 33 AG-UI event types (TEXT_MESSAGE_START, TOOL_CALL_ARGS, etc.) |
+| **Volume** | ~10-100 messages per session | ~1,000-20,000 events per session (compressed) |
+| **Compression** | No compression needed | Context-aware compression (5:1 to 20:1) |
+| **Streaming** | gRPC watch + replay from DB | SSE proxy to runner pod (ephemeral) + persisted compressed events |
+
+### Three Event Streams
+
+| Endpoint | Source | Persistence | Purpose |
+|---|---|---|---|
+| `GET /sessions/{id}/messages` | gRPC `PushSessionMessage` | `session_messages` table | **Messages API** — human-readable conversation |
+| `GET /sessions/{id}/events` | Runner pod SSE (`/events/{thread_id}`) | Ephemeral in-memory queue | **Live Events** — real-time AG-UI events during active run |
+| `GET /sessions/{id}/events/history` | gRPC `PushSessionEvent` | `session_events` table | **Events API** — complete persisted event audit trail |
+
+The runner's `/events/{thread_id}` endpoint streams live AG-UI events via SSE during an active run. The API server proxies this from the runner pod (`GET /sessions/{id}/events`). These are **ephemeral** — disappear when the session ends.
+
+Simultaneously, the runner's gRPC client pushes **compressed events** to `session_events` table for durable storage. These power the **Events API** (`GET /sessions/{id}/events/history`) for post-session replay, debugging, and analysis.
+
+### Events API — Storage and Compression
+
+The Events API stores the complete AG-UI event stream in the `session_events` table. Events are the atomic units of session execution: text deltas, tool calls, thinking blocks, state updates, and control flow markers.
+
+#### AG-UI Event Types
+
+Events follow the [AG-UI protocol](https://github.com/anthropics/ag-ui), a streaming protocol for agentic UIs. The protocol defines 33 event types organized into semantic categories:
+
+| Category | Event Types | Purpose |
+|----------|-------------|--------|
+| **Run Lifecycle** | `RUN_STARTED`, `RUN_FINISHED`, `RUN_ERROR` | Session execution boundaries |
+| **Step Lifecycle** | `STEP_STARTED`, `STEP_FINISHED` | Multi-step execution boundaries (LangGraph pattern) |
+| **Text Messages** | `TEXT_MESSAGE_START`, `TEXT_MESSAGE_CONTENT`, `TEXT_MESSAGE_END`, `TEXT_MESSAGE_CHUNK` | User or assistant text content |
+| **Tool Calls** | `TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_END`, `TOOL_CALL_CHUNK`, `TOOL_CALL_RESULT` | Tool invocations and results |
+| **Thinking** | `THINKING_START`, `THINKING_END`, `THINKING_TEXT_MESSAGE_START`, `THINKING_TEXT_MESSAGE_CONTENT`, `THINKING_TEXT_MESSAGE_END` | Extended thinking blocks (Claude 4+ models) |
+| **Reasoning** | `REASONING_START`, `REASONING_END`, `REASONING_MESSAGE_START`, `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_END`, `REASONING_MESSAGE_CHUNK`, `REASONING_ENCRYPTED_VALUE` | Reasoning trace (Gemini 2.5+ Deep Research) |
+| **State** | `STATE_SNAPSHOT`, `STATE_DELTA`, `MESSAGES_SNAPSHOT`, `ACTIVITY_SNAPSHOT`, `ACTIVITY_DELTA` | Bidirectional state sync (LangGraph pattern) |
+| **Custom** | `RAW`, `CUSTOM` | Framework-specific or debug events |
+
+Each event carries:
+- `type` — event type from the enum above
+- `run_id` — AG-UI run identifier (scoped to a single execution turn)
+- `thread_id` — session identifier (maps to `session_id` in DB)
+- Payload fields specific to the event type (e.g., `message_id`, `tool_id`, `content`, `args`)
+
+**Note on Event Naming:** Thinking and Reasoning events are prefixed variants of base text message types. For example, `THINKING_TEXT_MESSAGE_CONTENT` is a distinct event type from `TEXT_MESSAGE_CONTENT`, emitted during extended thinking blocks. The prefixes indicate the semantic context (regular message vs thinking vs reasoning).
+
+**Start/End Pairing:** Events with `_START` / `_END` suffixes define stream boundaries. Content events (`_CONTENT`, `_ARGS`, `_CHUNK`) appear between their corresponding start/end markers.
+
+**Example sequence:**
+```
+RUN_STARTED
+├── TEXT_MESSAGE_START (role=assistant, message_id=msg_abc)
+│   ├── TEXT_MESSAGE_CONTENT (content="Let me")
+│   ├── TEXT_MESSAGE_CONTENT (content=" check")
+│   └── TEXT_MESSAGE_END
+├── TOOL_CALL_START (tool_name=Read, tool_call_id=tc_123)
+│   ├── TOOL_CALL_ARGS (args='{"file')
+│   ├── TOOL_CALL_ARGS (args='_path":')
+│   ├── TOOL_CALL_ARGS (args='"/app/file.txt"}')
+│   └── TOOL_CALL_END
+├── TOOL_CALL_RESULT (tool_call_id=tc_123, result="file contents...")
+└── RUN_FINISHED
+```
+
+#### Event Compression
+
+AG-UI events stream at **token-level granularity** — a single word or JSON fragment can emit one event. Without compression, sessions generate thousands of tiny rows (e.g., `TEXT_MESSAGE_CONTENT` with `"Let"`, then `" me"`, then `" check"`). This creates storage bloat and query overhead.
+
+**Compression Strategy — Context-Aware Accumulation:**
+
+Events are compressed **before persistence** by the runner's gRPC client. Compression groups consecutive events sharing the same **context** (message_id, tool_call_id, role). When the context changes or a boundary event arrives, the accumulated content is flushed as a single compressed event.
+
+**Compression Rules:**
+
+| Event Type | Compression Behavior |
+|------------|---------------------|
+| `TEXT_MESSAGE_START` | **Boundary** — flushes prior accumulated content; starts new message context |
+| `TEXT_MESSAGE_CONTENT` | **Accumulate** — append `content` to buffer within current message context |
+| `TEXT_MESSAGE_END` | **Boundary** — flushes accumulated content; ends message context |
+| `TOOL_CALL_START` | **Boundary** — starts new tool call context |
+| `TOOL_CALL_ARGS` | **Accumulate** — append `args` fragment to buffer within current tool context |
+| `TOOL_CALL_END` | **Boundary** — flushes accumulated args; ends tool context |
+| `TEXT_MESSAGE_CHUNK` | **Pass-through** — complete message in one event (no START/END wrapper); stored as-is |
+| `TOOL_CALL_CHUNK` | **Pass-through** — complete tool call in one event (no START/END wrapper); stored as-is |
+| `THINKING_TEXT_MESSAGE_CONTENT` | **Accumulate** — within thinking message context |
+| `REASONING_MESSAGE_CONTENT` | **Accumulate** — within reasoning message context |
+| All `_START`, `_END`, `_RESULT`, run/step lifecycle | **Never compressed** — stored as individual events |
+
+**Accumulation Assumption:** `_CONTENT` and `_ARGS` fragments are raw character slices of a single value, not semantically complete units. The compressor concatenates them verbatim. For `TOOL_CALL_ARGS`, the accumulated result MUST be valid JSON — the compressor SHOULD validate the accumulated string before flushing and reject malformed payloads rather than persisting silently invalid data.
+
+**Context Definition:**
+- Text messages: `(message_id, role)`
+- Tool calls: `(tool_call_id)`
+- Thinking: `(message_id, thinking_id)`
+- Reasoning: `(message_id, reasoning_id)`
+
+**Flush Triggers:**
+1. Context change (new message_id / tool_call_id)
+2. Boundary event (`_START`, `_END`)
+3. Event type transition (TEXT → TOOL, TOOL → TEXT)
+4. Buffer size threshold (optional; e.g., 10 KB per compressed event)
+5. Time threshold (optional; e.g., 5 seconds idle)
+
+**Metadata Preservation:**
+- `created_at` — timestamp of the **first** event in the compressed group
+- `completed_at` — timestamp of the **last** event (new field on `SessionMessage`)
+- `event_count` — number of raw events compressed into this row (new field)
+
+**Example — Before Compression:**
+```json
+{"seq":10, "event_type":"TEXT_MESSAGE_START", "payload":"{\"message_id\":\"msg_1\",\"role\":\"assistant\"}"}
+{"seq":11, "event_type":"TEXT_MESSAGE_CONTENT", "payload":"{\"content\":\"Let\"}"}
+{"seq":12, "event_type":"TEXT_MESSAGE_CONTENT", "payload":"{\"content\":\" me\"}"}
+{"seq":13, "event_type":"TEXT_MESSAGE_CONTENT", "payload":"{\"content\":\" check\"}"}
+{"seq":14, "event_type":"TEXT_MESSAGE_END", "payload":"{}"}
+```
+
+**After Compression (with gaps):**
+```json
+{"seq":10, "event_type":"TEXT_MESSAGE_START", "payload":"{\"message_id\":\"msg_1\",\"role\":\"assistant\"}"}
+{"seq":11, "event_type":"TEXT_MESSAGE_CONTENT", "payload":"{\"content\":\"Let me check\"}", "event_count":3, "completed_at":"2026-05-21T..."}
+{"seq":14, "event_type":"TEXT_MESSAGE_END", "payload":"{}"}
+```
+
+**Note:** Sequence numbers preserve gaps after compression (11 → 14) to avoid renumbering all subsequent events. This makes compression idempotent and prevents race conditions with concurrent event streams.
+
+**Space Savings:** Typical compression ratios range from **5:1** (simple text) to **20:1** (complex tool arguments with many JSON fragments).
+
+**Backward Compatibility:** Existing queries and APIs continue to work. Compression is transparent to readers — gaps in `seq` indicate compressed ranges.
+
+#### Storage Model
+
+Compressed events are stored in the `session_events` table:
+
+```sql
+CREATE TABLE session_events (
+    id           VARCHAR(36) PRIMARY KEY,
+    session_id   VARCHAR(36) NOT NULL REFERENCES sessions(id),
+    seq          BIGINT NOT NULL,
+    event_type   VARCHAR(255) NOT NULL,
+    payload      TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,          -- timestamp of last event in compressed group (NULL for uncompressed)
+    event_count  INT DEFAULT 1,        -- number of raw events compressed (1 = uncompressed, >1 = compressed)
+    UNIQUE(session_id, seq)
+);
+
+CREATE INDEX idx_session_events_session_id ON session_events(session_id);
+CREATE INDEX idx_session_events_event_type ON session_events(event_type);
+CREATE INDEX idx_session_events_created_at ON session_events(created_at);
+CREATE INDEX idx_session_events_completed_at ON session_events(completed_at);
+```
+
+The `completed_at` index supports time-range queries that filter on the end-timestamp of compressed groups (e.g., "all events active during window T1–T2" requires `WHERE created_at <= T2 AND completed_at >= T1`).
+
+#### Migration from Current State
+
+**Database Schema Changes** (API server):
+
+1. Create `session_events` table with compression fields:
+   ```sql
+   -- New table creation (no existing data to migrate)
+   CREATE TABLE session_events (
+       id           VARCHAR(36) PRIMARY KEY,
+       session_id   VARCHAR(36) NOT NULL REFERENCES sessions(id),
+       seq          BIGINT NOT NULL,
+       event_type   VARCHAR(255) NOT NULL,
+       payload      TEXT NOT NULL,
+       created_at   TIMESTAMPTZ NOT NULL,
+       completed_at TIMESTAMPTZ,
+       event_count  INT DEFAULT 1,
+       UNIQUE(session_id, seq)
+   );
+
+   CREATE INDEX idx_session_events_session_id ON session_events(session_id);
+   CREATE INDEX idx_session_events_event_type ON session_events(event_type);
+   CREATE INDEX idx_session_events_created_at ON session_events(created_at);
+   CREATE INDEX idx_session_events_completed_at ON session_events(completed_at);
+   ```
+
+2. No schema changes required for `session_messages` table (Messages API unchanged).
+
+**Backward Compatibility:**
+- Compression is opt-in at the runner gRPC client level
+- Legacy runners can continue pushing uncompressed events indefinitely (`event_count=1`, `completed_at=NULL`)
+- API server accepts both compressed and uncompressed events transparently
+- Existing `session_messages` table and Messages API remain unchanged
+
+**Field Semantics:**
+
+| Field | Description |
+|-------|-------------|
+| `seq` | Monotonic sequence within session; gaps allowed after compression |
+| `event_type` | AG-UI event type enum (33 types: RUN_STARTED, TEXT_MESSAGE_START, TOOL_CALL_ARGS, etc.) |
+| `payload` | JSON-encoded event payload; structure varies by event type |
+| `created_at` | First event timestamp (for compressed events) or single event timestamp |
+| `completed_at` | Last event timestamp for compressed events; `NULL` for uncompressed |
+| `event_count` | Number of raw events compressed; `1` = uncompressed, `>1` = compressed |
+
+#### API Endpoints
+
+**Messages API** (human-readable conversation):
+```
+GET    /api/ambient/v1/sessions/{id}/messages                # List conversation messages (paginated)
+POST   /api/ambient/v1/sessions/{id}/messages                # Push user message (HTTP; validated as event_type=user)
+```
+
+**Events API** (comprehensive AG-UI event stream):
+```
+GET    /api/ambient/v1/sessions/{id}/events                  # SSE proxy to runner pod (live, ephemeral, active sessions only)
+GET    /api/ambient/v1/sessions/{id}/events/history          # List persisted compressed events (paginated)
+```
+
+**Query Parameters (GET /events/history):**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `after_seq` | int64 | Return events with `seq > after_seq` (for replay/catch-up) |
+| `event_type` | string | Filter by AG-UI event type (e.g., `TOOL_CALL_START`, `TEXT_MESSAGE_CONTENT`) |
+| `limit` | int | Max events to return (default 100, max 1000) |
+| `start_time` | ISO8601 | Filter events created after this timestamp |
+| `end_time` | ISO8601 | Filter events created before this timestamp |
+
+**Response (GET /events/history):**
+```json
+{
+  "items": [
+    {
+      "id": "01HXY...",
+      "session_id": "2abc...",
+      "seq": 42,
+      "event_type": "TEXT_MESSAGE_CONTENT",
+      "payload": "{\"content\":\"Let me check the file\"}",
+      "created_at": "2026-05-21T10:00:00Z",
+      "completed_at": "2026-05-21T10:00:02Z",
+      "event_count": 8
+    },
+    {
+      "id": "01HXZ...",
+      "session_id": "2abc...",
+      "seq": 43,
+      "event_type": "TOOL_CALL_START",
+      "payload": "{\"tool_name\":\"Read\",\"tool_call_id\":\"tc_123\"}",
+      "created_at": "2026-05-21T10:00:02Z",
+      "completed_at": null,
+      "event_count": 1
+    }
+  ],
+  "page": 1,
+  "size": 100,
+  "total": 15234
+}
+```
+
+#### gRPC Protocol
+
+**Messages API** (concise conversation):
+```protobuf
+// Push a human-readable message to the conversation
+rpc PushSessionMessage(PushSessionMessageRequest) returns (SessionMessage)
+
+message PushSessionMessageRequest {
+  string session_id = 1;
+  string event_type = 2;  // Simplified: user | assistant | tool_use | tool_result | system | error
+  string payload = 3;     // Message body or summary
+}
+
+message SessionMessage {
+  string id = 1;
+  string session_id = 2;
+  int64 seq = 3;
+  string event_type = 4;
+  string payload = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+```
+
+**Events API** (comprehensive AG-UI stream):
+```protobuf
+// Push a compressed AG-UI event to the audit trail
+rpc PushSessionEvent(PushSessionEventRequest) returns (SessionEvent)
+
+message PushSessionEventRequest {
+  string session_id = 1;
+  string event_type = 2;                               // AG-UI event type (33 types)
+  string payload = 3;                                  // JSON-encoded event payload
+  optional google.protobuf.Timestamp completed_at = 4; // Last event timestamp (for compressed events)
+  optional int32 event_count = 5;                      // Number of events compressed (default 1)
+}
+
+message SessionEvent {
+  string id = 1;
+  string session_id = 2;
+  int64 seq = 3;
+  string event_type = 4;
+  string payload = 5;
+  google.protobuf.Timestamp created_at = 6;
+  optional google.protobuf.Timestamp completed_at = 7;
+  int32 event_count = 8;
+}
+```
+
+**Compression in gRPC Client:**
+
+The runner's gRPC client (`ambient-runner` Python package) implements compression **before** calling `PushSessionEvent`. The compressor maintains:
+- **Context stack** — tracks active message_id, tool_call_id, thinking_id, reasoning_id
+- **Accumulation buffer** — collects content/args fragments for current context
+- **Flush logic** — detects boundary events and context transitions
+
+When a flush occurs, the compressor:
+1. Concatenates accumulated fragments into a single payload
+2. Attaches `event_count` and `completed_at` metadata
+3. Calls `PushSessionEvent` once with the compressed event
+4. Resets the accumulation buffer
+
+**Dual Push Pattern:**
+
+Runners emit **both** messages and events:
+- `PushSessionMessage` — high-level conversation turns (user prompts, assistant replies, tool summaries)
+- `PushSessionEvent` — every AG-UI event (text deltas, tool args, thinking tokens, all compressed)
+
+This provides both human-readable conversation history and complete audit trail.
+
+**Implementation Note:** Compression is **opt-in per runner framework**. Legacy runners can push uncompressed events (stored with `event_count=1`). The API server and database accept both formats transparently.
+
+---
+
+## ScheduledSession — Recurring Agent Trigger
+
+A `ScheduledSession` is a project-scoped definition that ignites an Agent on a recurring cron schedule. Each trigger creates a new Session with `session_prompt` injected as the task scope for that run.
+
+| Field | Notes |
+|-------|-------|
+| `name` | Human-readable, unique within the project. |
+| `agent_id` | Which Agent to ignite. Nullable — if NULL, creates a project-scoped session. |
+| `schedule` | Standard cron expression (e.g. `"0 9 * * 1-5"` = 9 AM on weekdays). Validated at write time. |
+| `timezone` | IANA timezone string (e.g. `"America/New_York"`). Defaults to `UTC`. |
+| `enabled` | `false` suspends evaluation without deleting the schedule. |
+| `overlap_policy` | `"skip"` (default) or `"allow"`. Controls whether a new session is created when the previous run from this schedule is still active. |
+| `session_prompt` | Injected as `Session.prompt` on each trigger — the recurring task. |
+| `last_run_at` | Wall-clock time of the last trigger. Null if never triggered. |
+| `next_run_at` | Computed from `schedule` + `timezone`. Updated after each trigger. NULL when `enabled = false`. |
+
+**Trigger semantics:** Each trigger creates a Session directly via the internal session service (same code path as `ignite_handler.go`). The `overlap_policy` field controls behavior when a previous session from the same schedule is still active: `skip` (default) advances `next_run_at` without creating a new session; `allow` creates a new session regardless. See [Scheduled Session Execution spec](scheduled-session-execution.spec.md) for full execution semantics.
+
+**Manual trigger:** `POST .../trigger` ignites the Agent immediately outside the cron schedule, using the same `session_prompt`. Useful for testing or one-off runs.
+
+**Suspend / Resume:** `POST .../suspend` sets `enabled=false`; `POST .../resume` sets `enabled=true`. These are named convenience actions equivalent to `PATCH {enabled: false|true}`.
+
+---
+
+## CLI Reference (`acpctl`)
+
+The `acpctl` CLI mirrors the API 1-for-1. Every REST operation has a corresponding command.
+
+### API ↔ CLI Mapping
+
+#### Projects
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /projects` | `acpctl get projects` | ✅ implemented |
+| `GET /projects/{id}` | `acpctl get project <name>` | ✅ implemented |
+| `POST /projects` | `acpctl create project --name <n> [--description <d>]` | ✅ implemented |
+| `PATCH /projects/{id}` | `acpctl project update [--name <n>] [--description <d>] [--prompt <p>]` | ✅ implemented |
+| `DELETE /projects/{id}` | `acpctl delete project <name>` | ✅ implemented |
+| _(context switch)_ | `acpctl project <name>` | ✅ implemented |
+| _(context view)_ | `acpctl project current` | ✅ implemented |
+
+#### Agents (Project-Scoped)
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /projects/{id}/agents` | `acpctl agent list --project <p>` | ✅ implemented |
+| `GET /projects/{id}/agents/{agent_id}` | `acpctl agent get --project <p> --agent-id <id>` | ✅ implemented |
+| `POST /projects/{id}/agents` | `acpctl agent create --project <p> --name <n> [--prompt <p>]` | ✅ implemented |
+| `PATCH /projects/{id}/agents/{agent_id}` | `acpctl agent update --project <p> --agent-id <id> [--name <n>] [--prompt <p>]` | ✅ implemented |
+| `DELETE /projects/{id}/agents/{agent_id}` | `acpctl agent delete --project <p> --agent-id <id> --yes` | ✅ implemented |
+| `POST /projects/{id}/agents/{agent_id}/start` | `acpctl start <agent-id> --project <p> [--prompt <t>]` | ✅ implemented |
+| `GET /projects/{id}/agents/{agent_id}/start` | `acpctl agent start-preview --project <p> --agent-id <id>` | ✅ implemented |
+| `GET /projects/{id}/agents/{agent_id}/sessions` | `acpctl agent sessions --project <p> --agent-id <id>` | ✅ implemented |
+| `GET /projects/{id}/agents/{agent_id}/inbox` | `acpctl inbox list --project <p> --pa-id <id>` | ✅ implemented |
+| `POST /projects/{id}/agents/{agent_id}/inbox` | `acpctl inbox send --project <p> --pa-id <id> --body <text>` | ✅ implemented |
+| `PATCH /projects/{id}/agents/{agent_id}/inbox/{msg_id}` | `acpctl inbox mark-read --project <p> --pa-id <id> --msg-id <id>` | ✅ implemented |
+| `DELETE /projects/{id}/agents/{agent_id}/inbox/{msg_id}` | `acpctl inbox delete --project <p> --pa-id <id> --msg-id <id>` | ✅ implemented |
+
+#### Sessions
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /sessions` | `acpctl get sessions` | ✅ implemented |
+| `GET /sessions` | `acpctl get sessions -w` | ✅ implemented (gRPC watch) |
+| `GET /sessions/{id}` | `acpctl get session <id>` | ✅ implemented |
+| `GET /sessions/{id}` | `acpctl describe session <id>` | ✅ implemented |
+| `DELETE /sessions/{id}` | `acpctl delete session <id>` | ✅ implemented |
+| `GET /sessions/{id}/messages` | `acpctl session messages <id>` | ✅ implemented |
+| `POST /sessions/{id}/messages` | `acpctl session send <id> <message>` | ✅ implemented |
+| `POST /sessions/{id}/messages` + `GET /sessions/{id}/events` | `acpctl session send <id> <message> -f` | ✅ implemented |
+| `POST /sessions/{id}/messages` + `GET /sessions/{id}/events` | `acpctl session send <id> <message> -f --json` | ✅ implemented |
+| `GET /sessions/{id}/events` | `acpctl session events <id>` | ✅ implemented |
+
+#### ScheduledSessions (Project-Scoped)
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /projects/{id}/scheduled-sessions` | `acpctl scheduled-session list` | ✅ implemented |
+| `GET /projects/{id}/scheduled-sessions/{sched_id}` | `acpctl scheduled-session get <name>` | ✅ implemented |
+| `POST /projects/{id}/scheduled-sessions` | `acpctl scheduled-session create --name <n> --agent-id <a> --schedule <cron> [--prompt <p>] [--timezone <tz>]` | ✅ implemented |
+| `PATCH /projects/{id}/scheduled-sessions/{sched_id}` | `acpctl scheduled-session update <name> [--schedule <cron>] [--prompt <p>] [--enabled=false]` | ✅ implemented |
+| `DELETE /projects/{id}/scheduled-sessions/{sched_id}` | `acpctl scheduled-session delete <name> --yes` | ✅ implemented |
+| `POST .../suspend` | `acpctl scheduled-session suspend <name>` | ✅ implemented |
+| `POST .../resume` | `acpctl scheduled-session resume <name>` | ✅ implemented |
+| `POST .../trigger` | `acpctl scheduled-session trigger <name>` | ✅ implemented |
+| `GET .../runs` | `acpctl scheduled-session runs <name>` | ✅ implemented |
+
+#### Session Operations
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /sessions/{id}/workspace` | `acpctl session workspace list <id>` | 🔲 planned |
+| `GET /sessions/{id}/workspace/*path` | `acpctl session workspace get <id> <path>` | 🔲 planned |
+| `PUT /sessions/{id}/workspace/*path` | `acpctl session workspace put <id> <path> [--file <f>]` | 🔲 planned |
+| `DELETE /sessions/{id}/workspace/*path` | `acpctl session workspace delete <id> <path>` | 🔲 planned |
+| `GET /sessions/{id}/files` | `acpctl session files list <id>` | 🔲 planned |
+| `PUT /sessions/{id}/files/*path` | `acpctl session files upload <id> <path> [--file <f>]` | 🔲 planned |
+| `DELETE /sessions/{id}/files/*path` | `acpctl session files delete <id> <path>` | 🔲 planned |
+| `GET /sessions/{id}/git/status` | `acpctl session git status <id>` | 🔲 planned |
+| `POST /sessions/{id}/git/configure-remote` | `acpctl session git configure-remote <id>` | 🔲 planned |
+| `GET /sessions/{id}/git/branches` | `acpctl session git branches <id>` | 🔲 planned |
+| `GET /sessions/{id}/repos/status` | `acpctl session repos list <id>` | 🔲 planned |
+| `POST /sessions/{id}/repos` | `acpctl session repos add <id> --repo <url>` | 🔲 planned |
+| `DELETE /sessions/{id}/repos/{name}` | `acpctl session repos remove <id> <repo>` | 🔲 planned |
+| `POST /sessions/{id}/clone` | `acpctl session clone <id> [--name <n>]` | 🔲 planned |
+| `POST /sessions/{id}/model` | `acpctl session model <id> --model <m>` | 🔲 planned |
+| `GET /sessions/{id}/export` | `acpctl session export <id>` | 🔲 planned |
+| `GET /sessions/{id}/pod-events` | `acpctl session pod-events <id>` | 🔲 planned |
+| `GET /sessions/{id}/tasks` | `acpctl session tasks <id>` | 🔲 planned |
+| `POST /sessions/{id}/tasks/{task_id}/stop` | `acpctl session tasks stop <id> <task-id>` | 🔲 planned |
+| `GET /sessions/{id}/tasks/{task_id}/output` | `acpctl session tasks output <id> <task-id>` | 🔲 planned |
+
+#### Applications (GitOps)
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /applications` | `acpctl get applications` | 🔲 planned |
+| `GET /applications/{id}` | `acpctl get application <name>` | 🔲 planned |
+| `POST /applications` | `acpctl create application --name <n> --repo <url> --path <p> [--revision <r>] [--project <p>] [--ambient-url <u>]` | 🔲 planned |
+| `PATCH /applications/{id}` | `acpctl update application <name> [--repo <url>] [--path <p>] [--auto-sync] [--auto-prune] [--self-heal]` | 🔲 planned |
+| `DELETE /applications/{id}` | `acpctl delete application <name> --yes` | 🔲 planned |
+| `POST /applications/{id}/sync` | `acpctl sync application <name> [--prune] [--revision <r>]` | 🔲 planned |
+| `POST /applications/{id}/refresh` | `acpctl refresh application <name>` | 🔲 planned |
+| `GET /applications/{id}/status` | `acpctl get application <name> -o wide` | 🔲 planned |
+
+#### Credentials (Global)
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /credentials` | `acpctl credential list [--provider <p>]` | ✅ implemented |
+| `POST /credentials` | `acpctl credential create --name <n> --provider <p> --token <t\|@->  [--url <u>] [--email <e>] [--description <d>]` | ✅ implemented |
+| `GET /credentials/{cred_id}` | `acpctl credential get <id>` | ✅ implemented |
+| `PATCH /credentials/{cred_id}` | `acpctl credential update <id> [--token <t>] [--description <d>]` | ✅ implemented |
+| `DELETE /credentials/{cred_id}` | `acpctl credential delete <id> --yes` | ✅ implemented |
+| `GET /credentials/{cred_id}/token` | `acpctl credential token <id>` | ✅ implemented |
+| `POST /role_bindings` | `acpctl credential bind <cred-name> --project <project>` | ✅ implemented |
+
+#### RBAC
+
+| REST API | `acpctl` Command | Status |
+|---|---|---|
+| `GET /roles` | `acpctl get roles` | ✅ implemented |
+| `GET /roles/{id}` | `acpctl get roles <id>` | ✅ implemented |
+| `POST /roles` | `acpctl create role --name <n> [--permissions <json>]` | ✅ implemented |
+| `DELETE /roles/{id}` | `acpctl delete role <id>` | ✅ implemented |
+| `GET /role_bindings` | `acpctl get role-bindings` | ✅ implemented |
+| `GET /role_bindings/{id}` | `acpctl get role-bindings <id>` | ✅ implemented |
+| `POST /role_bindings` | `acpctl create role-binding --role-id <r> --scope <s> [--user-id <u>] [--project-fk <p>] [--agent-id-fk <a>] [--session-id-fk <s>] [--credential-id-fk <c>]` | ✅ implemented |
+| `DELETE /role_bindings/{id}` | `acpctl delete role-binding <id>` | ✅ implemented |
+
+#### Auth & Context
+
+| Operation | `acpctl` Command | Status |
+|---|---|---|
+| Authenticate | `acpctl login [SERVER_URL] --token <t>` | ✅ implemented |
+| Log out | `acpctl logout` | ✅ implemented |
+| Identity | `acpctl whoami` | ✅ implemented |
+| Config get | `acpctl config get <key>` | ✅ implemented |
+| Config set | `acpctl config set <key> <value>` | ✅ implemented |
+
+### `acpctl apply` — Declarative Fleet Management
+
+`acpctl apply` reconciles Projects and Agents from declarative YAML files, mirroring `kubectl apply` semantics. It is the primary way to provision and update entire agent fleets from the `.ambient/teams/` directory tree.
+
+#### Supported Kinds
+
+| Kind | Fields applied |
+|---|---|
+| `Project` | `name`, `description`, `prompt`, `labels`, `annotations` |
+| `Agent` | `name`, `prompt`, `providers`, `payloads`, `environment`, `entrypoint`, `sandbox_policy`, `sandbox_template`, `labels`, `annotations`, `inbox` (seed messages) |
+| `Credential` | `name`, `description`, `provider`, `token` (env var reference), `url`, `email`, `labels`, `annotations` — global resource; use `credential bind` to grant project access |
+| `Cluster` | `name`, `description`, `api_server_url`, `kubeconfig` (env var reference), `role`, `labels`, `annotations` — global resource; requires `platform:admin` |
+| `Gateway` | `name`, `project`, `cluster`, `image`, `serverDnsNames`, `config`, `labels`, `annotations` — project-scoped; declares an OpenShell gateway deployment in the project namespace |
+| `Policy` | `name`, `spec`, `labels`, `annotations` — project-scoped; declares a sandbox policy containing upstream OpenShell `SandboxPolicy` JSON. Referenced by agents via `sandbox_policy` field. See [agent-sandbox-config.spec.md](./agent-sandbox-config.spec.md) § Policy Declarations |
+
+`Agent` resources in `.ambient/teams/` files also carry an `inbox` list of seed messages. On apply, any message in the list is posted to the agent's inbox if an identical message (same `from_name` + `body`) does not already exist there.
+
+#### `-f` — File or Directory
+
+```sh
+acpctl apply -f <file>               # apply a single YAML file
+acpctl apply -f <dir>                # apply all *.yaml files in the directory (non-recursive)
+acpctl apply -f -                    # read from stdin
+```
+
+Each file may contain one or more YAML documents separated by `---`. Documents with unrecognised `kind` values are skipped with a warning.
+
+Apply behaviour per resource:
+- **Project**: if a project with `name` already exists, `PATCH` it (description, prompt, labels, annotations). If it does not exist, `POST` to create it.
+- **Agent**: resolved within the current project context. If an agent with `name` already exists in the project, `PATCH` it (prompt, providers, payloads, environment, entrypoint, sandbox_policy, sandbox_template, labels, annotations). If it does not exist, `POST` to create it. Payloads are stored as JSONB on the agent record and uploaded to the sandbox via SSH-over-gRPC before the entrypoint launches. After upsert, post any inbox seed messages not already present.
+- **Policy**: resolved within the current project context. If a policy with `name` already exists in the project, `PATCH` it (spec, labels, annotations). If it does not exist, `POST` to create it. The `spec` field contains the upstream OpenShell `SandboxPolicy` JSON — see [agent-sandbox-config.spec.md](./agent-sandbox-config.spec.md) § Policy Declarations.
+
+Output (default — one line per resource):
+
+```
+project/ambient-platform configured
+agent/lead configured
+agent/api created
+agent/fe created
+```
+
+With `-o json`: JSON array of all applied resources.
+
+#### `-k` — Kustomize Directory
+
+```sh
+acpctl apply -k <dir>                # build kustomization in <dir> and apply the result
+```
+
+Equivalent to: build the kustomization (resolve `bases`, `resources`, merge `patches`) into a flat manifest stream, then apply each document in order.
+
+The kustomization schema is a subset of Kubernetes Kustomize, restricted to the fields meaningful for Ambient resources:
+
+```yaml
+kind: Kustomization
+
+resources:           # relative paths to YAML files included in this build
+  - project.yaml
+  - lead.yaml
+
+bases:               # other kustomization directories to include first
+  - ../../base
+
+patches:             # strategic-merge patches applied after resource collection
+  - path: project-patch.yaml
+    target:
+      kind: Project
+      name: ambient-platform
+  - path: agents-patch.yaml
+    target:
+      kind: Agent   # no name = apply to all Agent resources
+```
+
+Patches use **strategic merge**: scalar fields overwrite, maps merge, sequences replace.
+
+Output is identical to `-f`.
+
+#### Examples
+
+```sh
+## Apply the full base fleet
+acpctl apply -f .ambient/teams/base/
+
+## Apply the dev overlay (resolves base + patches)
+acpctl apply -k .ambient/teams/overlays/dev/
+
+## Apply a single agent file
+acpctl apply -f .ambient/teams/base/lead.yaml
+
+## Dry-run: show what would change without applying
+acpctl apply -k .ambient/teams/overlays/prod/ --dry-run
+
+## Pipe from stdin
+cat lead.yaml | acpctl apply -f -
+```
+
+#### Flags
+
+| Flag | Description |
+|---|---|
+| `-f <path>` | File, directory, or `-` for stdin. Mutually exclusive with `-k`. |
+| `-k <dir>` | Kustomize directory. Mutually exclusive with `-f`. |
+| `--dry-run` | Print what would be applied without making API calls. |
+| `-o json` | JSON output (array of applied resources). |
+| `--project <name>` | Override project context for Agent resources. |
+
+#### Status column
+
+| Output | Meaning |
+|---|---|
+| `created` | Resource did not exist; POST succeeded. |
+| `configured` | Resource existed; PATCH applied one or more changes. |
+| `unchanged` | Resource existed and matched desired state; no API call made. |
+
+#### CLI reference row additions
+
+| Command | Status |
+|---|---|
+| `acpctl apply -f <path>` | ✅ implemented |
+| `acpctl apply -k <dir>` | ✅ implemented |
+
+### Global Flags
+
+| Flag | Description |
+|---|---|
+| `--insecure-skip-tls-verify` | Skip TLS certificate verification |
+| `-o json` | JSON output (most `get`/`create` commands) |
+| `-o wide` | Wide table output |
+| `--limit <n>` | Max items to return (default: 100) |
+| `-w` / `--watch` | Live watch mode (sessions only) |
+| `--watch-timeout <duration>` | Watch timeout (default: 30m) |
+
+### Project Context
+
+The CLI maintains a current project context in `~/.acpctl/config.yaml` (also overridable via `AMBIENT_PROJECT` env var). Most operations that require `project_id` read it from context automatically.
+
+```sh
+acpctl login https://api.example.com --token $TOKEN
+acpctl project my-project
+acpctl get sessions
+acpctl create agent --name overlord --prompt "You coordinate the fleet..."
+acpctl start overlord
+```
+
+---
+
+## API Reference
+
+### Projects
+
+```
+GET    /api/ambient/v1/projects                              list projects
+POST   /api/ambient/v1/projects                              create project
+GET    /api/ambient/v1/projects/{id}                         read project
+PATCH  /api/ambient/v1/projects/{id}                         update project
+DELETE /api/ambient/v1/projects/{id}                         delete project
+
+GET    /api/ambient/v1/projects/{id}/role_bindings           RBAC bindings scoped to this project
+```
+
+### Agents (Project-Scoped)
+
+```
+GET    /api/ambient/v1/projects/{id}/agents                  list agents in this project
+POST   /api/ambient/v1/projects/{id}/agents                  create agent
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}       read agent
+PATCH  /api/ambient/v1/projects/{id}/agents/{agent_id}       update agent (name, prompt, labels, annotations)
+DELETE /api/ambient/v1/projects/{id}/agents/{agent_id}       soft delete
+
+POST   /api/ambient/v1/projects/{id}/agents/{agent_id}/start     start — creates Session (idempotent; one active at a time)
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}/start     preview start context (dry run — no session created)
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}/sessions  session run history
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}/inbox     read inbox (unread first)
+POST   /api/ambient/v1/projects/{id}/agents/{agent_id}/inbox     send message to this agent's inbox
+PATCH  /api/ambient/v1/projects/{id}/agents/{agent_id}/inbox/{msg_id}   mark message read
+DELETE /api/ambient/v1/projects/{id}/agents/{agent_id}/inbox/{msg_id}   delete message
+
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}/role_bindings    RBAC bindings
+```
+
+#### Ignite Response
+
+`POST /projects/{id}/agents/{agent_id}/start` is idempotent:
+- If a session is already active, it is returned as-is.
+- If no active session exists, a new one is created.
+- Unread Inbox messages are drained (marked read) and injected into the start context.
+
+```json
+{
+  "session": {
+    "id": "2abc...",
+    "agent_id": "1def...",
+    "phase": "pending",
+    "created_at": "2026-03-20T00:00:00Z"
+  },
+  "start_context": "# Agent: API\n\nYou are API...\n\n## Inbox\n...\n\n## Task\n..."
+}
+```
+
+The start context assembles in order:
+1. `Project.prompt` (workspace context — shared by all agents in this project)
+2. `Agent.prompt` (who you are)
+3. Drained Inbox messages (what others have asked you to do)
+4. `Session.prompt` (what this run is focused on)
+5. Peer Agent roster with latest status
+
+### Sessions
+
+Sessions are not directly creatable.
+
+```
+GET    /api/ambient/v1/sessions                                              list sessions
+GET    /api/ambient/v1/sessions/{id}                                         read session
+DELETE /api/ambient/v1/sessions/{id}                                         cancel or delete session
+
+GET    /api/ambient/v1/sessions/{id}/messages                                list messages (history)
+POST   /api/ambient/v1/sessions/{id}/messages                                push a message (human turn)
+GET    /api/ambient/v1/sessions/{id}/events                                  SSE live event stream from runner pod
+GET    /api/ambient/v1/sessions/{id}/role_bindings                           RBAC bindings
+```
+
+#### Session Messages (Top-Level)
+
+```
+GET    /api/ambient/v1/session_messages                                      list messages across sessions (SDK access)
+```
+
+Top-level endpoint for SDK and internal consumers (e.g. the control plane). Supports TSL search, ordering, and size limit via query parameters:
+
+| Parameter | Example | Purpose |
+|-----------|---------|---------|
+| `search` | `session_id='01HABC...'` | TSL filter; must contain `session_id = '...'` |
+| `orderBy` | `seq desc` | Column + direction (`seq asc`, `seq desc`, `created_at desc`) |
+| `size` | `1` | Max rows returned |
+
+Example — fetch the latest message for a session:
+```
+GET /api/ambient/v1/session_messages?search=session_id='01HABC...'&orderBy=seq desc&size=1
+```
+
+Response shape:
+```json
+{
+  "kind": "SessionMessageList",
+  "page": 1,
+  "size": 1,
+  "total": 1,
+  "items": [{ "id": "...", "session_id": "...", "seq": 42, "event_type": "assistant", "payload": "...", "created_at": "..." }]
+}
+```
+
+Used by the control plane at session restart to resolve the maximum `seq` for `RESUME_AFTER_SEQ`.
+
+### Applications (GitOps)
+
+```
+GET    /api/ambient/v1/applications                  list all applications
+POST   /api/ambient/v1/applications                  create application
+GET    /api/ambient/v1/applications/{id}              read application (includes status)
+PATCH  /api/ambient/v1/applications/{id}              update application
+DELETE /api/ambient/v1/applications/{id}              delete application
+
+POST   /api/ambient/v1/applications/{id}/sync         trigger sync (apply target state to live state)
+POST   /api/ambient/v1/applications/{id}/refresh      refresh (fetch git, diff against live, update sync_status)
+GET    /api/ambient/v1/applications/{id}/status       read sync/health status and per-resource detail
+```
+
+#### Sync Request
+
+`POST /applications/{id}/sync` accepts an optional body:
+
+```json
+{
+  "prune": true,
+  "revision": "abc123"
+}
+```
+
+`prune` overrides the application-level `auto_prune` for this sync only. `revision` overrides `source_target_revision` for a one-time sync at a specific commit.
+
+#### Status Response
+
+`GET /applications/{id}/status` returns the sync and health detail:
+
+```json
+{
+  "sync_status": "Synced",
+  "health_status": "Healthy",
+  "sync_revision": "abc123def456",
+  "last_synced_at": "2026-06-03T12:05:00Z",
+  "operation_phase": "Succeeded",
+  "operation_message": "3 created, 1 configured, 0 pruned",
+  "resource_status": [
+    {"kind": "Project", "name": "my-fleet", "status": "Synced", "health": "Healthy", "message": "created"},
+    {"kind": "Agent", "name": "lead", "status": "Synced", "health": "Healthy", "message": "configured"},
+    {"kind": "Agent", "name": "engineer", "status": "Synced", "health": "Healthy", "message": "unchanged"}
+  ],
+  "conditions": []
+}
+```
+
+#### Workspace Files
+
+Read and write files in a running session's workspace. Session must be in `Running` phase.
+
+```
+GET    /api/ambient/v1/sessions/{id}/workspace                               list workspace files
+GET    /api/ambient/v1/sessions/{id}/workspace/*path                         read file content
+PUT    /api/ambient/v1/sessions/{id}/workspace/*path                         write file content
+DELETE /api/ambient/v1/sessions/{id}/workspace/*path                         delete file
+```
+
+#### Pre-Upload Files
+
+Stage files into S3 before the session pod starts. Files are hydrated into the workspace at start time. Max 10 MB per file.
+
+```
+GET    /api/ambient/v1/sessions/{id}/files                                   list staged files
+PUT    /api/ambient/v1/sessions/{id}/files/*path                             stage a file
+DELETE /api/ambient/v1/sessions/{id}/files/*path                             remove staged file
+```
+
+#### Git
+
+```
+GET    /api/ambient/v1/sessions/{id}/git/status                              git status in session workspace
+POST   /api/ambient/v1/sessions/{id}/git/configure-remote                    configure git remote
+GET    /api/ambient/v1/sessions/{id}/git/branches                            list branches
+```
+
+#### Repos
+
+Attach additional repositories to a session workspace.
+
+```
+GET    /api/ambient/v1/sessions/{id}/repos/status                            list attached repos and clone status
+POST   /api/ambient/v1/sessions/{id}/repos                                   attach an additional repo
+DELETE /api/ambient/v1/sessions/{id}/repos/{repo_name}                       detach a repo
+```
+
+#### Operational
+
+```
+POST   /api/ambient/v1/sessions/{id}/clone                                   clone session (new session from same config)
+PATCH  /api/ambient/v1/sessions/{id}/displayname                             update display name
+POST   /api/ambient/v1/sessions/{id}/model                                   switch active model
+GET    /api/ambient/v1/sessions/{id}/workflow/metadata                       get active workflow and metadata
+POST   /api/ambient/v1/sessions/{id}/workflow                                select workflow
+GET    /api/ambient/v1/sessions/{id}/pod-events                              Kubernetes pod events for this session
+GET    /api/ambient/v1/sessions/{id}/oauth/{provider}/url                    get OAuth redirect URL for provider
+GET    /api/ambient/v1/sessions/{id}/export                                  export session transcript
+```
+
+#### Runner Protocol
+
+These endpoints proxy directly to the runner pod. Session must be in `Running` phase. Returns `502` if the runner is unreachable.
+
+```
+POST   /api/ambient/v1/sessions/{id}/interrupt                               interrupt the active run
+POST   /api/ambient/v1/sessions/{id}/feedback                                submit feedback event (Langfuse)
+GET    /api/ambient/v1/sessions/{id}/capabilities                            runner framework and capabilities
+GET    /api/ambient/v1/sessions/{id}/mcp/status                              MCP server instance status
+GET    /api/ambient/v1/sessions/{id}/tasks                                   list background tasks
+GET    /api/ambient/v1/sessions/{id}/tasks/{task_id}/output                  get task output (max 10 MB)
+POST   /api/ambient/v1/sessions/{id}/tasks/{task_id}/stop                    stop background task
+```
+
+### Credentials (Global)
+
+Credentials are global resources. Access to credentials is granted via RoleBindings — bind a
+credential to a Project, Agent, or Session scope to make it available to runners in that scope.
+
+**Designed paths (global — pending implementation):**
+```
+GET    /api/ambient/v1/credentials                                        list credentials (filtered by caller's RoleBindings)
+GET    /api/ambient/v1/credentials?provider={provider}                    filter by provider
+POST   /api/ambient/v1/credentials                                        create a credential
+GET    /api/ambient/v1/credentials/{cred_id}                              read credential (metadata only; token never returned)
+PATCH  /api/ambient/v1/credentials/{cred_id}                              update credential
+DELETE /api/ambient/v1/credentials/{cred_id}                              soft delete
+GET    /api/ambient/v1/credentials/{cred_id}/token                        fetch raw token — restricted to credential:token-reader
+```
+
+> **Note:** `credential bind` uses `POST /role_bindings` with `scope=credential`, `credential_id`, and `project_id`.
+
+`token` is accepted on `POST` and `PATCH` but **never returned** by standard read endpoints.
+`GET .../token` is gated by `credential:token-reader`. See
+[Security Spec — Token Reader Role Grant](../security/identity-boundaries.spec.md#requirement-token-reader-role-grant) for
+runtime authorization semantics.
+
+#### Provider Enum
+
+| Provider | Service | Token type | `url` | `email` |
+|----------|---------|------------|-------|---------|
+| `github` | GitHub.com or GitHub Enterprise | Personal Access Token | optional; required for GHE | — |
+| `gitlab` | GitLab.com or self-hosted | Personal Access Token | optional; required for self-hosted | — |
+| `jira` | Jira Cloud (Atlassian) | API Token | required (Atlassian instance URL) | required (used in Basic auth) |
+| `google` | Google Cloud / Workspace | Service Account JSON serialized to string | — | — |
+| `vertex` | Vertex AI (GCP) | GCP service account key | — | — |
+| `kubeconfig` | Kubernetes clusters | Kubeconfig file serialized to string | — | — |
+
+#### Token Response Shape (Runner)
+
+When a runner fetches a credential, the response payload shape is consistent across providers:
+
+```json
+{ "provider": "gitlab", "token": "glpat-...",       "url": "https://gitlab.myco.com" }
+{ "provider": "github", "token": "github_pat_...",  "url": "https://github.com" }
+{ "provider": "jira",   "token": "ATATT3x...",      "url": "https://myco.atlassian.net", "email": "bot@myco.com" }
+{ "provider": "google", "token": "{\"type\":\"service_account\", ...}" }
+```
+
+`token` is always present. `url` and `email` are included when set. Google's token field carries the full Service Account JSON serialized as a string.
+
+---
+
+## RBAC
+
+### RoleBinding — Nullable FK Design
+
+`RoleBinding` is a typed nullable FK table. Each row has exactly one non-null FK, determined by `scope`. There is no polymorphic `scope_id` string — every FK points to a real table with referential integrity.
+
+| `scope` value | Non-null FK | Meaning |
+|---|---|---|
+| `global` | _(none)_ | Role applies across the entire platform |
+| `project` | `project_id` | Role applies within a specific project |
+| `agent` | `agent_id` | Role applies to a specific agent |
+| `session` | `session_id` | Role applies to a specific session run |
+| `credential` | `credential_id` | Role governs access to a specific credential |
+
+`user_id` is a **separate, independently nullable FK** — it identifies the user who holds the binding when the grant is user-specific. It is null when the grant is project-level (not tied to a specific human):
+
+| Use case | `user_id` | scope FK | Meaning |
+|---|---|---|---|
+| User A owns Credential Y | `user_id=A` | `credential_id=Y` | A can CRUD credential Y |
+| Credential Y bound to Project X | `user_id=NULL` | `credential_id=Y` + `project_id=X` | Project X can access credential Y |
+| User A is project:owner of Project X | `user_id=A` | `project_id=X` | A owns project X |
+| Global platform:admin grant | `user_id=A` | _(none)_ | A has platform-wide admin |
+
+For credential→project bindings, both `credential_id` and `project_id` are non-null. This is the one exception to the "single FK per row" pattern — a credential binding names both the credential (the resource) and the project (the recipient). `user_id` is null because the grant is not user-specific; it applies to the entire project.
+
+### Scopes
+
+| Scope | FK set | Meaning |
+|---|---|---|
+| `global` | _(none)_ | Applies across the entire platform |
+| `project` | `project_id` | Applies to all resources in a specific project |
+| `agent` | `agent_id` | Applies to a specific Agent and all its sessions |
+| `session` | `session_id` | Applies to one session run only |
+| `credential` | `credential_id` | Governs access to a specific Credential |
+
+Effective permissions = union of all applicable bindings (global ∪ project ∪ agent ∪ session). No deny rules.
+
+#### Credential Access — Global with RoleBinding Grants
+
+Credentials are global resources. A credential is made accessible to a Project by creating a RoleBinding with `scope=credential`, `credential_id=<cred>`, `project_id=<project>`, and `user_id=NULL`. At session start, the resolver finds all `scope=credential` bindings where `project_id` matches the session's project and returns the matching credentials.
+
+A single Credential can be shared across multiple Projects by creating one binding per project — no duplication of the Credential record.
+
+See [Security Spec — Credential Access via RoleBindings](../security/identity-boundaries.spec.md#requirement-credential-access-via-rolebindings) for runtime authorization semantics.
+
+### Built-in Roles
+
+| Role | Description |
+|---|---|
+| `platform:admin` | Full access to everything |
+| `platform:viewer` | Read-only across the platform |
+| `project:owner` | Full control of a project and all its agents |
+| `project:editor` | Create/update Agents, ignite, send messages |
+| `project:viewer` | Read-only within a project |
+| `agent:operator` | Ignite and message a specific Agent |
+| `agent:editor` | Update prompt and metadata on a specific Agent |
+| `agent:observer` | Read a specific Agent and its sessions |
+| `agent:runner` | Minimum viable pod credential: read agent, push messages, send inbox |
+| `credential:owner` | Full CRUD on credentials the user created. Bind credentials to projects the user has `project:owner` on. |
+| `credential:viewer` | Read metadata (not token) on credentials bound to projects the user has access to. |
+| `credential:token-reader` | Fetch the raw token via `GET /credentials/{cred_id}/token`. Granted only to runner service accounts at session start. Human users do not hold this role. |
+| `cluster:admin` | Full CRUD on Clusters (register, update, deregister). Platform-scoped — grantable only by `platform:admin`. |
+| `cluster:viewer` | Read-only on Clusters and their status. Platform-scoped — grantable only by `platform:admin`. |
+| `gitops:admin` | Full CRUD on Applications; trigger sync/refresh. Platform-scoped — grantable only by `platform:admin`. |
+| `gitops:viewer` | Read-only on Applications and their status. Platform-scoped — grantable only by `platform:admin`. |
+
+### Permission Matrix
+
+| Role | Projects | Agents | Sessions | Inbox | Credentials | Apps | Clusters | Home | RBAC |
+|---|---|---|---|---|---|---|---|---|---|
+| `platform:admin` | full | full | full | full | full | full | full | full | full |
+| `platform:viewer` | read/list | read/list | read/list | — | read/list | read/list | read/list | read | read/list |
+| `project:owner` | full | full | full | full | manage bindings | local-only (own project) | — | read | project+agent bindings |
+| `project:editor` | read | create/update/ignite | read/list | send/read | — | — | — | read | — |
+| `project:viewer` | read | read/list | read/list | — | — | — | — | read | — |
+| `cluster:admin` | — | — | — | — | — | — | full | — | — |
+| `cluster:viewer` | — | — | — | — | — | — | read/list | — | — |
+| `gitops:admin` | — | — | — | — | — | full (any destination) | — | — | — |
+| `gitops:viewer` | — | — | — | — | — | read/list | — | — | — |
+| `agent:operator` | — | update/ignite | read/list | send/read | — | — | — | — | — |
+| `agent:editor` | — | update | — | — | — | — | — | — | — |
+| `agent:observer` | — | read | read/list | — | — | — | — | — | — |
+| `agent:runner` | — | read | read | send | — | — | — | — | — |
+| `credential:owner` | — | — | — | — | create/update/delete + bind | — | — | — | — |
+| `credential:viewer` | — | — | — | — | read/list (metadata only) | — | — | — | — |
+| `credential:token-reader` | — | — | — | — | token: read | — | — | — | — |
+
+### RBAC Endpoints
+
+```
+GET    /api/ambient/v1/roles                                              ✅ implemented
+GET    /api/ambient/v1/roles/{id}                                         ✅ implemented
+POST   /api/ambient/v1/roles                                              ✅ implemented
+PATCH  /api/ambient/v1/roles/{id}                                         ✅ implemented
+DELETE /api/ambient/v1/roles/{id}                                         ✅ implemented
+
+GET    /api/ambient/v1/role_bindings                                      ✅ implemented
+GET    /api/ambient/v1/role_bindings/{id}                                 ✅ implemented
+POST   /api/ambient/v1/role_bindings                                      ✅ implemented
+PATCH  /api/ambient/v1/role_bindings/{id}                                 ✅ implemented
+DELETE /api/ambient/v1/role_bindings/{id}                                 ✅ implemented
+
+GET    /api/ambient/v1/projects/{id}/agents/{agent_id}/role_bindings      ✅ implemented
+GET    /api/ambient/v1/users/{id}/role_bindings                           🔲 planned
+GET    /api/ambient/v1/projects/{id}/role_bindings                        🔲 planned
+GET    /api/ambient/v1/sessions/{id}/role_bindings                        🔲 planned
+GET    /api/ambient/v1/credentials/{cred_id}/role_bindings                🔲 planned
+```
+
+The `credential:token-reader` role is platform-internal. Credential CRUD is governed by
+RoleBindings with `credential` scope. See
+[Security Spec — Token Reader Role Grant](../security/identity-boundaries.spec.md#requirement-token-reader-role-grant) for
+grant semantics and runtime authorization rules.
+
+---
+
+### Clusters (Global)
+
+```
+GET    /api/ambient/v1/clusters                                            list clusters
+POST   /api/ambient/v1/clusters                                            register cluster
+GET    /api/ambient/v1/clusters/{id}                                       read cluster (metadata only; kubeconfig never returned)
+PATCH  /api/ambient/v1/clusters/{id}                                       update cluster
+DELETE /api/ambient/v1/clusters/{id}                                       soft delete (deregistration)
+GET    /api/ambient/v1/clusters/{id}/status                                read cluster health status and capacity
+POST   /api/ambient/v1/clusters/{id}/heartbeat                             manual health check trigger
+```
+
+`kubeconfig` is accepted on `POST` and `PATCH` but **never returned** by standard read endpoints.
+`GET .../status` returns `status`, `status_message`, `capacity`, and `last_heartbeat_at`.
+
+---
+
+### ScheduledSessions (Project-Scoped)
+
+```
+GET    /api/ambient/v1/projects/{id}/scheduled-sessions                              list
+POST   /api/ambient/v1/projects/{id}/scheduled-sessions                              create
+GET    /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}                   read
+PATCH  /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}                   update (schedule, session_prompt, enabled, timezone, description)
+DELETE /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}                   delete
+
+POST   /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}/suspend           disable — sets enabled=false
+POST   /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}/resume            enable  — sets enabled=true
+POST   /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}/trigger           immediate one-off ignite outside cron schedule
+GET    /api/ambient/v1/projects/{id}/scheduled-sessions/{sched_id}/runs              list Sessions triggered by this schedule
+```
+
+---
+
+### Generic Proxy
+
+All backend paths not mapped to a native `/api/ambient/v1/...` endpoint are forwarded
+verbatim to the backend service. See
+[Security Spec — Proxy Authentication](../security/identity-boundaries.spec.md#requirement-proxy-authentication) for
+authentication and credential injection behavior.
+
+This allows SDK and CLI clients to reach the full backend surface through a single
+authenticated endpoint without requiring every backend route to be natively implemented in
+the API server. Routes listed here are candidates for future native spec entries.
+
+#### Project Configuration (proxied)
+
+```
+GET    PUT          /api/projects/{p}/permissions
+GET    POST DELETE  /api/projects/{p}/keys
+GET    PUT          /api/projects/{p}/mcp-servers
+GET    PUT          /api/projects/{p}/runner-secrets
+GET    PUT          /api/projects/{p}/integration-secrets
+GET                 /api/projects/{p}/secrets
+GET    PUT POST DELETE  /api/projects/{p}/feature-flags[/{flagName}[/override|/enable|/disable]]
+GET                 /api/projects/{p}/feature-flags/evaluate/{flagName}
+GET                 /api/projects/{p}/runner-types
+GET                 /api/projects/{p}/models
+GET                 /api/projects/{p}/integration-status
+GET                 /api/projects/{p}/access
+```
+
+#### Repository Operations (proxied)
+
+```
+GET                 /api/projects/{p}/repo/tree
+GET                 /api/projects/{p}/repo/blob
+GET                 /api/projects/{p}/repo/branches
+GET                 /api/projects/{p}/repo/seed-status
+POST                /api/projects/{p}/repo/seed
+GET    POST         /api/projects/{p}/users/forks
+```
+
+#### Auth Integration Flows (proxied — admin)
+
+```
+*                   /api/auth/github/*
+*                   /api/auth/google/*
+*                   /api/auth/jira/*
+*                   /api/auth/gitlab/*
+*                   /api/auth/gerrit/*
+*                   /api/auth/coderabbit/*
+*                   /api/auth/mcp/*
+GET    POST         /oauth2callback
+GET                 /oauth2callback/status
+```
+
+#### Session Runtime — Runner-Internal (proxied)
+
+These endpoints are called by runner pods at runtime. They are accessible via the API server for SDK/CLI tooling but are not intended for human interactive use.
+
+```
+POST                /api/projects/{p}/agentic-sessions/{s}/github/token
+GET                 /api/projects/{p}/agentic-sessions/{s}/credentials/{provider}
+POST                /api/projects/{p}/agentic-sessions/{s}/runner/feedback
+```
+
+#### Cluster / Platform (proxied)
+
+```
+GET                 /api/cluster-info
+GET                 /api/version
+GET                 /health
+GET                 /api/runner-types
+GET                 /api/workflows/ootb
+GET                 /api/ldap/users[/{uid}]
+GET                 /api/ldap/groups
+```
+
+---
+
+## Labels and Annotations
+
+Every first-class Kind carries two JSONB columns:
+
+| Column | Purpose | Example values |
+|---|---|---|
+| `labels` | Queryable key/value tags. Use for filtering, grouping, and selection. | `{"env": "prod", "team": "platform", "tier": "critical"}` |
+| `annotations` | Freeform key/value metadata. Use for tooling notes, human remarks, external references. | `{"last-reviewed": "2026-03-21", "jira": "PLAT-123", "owner-slack": "@mturansk"}` |
+
+**Kinds with `labels` + `annotations`:** User, Project, Agent, Session, Credential (global), Cluster (global), Application
+
+**Kinds without:** Inbox (ephemeral message queue), SessionMessage (append-only event stream), Role, RoleBinding (RBAC internals — structured by design)
+
+### Design: JSONB over EAV or separate tables
+
+Instead of a separate `metadata` table (requires joins) or a polymorphic EAV table (breaks referential integrity), metadata is stored inline in the row it describes. This is the modern hybrid approach:
+
+- **Zero joins**: Data is co-located with the resource.
+- **Infinite flexibility**: Every row can carry different keys — no schema migration required to add a new label key.
+- **GIN-indexed**: PostgreSQL JSONB supports `GIN` (Generalized Inverted Index), making containment queries (`@>`) nearly as fast as standard column lookups at scale.
+
+```sql
+CREATE INDEX idx_projects_labels     ON projects     USING GIN (labels);
+CREATE INDEX idx_agents_labels       ON agents       USING GIN (labels);
+CREATE INDEX idx_sessions_labels     ON sessions     USING GIN (labels);
+CREATE INDEX idx_credentials_labels  ON credentials  USING GIN (labels);
+```
+
+### Query patterns
+
+```sql
+-- Find all sessions tagged env=prod
+SELECT * FROM sessions WHERE labels @> '{"env": "prod"}';
+
+-- Find all Agents owned by a team
+SELECT * FROM agents WHERE labels @> '{"team": "platform"}';
+
+-- Read a single annotation
+SELECT annotations->>'jira' FROM projects WHERE id = 'my-project';
+```
+
+### Convention
+
+- `labels` keys should be short, lowercase, hyphenated (e.g. `env`, `team`, `tier`, `managed-by`).
+- `annotations` keys should use reverse-DNS namespacing for tooling (e.g. `ambient.io/last-sync`, `github.com/pr`).
+- Neither column enforces a schema — validation is the caller's responsibility.
+- Default value: `{}` (empty object). Never `null`.
+
+---
+
+## The Model as a String Tree
+
+Every node in this model is an **ID and a string**. That is the complete primitive.
+
+A `Project` is an ID and a `prompt` string — the workspace context.
+An `Agent` is an ID and a `prompt` string — who the agent is.
+A `Session` is an ID and a `prompt` string — what this run is focused on.
+An `InboxMessage` is an ID and a `body` string — a request addressed to an agent.
+A `SessionMessage` is an ID and a `payload` string — one turn in the conversation.
+
+Strings can be simple (`"hello world"`) or arbitrarily complex (a bookmarked system prompt, a structured markdown context block, a multi-section briefing). The model does not care. Every node is still just an ID and a string.
+
+This means the entire data model is a **composable JSON tree** — four nodes, each an ID and a string:
+
+```json
+{
+  "project": {
+    "id": "ambient-platform",
+    "prompt": "This workspace builds the Ambient platform API server in Go. All agents operate on the same codebase. Prefer small, focused PRs. All code must pass gofmt, go vet, and golangci-lint before commit.",
+    "labels": { "env": "prod", "team": "platform" },
+    "annotations": { "github.com/repo": "ambient/platform" }
+  },
+  "agent": {
+    "id": "01HXYZ...",
+    "name": "be",
+    "prompt": "You are a backend engineer specializing in Go REST APIs and Kubernetes operators. You write idiomatic Go, prefer explicit error handling over panic, and follow the plugin architecture in components/ambient-api-server/plugins/. You never use the service account client directly — always GetK8sClientsForRequest.",
+    "labels": { "role": "backend", "lang": "go" },
+    "annotations": { "ambient.io/specialty": "grpc,rest,k8s" }
+  },
+  "inbox": [
+    {
+      "id": "01HDEF...",
+      "from": "overlord",
+      "body": "While you're in the sessions plugin, also harden the subresource handler — agent_id is interpolated directly into a TSL search string."
+    },
+    {
+      "id": "01HGHI...",
+      "from": null,
+      "body": "The presenter nil-pointer in projectAgents and inbox needs a guard before this goes to staging."
+    }
+  ],
+  "session": {
+    "id": "01HABC...",
+    "prompt": "Implement WatchSessionMessages gRPC handler with SSE fan-out and replay. Replay all existing messages to new subscribers before switching to live delivery. Repo: github.com/ambient/platform, path: components/ambient-api-server/plugins/sessions/.",
+    "labels": { "wave": "3", "feature": "session-messages" },
+    "annotations": { "github.com/pr": "ambient/platform#142" }
+  },
+  "message": {
+    "event_type": "user",
+    "payload": "Begin. Start with the gRPC handler, then wire SSE, then write the integration test."
+  }
+}
+```
+
+### Composition
+
+Because every node is a string, **entire agent suites and workspaces compose declaratively**.
+
+The start context pipeline is string composition — each scope inherits and narrows the string above it:
+
+```
+Project.prompt        → workspace context (shared by all agents)
+  Agent.prompt        → who this agent is
+    Inbox messages    → what others have asked (queued intent)
+      Session.prompt  → what this run is focused on
+```
+
+To compose a new workspace: write a `Project.prompt`. To define a new agent role: write an `Agent.prompt` and create the Agent in the project. To start: the system assembles the full context string automatically, in order, from the tree.
+
+A different `Project.prompt` = a different team with different shared context.
+An Agent with the same name in two projects = the same role operating in two different workspaces (separate records, independently mutable).
+A poke (`InboxMessage.body`) sent from one Agent to another = a string crossing a node boundary.
+
+This structure means you can define and compose bespoke agent suites — entire fleets with different roles, different workspace contexts, different session scopes — purely by composing strings at the right node in the tree. The platform assembles the start context; the model does the rest.
+
+---
+
+## Design Decisions
+
+| Decision | Rationale |
+|---|---|
+| Agent is project-scoped, not global | Simplicity. An agent's identity and prompt are contextual to the project it serves. No indirection via a global registry. |
+| Agent.prompt is mutable | Prompt editing is a routine operational task. RBAC controls who can change it. No versioning overhead. |
+| Ownership via RBAC, not hardcoded FKs | Ownership of all Kinds is expressed through RoleBindings, not `owner_user_id` FKs. For Agents: `RoleBinding(scope=agent, agent_id=<id>, user_id=<owner>)`. For Sessions: `RoleBinding(scope=session, session_id=<id>, user_id=<assignee>)`. Enables multi-owner, delegated ownership, and transfer — consistently across all Kinds. Audit fields (who created/modified a resource) belong at the REST middleware layer, not on individual Kind schemas. |
+| One active Session per Agent | Avoids concurrent conflicting runs; start is idempotent |
+| Inbox on Agent, not Session | Messages persist across re-ignitions; addressed to the agent, not the run |
+| Inbox drained at start | Unread messages become part of the start context; session picks up where things left off |
+| `current_session_id` denormalized on Agent | Project Home reads Agent + session phase without joining through sessions |
+| Sessions created only via start | Sessions are run artifacts; direct `POST /sessions` does not exist |
+| Every layer carries a `prompt` | Project.prompt = workspace context; Agent.prompt = who the agent is; Session.prompt = what this run does; Inbox = prior requests. Pokes roll downhill. |
+| `SessionMessage` is append-only | Canonical record of the LLM conversation; never edited or deleted |
+| CLI mirrors API 1-for-1 | Every endpoint has a corresponding command; status tracked explicitly |
+| This document is the spec | A reconciler will compare the spec (this doc) against code status and surface gaps |
+| `labels` / `annotations` are JSONB, not strings | Enables GIN-indexed key/value queries (`@>` operator) without joins; every row carries its own metadata without a separate EAV table. `labels` = queryable tags; `annotations` = freeform notes. Applied to first-class Kinds: User, Project, Agent, Session. Not applied to Inbox, SessionMessage, Role/RoleBinding. |
+| Credential is global, not project-scoped | Eliminates duplication when the same PAT is used across multiple Projects. Access controlled via RoleBindings with `credential` scope. A single Credential can be shared across Projects without creating copies. |
+| Application syncs fleet definitions, not infrastructure | Application syncs Projects, Agents, Credentials, RoleBindings, and Inbox seeds. Sessions, Users, and Roles are not synced. |
+| Application targets Ambient API, not K8s API | Unlike Sessions (which use kubeconfig for direct K8s provisioning), Application works at the Ambient REST API layer. Remote sync uses the SDK client pointed at `destination_ambient_url`. |
+| Promotion via multiple Applications | Each environment gets its own Application pointing to a different git overlay and destination Ambient URL. Promotion = merge changes between overlay branches. |
+| Kustomize engine shared between CLI and API server | The sync engine reuses the same kustomize rendering logic as `acpctl apply -k`. |
+| Git polling, not webhooks (v1) | Simplicity. Webhook-triggered refresh is a v2 optimization. |
+| Self-heal is opt-in | Default `false`. When enabled, the controller detects and reverts drift — useful for production fleets where UI-based changes should not persist. |
+| Sync engine bound by credential escalation rules | The sync engine can only create RoleBindings where the role level is at or below the level of the service credential it authenticates with. This prevents a compromised git repo from escalating RBAC in the destination project. The credential's effective role level sets the ceiling. A sync that attempts to create a binding above the ceiling fails with a per-resource `Forbidden` status in `resource_status`. |
+| Remote Ambient auth via stored Credential, not forwarded token | Async polling controllers (`auto_sync`) have no request context. The `credential_id` FK on Application provides the auth context. Token is resolved at sync time via `GET /credentials/{id}/token`, never cached beyond a single sync cycle. |
+| Project prune requires manual confirmation | `auto_prune` deletes Agents and sub-resources automatically, but never auto-prunes a Project. Project removal is permanently destructive (cascades through Agents, Sessions, Inbox, SessionMessages). Pruning a Project requires explicit `POST /sync` with `prune: true, prune_project: true`. |
+| `gitops:admin` is platform-scoped | Applications can target any Ambient instance, including production environments. Cross-environment reach exceeds project scope, so `gitops:admin` is grantable only by `platform:admin`. `project:owner` can create Applications where `destination_ambient_url` is null (local) and `destination_project` matches a project they own. This allows teams to self-serve GitOps for their own projects without platform-admin escalation. |
+| `gitops:admin` / `gitops:viewer` follow platform escalation chain | Only `platform:admin` can grant `gitops:admin` or `gitops:viewer`. `project:owner` cannot grant these roles. This matches the escalation pattern established for `credential:owner` and other platform-scoped roles in the security spec. |
+| Unsupported kinds silently skipped by sync engine | The kustomize engine supports all apply kinds (including Cluster, Ambient). The sync engine intentionally syncs only fleet definition kinds (Project, Agent, Credential, RoleBinding, Inbox). Documents of other kinds are silently skipped with a `Skipped` status in `resource_status`, not treated as errors. This allows shared kustomize overlays to contain infrastructure inventory alongside fleet definitions without breaking sync. |
+
+Security and credential design decisions (RBAC scoping, write-only tokens, role catalog rationale) are in the [Security Spec — Design Decisions](../security/identity-boundaries.spec.md#design-decisions).
+
+---
+
+## Credential — Usage
+
+```sh
+## Create a GitLab PAT — token via env var (avoids shell history exposure)
+acpctl credential create --name my-gitlab-pat --provider gitlab \
+  --token "$GITLAB_PAT" --url https://gitlab.myco.com
+## credential/my-gitlab-pat created
+
+## Token via stdin (also avoids shell history)
+echo "$GITLAB_PAT" | acpctl credential create --name my-gitlab-pat --provider gitlab \
+  --token @- --url https://gitlab.myco.com
+
+## Bind credential to a project (grants access to all agents in the project)
+acpctl credential bind my-gitlab-pat --project my-project
+
+## Bind the same credential to another project (no duplication)
+acpctl credential bind my-gitlab-pat --project other-project
+
+## List credentials (filtered by caller's RoleBindings)
+acpctl credential list
+## NAME              PROVIDER  URL                      CREATED
+## my-gitlab-pat     gitlab    https://gitlab.myco.com  2026-03-31
+
+## Rotate a token
+acpctl credential update my-gitlab-pat --token "$GITLAB_PAT_NEW"
+
+## Declarative apply — token sourced from env var
+```
+
+```yaml
+kind: Credential
+metadata:
+  name: platform-gitlab-pat
+spec:
+  provider: gitlab
+  token: $GITLAB_PAT
+  url: https://gitlab.myco.com
+  labels:
+    team: platform
+```
+
+```sh
+acpctl apply -f credential.yaml
+## credential/platform-gitlab-pat created
+
+## Then bind to the desired project
+acpctl credential bind platform-gitlab-pat --project my-project
+```
+
+---
+
+## Design Decisions — Credential
+
+Credentials are global resources, not project-scoped. This eliminates duplication when the same
+PAT is used across multiple Projects. Access is controlled via RoleBindings — bind a credential
+to a project scope to grant access to all agents in that project.
+
+See the [Security Spec — Design Decisions](../security/identity-boundaries.spec.md#design-decisions) for credential
+design rationale (storage, rotation, provider serialization, migration).
+
+---
+
+## Implementation Coverage Matrix
+
+_Last updated: 2026-07-05. Use this as the authoritative index — click into component source to verify._
+
+| Area | API Server | Go SDK | CLI (`acpctl`) | Notes |
+|---|---|---|---|---|
+| **Sessions — CRUD** | ✅ | ✅ `SessionAPI.{Get,List,Create,Update,Delete}` | ✅ `get/create/delete session` | |
+| **Sessions — start/stop** | ✅ `/start` `/stop` | ✅ `SessionAPI.{Start,Stop}` | ✅ `start`/`stop` commands | |
+| **Messages API — list/push/watch** | ✅ `/messages` | ✅ `PushMessage`, `ListMessages`, `WatchSessionMessages` (gRPC) | ✅ `session messages`, `session send` | Human-readable conversation in `session_messages` table |
+| **Session messages (top-level)** | ✅ `GET /session_messages` | ✅ `SessionMessages().List()` | n/a | SDK/CP-internal; used by CP to resolve max seq on restart |
+| **Events API — live SSE stream** | ✅ `/events` → runner pod SSE | ✅ `SessionAPI.StreamEvents` → `io.ReadCloser` | ✅ `session events` | Ephemeral; runner must be Running; 502 if unreachable |
+| **Events API — persisted history** | ✅ `plugins/sessionEvents/` | ✅ `ListSessionEvents`, `PushSessionEvent` (gRPC) | ✅ `session events --history` | `session_events` table with compression schema |
+| **Events API — compression** | ✅ schema supports `completed_at`, `event_count` | ✅ `completed_at`, `event_count` fields in `SessionEvent` | ✅ fields in SDK | Runner-side compression not yet active (all events stored uncompressed) |
+| **Events API — 33 AG-UI event types** | ✅ runners emit AG-UI types | ✅ stored in `session_events.event_type` | ✅ query by event type | TEXT_MESSAGE_START, TOOL_CALL_ARGS, THINKING_*, REASONING_*, etc. |
+| **Sessions — labels/annotations** | ✅ PATCH accepts `labels`/`annotations` | ✅ fields on `Session` type; `SessionAPI.Update(patch map[string]any)` | ⚠️ no dedicated subcommand; use `acpctl get session -o json` + manual PATCH | |
+| **Sessions — workspace files** | ✅ sessions plugin; stubs empty list when no runner; 503 per-file-op | 🔲 | 🔲 `session workspace list/get/put/delete` | Requires running session for file ops |
+| **Sessions — pre-upload files** | ✅ sessions plugin; stubs empty list when no runner; 503 per-file-op | 🔲 | 🔲 `session files list/upload/delete` | S3-staged; available before session starts |
+| **Sessions — git** | ✅ sessions plugin; stubs empty status/branches; configure-remote 503 if no runner | 🔲 | 🔲 `session git status/configure-remote/branches` | |
+| **Sessions — repos** | ✅ sessions plugin; repos/status stub; add/remove stored natively in session DB | 🔲 | 🔲 `session repos list/add/remove` | |
+| **Sessions — operational** | ✅ sessions plugin; clone/displayname/model/workflow/export/pod-events native; oauth 501 | 🔲 | 🔲 `session clone/model/export/pod-events` | |
+| **Sessions — runner protocol** | ✅ sessions plugin; agui/{run,events,interrupt,feedback,tasks,capabilities}, mcp/status | 🔲 | 🔲 `session interrupt/feedback/capabilities/tasks` | AGUI prefix routes; 502 if runner unreachable |
+| **Agents — CRUD** | ✅ `/projects/{id}/agents` | ✅ `ProjectAgentAPI.{ListByProject,GetByProject,GetInProject,CreateInProject,UpdateInProject,DeleteInProject}` | ✅ `agent list/get/create/update/delete` | |
+| **Agents — start/start-preview** | ✅ `/start` | ✅ `ProjectAgentAPI.{Start,GetStartPreview}` | ✅ `start <id>`, `agent start-preview` | Idempotent — returns existing session if active |
+| **Agents — sessions history** | ✅ `/sessions` sub-resource | ✅ `ProjectAgentAPI.Sessions` | ✅ `agent sessions` | Returns `SessionList` scoped to agent |
+| **Agents — labels/annotations** | ✅ PATCH accepts `labels`/`annotations` | ✅ fields on `ProjectAgent` type; `UpdateInProject(patch map[string]any)` | ⚠️ via `agent update` with raw patch; no typed helpers | |
+| **Inbox — list/send** | ✅ GET/POST `/inbox` | ✅ `InboxMessageAPI.{ListByAgent,Send}` + `ProjectAgentAPI.{ListInboxInProject,SendInboxInProject}` | ✅ `inbox list`, `inbox send` | |
+| **Inbox — mark-read/delete** | ✅ PATCH/DELETE `/inbox/{id}` | ✅ `InboxMessageAPI.{MarkRead,DeleteMessage}` | ✅ `inbox mark-read`, `inbox delete` | |
+| **Projects — CRUD** | ✅ | ✅ `ProjectAPI.{Get,List,Create,Update,Delete}` | ✅ `get/create/delete project`, `project set/current`, `project update` | |
+| **Projects — labels/annotations** | ✅ PATCH accepts `labels`/`annotations` | ✅ fields on `Project` type; `ProjectAPI.Update(patch map[string]any)` | ⚠️ no dedicated subcommand | |
+| **RBAC — roles** | ✅ full CRUD | ✅ `RoleAPI` | ✅ `create role`, `get roles`, `get roles <id>`, `delete role` | |
+| **RBAC — role bindings** | ✅ full CRUD | ✅ `RoleBindingAPI` | ✅ `create role-binding`, `get role-bindings`, `get role-bindings <id>`, `delete role-binding` | |
+| **RBAC — scoped role_bindings queries** | ✅ agents only; 🔲 users/projects/sessions/credentials | n/a | n/a | `GET /projects/{id}/agents/{agent_id}/role_bindings` implemented; other 4 scoped endpoints not yet |
+| **Clusters — CRUD** | 🔲 `plugins/clusters/` | 🔲 `ClusterAPI.{Get,List,Create,Update,Delete}` | 🔲 `cluster register/get/update/deregister` | Multi-cluster scheduling |
+| **Clusters — status/heartbeat** | 🔲 `status`/`heartbeat` handlers | 🔲 `ClusterAPI.{Status,Heartbeat}` | 🔲 `cluster status/heartbeat` | |
+| **Clusters — health syncer** | 🔲 CP `ClusterHealthSyncer` | n/a | n/a | Periodic health check of registered clusters |
+| **PlacementStrategy** | 🔲 CP `internal/placement/` | n/a | n/a | Round-robin default; interface for custom strategies |
+| **Credentials — CRUD** | ✅ `plugins/credentials/` (global at `/credentials`) | ✅ `credential_api.go` + `credential_extensions.go` | ✅ `credential list/get/create/update/delete/token/bind` | |
+| **Credentials — token fetch** | ✅ `GET /credentials/{cred_id}/token` | ✅ `GetToken()` in `credential_extensions.go` | ✅ `credential token <id>` | Gated by `credential:token-reader`; granted to runner SA by operator |
+| **ScheduledSessions — CRUD** | ✅ scheduledSessions plugin | ✅ `ScheduledSessionAPI.{List,Get,Create,Update,Delete,GetByName}` | ✅ `scheduled-session list/get/create/update/delete` | |
+| **ScheduledSessions — lifecycle** | ✅ suspend/resume/trigger/runs handlers | ✅ `ScheduledSessionAPI.{Suspend,Resume,Trigger,Runs}` | ✅ `scheduled-session suspend/resume/trigger/runs` | |
+| **Generic proxy — project config** | ✅ proxy plugin (`plugins/proxy`); forwards non-`/api/ambient/` paths to `BACKEND_URL` | n/a | 🔲 raw HTTP fallback | Permissions, keys, MCP servers, secrets, feature flags |
+| **Generic proxy — repo operations** | ✅ proxy plugin | n/a | 🔲 raw HTTP fallback | Tree, blob, branches, seed, forks |
+| **Generic proxy — auth integrations** | ✅ proxy plugin | n/a | n/a | GitHub/GitLab/Google/Jira/Gerrit/CodeRabbit/MCP OAuth flows |
+| **Generic proxy — cluster/platform** | ✅ proxy plugin | n/a | 🔲 `acpctl version`, `acpctl cluster-info` | cluster-info, version, health, LDAP, OOTB workflows |
+| **Declarative apply** | n/a | uses SDK | ✅ `apply -f`, `apply -k` | Upsert semantics; supports inbox seeding |
+| **Declarative apply — Credential kind** | n/a | uses SDK | ✅ `apply -f credential.yaml` | Global resource; token sourced from env var in YAML |
+| **Declarative apply — Policy kind** | ✅ `plugins/policies/` | ✅ `Policys()` (SDK) | ✅ `apply -f policy.yaml` | Project-scoped; spec contains OpenShell SandboxPolicy JSON. Create-or-update with spec/labels/annotations diffing. Stored specs use the upstream `filesystem_policy` key name. |
+| **Declarative apply — Agent sandbox fields** | ✅ PATCH accepts all fields | ✅ `AgentBuilder.SandboxPolicy()`, `.SandboxTemplate()` | ✅ `sandbox_policy` in `resource` struct, create, patch, and `strategicMerge()` | `sandbox_policy` fully wired. `sandbox_template` and `entrypoint` remain unwired (not addressed in this PR). |
+| **Declarative apply — ScheduledSession kind** | n/a | 🔲 | 🔲 | Planned; schedule and agent reference in YAML |
+| **Applications — CRUD** | ✅ `plugins/applications/` | ✅ `ApplicationAPI.{Get,List,Create,Update,Delete}` | ✅ `application list/get/create/update/delete` | GitOps sync binding |
+| **Applications — sync/refresh** | ✅ `sync`/`refresh` handlers | ✅ `ApplicationAPI.{Sync,Refresh}` | ⚠️ `application sync/refresh` (stub implementations) | Sync engine partial — only Agent kind synced |
+| **Applications — status** | ⚠️ status on main GET only | ✅ status fields in `Application` type | ✅ `application get` shows status | Dedicated `/status` endpoint not yet implemented |
+
+### Labels/Annotations — SDK Ergonomics Gap
+
+All Kinds with `labels`/`annotations` store them as JSON strings in the DB (`*string` in the Go model) but as structured maps in the OpenAPI schema. The Go SDK type carries `Labels *string` / `Annotations *string` (matching the DB column). Consumers doing label/annotation operations must marshal/unmarshal the JSON string themselves — there are no typed `PatchLabels`/`PatchAnnotations` helper methods in the SDK.
+
+**Workaround:** Use `Update(ctx, id, map[string]any{"labels": labelsMap, "annotations": annotationsMap})`. The API server accepts the map directly and stores it as JSON.
+
+**Permanent fix:** Add `PatchLabels` / `PatchAnnotations` typed helpers to `SessionAPI`, `ProjectAgentAPI`, and `ProjectAPI` in the SDK — these should accept `map[string]string` and call `Update` internally.
+
+### CLI — Known Gaps vs Spec
+
+| Command | Status | Path to close |
+|---|---|---|
+| Project/Agent/Session label subcommands | 🔲 no `acpctl label`/`acpctl annotate` | add typed label helpers to SDK first, then CLI |
+| `acpctl credential bind` | ✅ implemented | `POST /role_bindings` with `scope=credential`; global migration complete |
+| Session workspace/files/git/repos subcommands | 🔲 planned | see Session Operations table above |
+
+
+ Manual Test
+
+  # 1. Project
+  acpctl create project --name test-cred-1 --description "cred test"
+  acpctl project test-cred-1
+
+  # 2. Agent
+  acpctl agent create --project test-cred-1 --name github-agent \
+    --prompt "You are a GitHub automation agent."
+
+  AGENT_ID=$(acpctl agent list --project test-cred-1 -o json | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
+  echo "AGENT_ID=$AGENT_ID"
+
+  # 3. Credential (global resource)
+  printf 'kind: Credential\nname: github-pat-test\nprovider: github\ntoken: %s\ndescription: test\n' \
+    "$(cat ~/projects/secrets/github.ambient-pat.token)" > /tmp/cred.yaml
+  acpctl apply -f /tmp/cred.yaml && rm /tmp/cred.yaml
+
+  # 4. Bind credential to project
+  acpctl credential bind github-pat-test --project test-cred-1
+
+  CRED_ID=$(acpctl credential list -o json | python3 -c "import sys,json; print(next(i['id'] for i in json.load(sys.stdin)['items'] if i['name']=='github-pat-test'))")
+  echo "CRED_ID=$CRED_ID"
+
+  # 5. Start session
+  SESSION_ID=$(acpctl start github-agent --project test-cred-1 \
+    --prompt "Fetch credential $CRED_ID token and confirm you received it." \
+    -o json | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  echo "SESSION_ID=$SESSION_ID"
+
+  # 6. Watch events
+  acpctl session events "$SESSION_ID"
+
+---

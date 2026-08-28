@@ -1,0 +1,401 @@
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/auth"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/config"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/informer"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/keypair"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/kubeclient"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/openshell"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/reconciler"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/tokenserver"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/watcher"
+	sdkclient "github.com/openshift-online/rh-trex-ai/components/ambient-sdk/go-sdk/client"
+	"github.com/rs/zerolog"
+
+	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+var (
+	version   string
+	buildTime string
+)
+
+func main() {
+	installServiceCAIntoDefaultTransport(loadServiceCAPool())
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to load configuration")
+	}
+
+	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		level = zerolog.InfoLevel
+	}
+	zerolog.SetGlobalLevel(level)
+
+	log.Info().
+		Str("version", version).
+		Str("build_time", buildTime).
+		Str("log_level", level.String()).
+		Str("mode", cfg.Mode).
+		Str("api_server_url", cfg.APIServerURL).
+		Str("grpc_server_addr", cfg.GRPCServerAddr).
+		Bool("grpc_use_tls", cfg.GRPCUseTLS).
+		Msg("ambient-control-plane starting")
+
+	switch cfg.Mode {
+	case "kube":
+		if err := runKubeMode(ctx, cfg); err != nil {
+			log.Fatal().Err(err).Msg("kube mode failed")
+		}
+	case "test":
+		if err := runTestMode(ctx, cfg); err != nil {
+			log.Fatal().Err(err).Msg("test mode failed")
+		}
+	default:
+		log.Fatal().Str("mode", cfg.Mode).Msg("unknown mode")
+	}
+}
+
+func buildTokenProvider(cfg *config.ControlPlaneConfig, logger zerolog.Logger) auth.TokenProvider {
+	if cfg.OIDCClientID != "" && cfg.OIDCClientSecret != "" {
+		logger.Info().
+			Str("token_url", cfg.OIDCTokenURL).
+			Str("client_id", cfg.OIDCClientID).
+			Msg("using OIDC client credentials token provider")
+		return auth.NewOIDCTokenProvider(cfg.OIDCTokenURL, cfg.OIDCClientID, cfg.OIDCClientSecret, logger)
+	}
+	logger.Info().Msg("using static token provider")
+	return auth.NewStaticTokenProvider(cfg.APIToken)
+}
+
+func buildNamespaceProvisioner(cfg *config.ControlPlaneConfig, kube *kubeclient.KubeClient) kubeclient.NamespaceProvisioner {
+	switch cfg.PlatformMode {
+	case "mpp":
+		log.Info().Str("config_namespace", cfg.MPPConfigNamespace).Msg("using MPP TenantNamespace provisioner")
+		return kubeclient.NewMPPNamespaceProvisioner(kube, cfg.MPPConfigNamespace, log.Logger)
+	default:
+		log.Info().Msg("using standard Kubernetes namespace provisioner")
+		return kubeclient.NewStandardNamespaceProvisioner(kube, log.Logger)
+	}
+}
+
+func runKubeMode(ctx context.Context, cfg *config.ControlPlaneConfig) error {
+	log.Info().Msg("starting in Kubernetes mode")
+
+	kube, err := kubeclient.New(cfg.Kubeconfig, log.Logger)
+	if err != nil {
+		return fmt.Errorf("creating Kubernetes client: %w", err)
+	}
+
+	var projectKube *kubeclient.KubeClient
+	if cfg.ProjectKubeTokenFile != "" {
+		pk, err := kubeclient.NewFromTokenFile(cfg.ProjectKubeTokenFile, log.Logger)
+		if err != nil {
+			return fmt.Errorf("creating project Kubernetes client from token file: %w", err)
+		}
+		projectKube = pk
+		log.Info().Str("token_file", cfg.ProjectKubeTokenFile).Msg("using separate project kube client")
+	}
+
+	provisionerKube := kube
+	if projectKube != nil {
+		provisionerKube = projectKube
+	}
+	provisioner := buildNamespaceProvisioner(cfg, provisionerKube)
+	tokenProvider := buildTokenProvider(cfg, log.Logger)
+
+	kp, err := keypair.EnsureKeypairSecret(ctx, provisionerKube, cfg.CPRuntimeNamespace, log.Logger)
+	if err != nil {
+		return fmt.Errorf("bootstrapping CP token keypair: %w", err)
+	}
+	log.Info().Str("namespace", cfg.CPRuntimeNamespace).Msg("CP token keypair ready")
+
+	factory := reconciler.NewSDKClientFactory(cfg.APIServerURL, tokenProvider, log.Logger)
+	kubeReconcilerCfg := reconciler.KubeReconcilerConfig{
+		RunnerImage:                     cfg.RunnerImage,
+		RunnerGRPCURL:                   cfg.GRPCServerAddr,
+		RunnerGRPCUseTLS:                cfg.RunnerGRPCUseTLS,
+		AnthropicAPIKey:                 cfg.AnthropicAPIKey,
+		VertexEnabled:                   cfg.VertexEnabled,
+		VertexProjectID:                 cfg.VertexProjectID,
+		VertexRegion:                    cfg.VertexRegion,
+		VertexCredentialsPath:           cfg.VertexCredentialsPath,
+		VertexSecretName:                cfg.VertexSecretName,
+		VertexSecretNamespace:           cfg.VertexSecretNamespace,
+		RunnerImageNamespace:            cfg.RunnerImageNamespace,
+		MCPImage:                        cfg.MCPImage,
+		MCPAPIServerURL:                 cfg.MCPAPIServerURL,
+		GitHubMCPImage:                  cfg.GitHubMCPImage,
+		JiraMCPImage:                    cfg.JiraMCPImage,
+		K8sMCPImage:                     cfg.K8sMCPImage,
+		GoogleMCPImage:                  cfg.GoogleMCPImage,
+		RunnerLogLevel:                  cfg.RunnerLogLevel,
+		CPRuntimeNamespace:              cfg.CPRuntimeNamespace,
+		CPTokenURL:                      cfg.CPTokenURL,
+		CPTokenPublicKey:                string(kp.PublicKeyPEM),
+		HTTPProxy:                       cfg.HTTPProxy,
+		HTTPSProxy:                      cfg.HTTPSProxy,
+		NoProxy:                         cfg.NoProxy,
+		ImagePullSecret:                 cfg.ImagePullSecret,
+		PlatformMode:                    cfg.PlatformMode,
+		MPPConfigNamespace:              cfg.MPPConfigNamespace,
+		OpenShellEnabled:                cfg.OpenShellEnabled,
+		OpenShellRunnerImage:            cfg.OpenShellRunnerImage,
+		OpenShellPolicyName:             cfg.OpenShellPolicyName,
+		ServiceIdentity:                 cfg.ServiceIdentity,
+		CACertFile:                      cfg.CACertFile,
+		AllowedSandboxRegistries:        cfg.AllowedSandboxRegistries,
+		SandboxReadinessTimeoutSeconds:  cfg.SandboxReadinessTimeoutSeconds,
+		MLflowTrackingURI:               cfg.MLflowTrackingURI,
+		MLflowExperimentName:            cfg.MLflowExperimentName,
+		MLflowCredentialSecretName:      cfg.MLflowCredentialSecretName,
+		MLflowCredentialSecretNamespace: cfg.MLflowCredentialSecretNamespace,
+		MLflowTracingEnabled:            cfg.MLflowTracingEnabled,
+		MLflowTrackingAuth:              cfg.MLflowTrackingAuth,
+		MLflowWorkspace:                 cfg.MLflowWorkspace,
+		MLflowEnableAsyncTraceLogging:   cfg.MLflowEnableAsyncTraceLogging,
+		MLflowAsyncTraceLoggingWorkers:  cfg.MLflowAsyncTraceLoggingWorkers,
+		MLflowAsyncTraceLoggingQueue:    cfg.MLflowAsyncTraceLoggingQueue,
+		MLflowAutologExcludeFlavors:     cfg.MLflowAutologExcludeFlavors,
+		MLflowGenAIAutologIntegrations:  cfg.MLflowGenAIAutologIntegrations,
+	}
+
+	conn, err := grpc.NewClient(cfg.GRPCServerAddr, grpc.WithTransportCredentials(grpcCredentials(cfg.GRPCUseTLS)))
+	if err != nil {
+		return fmt.Errorf("connecting to gRPC server: %w", err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).
+				Str("grpc_server_addr", cfg.GRPCServerAddr).
+				Bool("grpc_use_tls", cfg.GRPCUseTLS).
+				Msg("failed to close gRPC connection")
+		}
+	}()
+
+	watchManager := watcher.NewWatchManager(conn, tokenProvider, log.Logger)
+
+	initToken, err := tokenProvider.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("resolving initial API token: %w", err)
+	}
+
+	sdk, err := sdkclient.NewServiceClient(cfg.APIServerURL, initToken)
+	if err != nil {
+		return fmt.Errorf("creating SDK client: %w", err)
+	}
+
+	inf := informer.New(sdk, watchManager, log.Logger)
+
+	projectReconciler := reconciler.NewProjectReconciler(factory, kube, projectKube, provisioner, cfg.CPRuntimeNamespace, cfg.PlatformMode, log.Logger)
+	projectSettingsReconciler := reconciler.NewProjectSettingsReconciler(factory, kube, log.Logger)
+
+	inf.RegisterHandler("projects", projectReconciler.Reconcile)
+	inf.RegisterHandler("project_settings", projectSettingsReconciler.Reconcile)
+
+	var resolveCred openshell.CredentialResolver
+	if cfg.OpenShellGatewayTLSEnabled {
+		tlsResolver := openshell.NewTLSResolver(provisionerKube, cfg.OpenShellGatewayClientTLSSecret, cfg.OpenShellGatewayTLSServerName, log.Logger)
+		resolveCred = tlsResolver.CredentialsForNamespace
+		log.Info().Str("secret", cfg.OpenShellGatewayClientTLSSecret).Str("server_name", cfg.OpenShellGatewayTLSServerName).Msg("OpenShell gateway TLS enabled")
+	} else {
+		resolveCred = openshell.InsecureResolver()
+		log.Info().Msg("OpenShell gateway TLS disabled (plaintext)")
+	}
+	gateway := openshell.NewGatewayClient(cfg.OpenShellGatewayServiceName, cfg.OpenShellGatewayGRPCPort, resolveCred, cfg.OpenShellGatewaySATokenPath, log.Logger, openshell.WithTokenProvider(tokenProvider))
+	defer func() {
+		if err := gateway.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to close gateway client")
+		}
+	}()
+
+	sessionReconcilers := createSessionReconcilers(cfg.Reconcilers, factory, kube, projectKube, provisioner, gateway, kubeReconcilerCfg, log.Logger, inf)
+	for _, sessionRec := range sessionReconcilers {
+		inf.RegisterHandler("sessions", sessionRec.Reconcile)
+	}
+
+	podSyncer := reconciler.NewPodStatusSyncer(factory, provisionerKube, gateway, cfg.PlatformMode, cfg.MPPConfigNamespace, log.Logger)
+
+	tsErrCh := make(chan error, 1)
+	go func() {
+		tsErrCh <- startTokenServer(ctx, cfg, tokenProvider, kp, gateway)
+	}()
+
+	infErrCh := make(chan error, 1)
+	go func() {
+		infErrCh <- inf.Run(ctx)
+	}()
+
+	podSyncErrCh := make(chan error, 1)
+	go func() {
+		podSyncErrCh <- podSyncer.Run(ctx)
+	}()
+
+	appReconciler := reconciler.NewApplicationReconciler(factory, log.Logger)
+	appReconcilerErrCh := make(chan error, 1)
+	go func() {
+		appReconcilerErrCh <- appReconciler.Run(ctx)
+	}()
+	log.Info().Msg("application reconciler enabled")
+
+	clusterHealthSyncer := reconciler.NewClusterHealthSyncer(factory, time.Duration(cfg.ClusterHealthIntervalSeconds)*time.Second, log.Logger)
+	clusterHealthErrCh := make(chan error, 1)
+	go func() {
+		clusterHealthErrCh <- clusterHealthSyncer.Run(ctx)
+	}()
+	log.Info().Msg("cluster health syncer enabled")
+
+	select {
+	case tsErr := <-tsErrCh:
+		if tsErr != nil {
+			return fmt.Errorf("token server: %w", tsErr)
+		}
+		return <-infErrCh
+	case infErr := <-infErrCh:
+		return infErr
+	case podSyncErr := <-podSyncErrCh:
+		return fmt.Errorf("pod status syncer: %w", podSyncErr)
+	case appRecErr := <-appReconcilerErrCh:
+		return fmt.Errorf("application reconciler: %w", appRecErr)
+	case clusterHealthErr := <-clusterHealthErrCh:
+		return fmt.Errorf("cluster health syncer: %w", clusterHealthErr)
+	}
+}
+
+func startTokenServer(ctx context.Context, cfg *config.ControlPlaneConfig, tokenProvider auth.TokenProvider, kp *keypair.KeyPair, gateway *openshell.GatewayClient) error {
+	privKey, err := keypair.ParsePrivateKey(kp.PrivateKeyPEM)
+	if err != nil {
+		return fmt.Errorf("parsing CP token private key: %w", err)
+	}
+	var opts []tokenserver.Option
+	if gateway != nil {
+		opts = append(opts, tokenserver.WithGateway(gateway))
+	}
+	ts, err := tokenserver.New(cfg.CPTokenListenAddr, tokenProvider, privKey, log.Logger, opts...)
+	if err != nil {
+		return fmt.Errorf("creating token server: %w", err)
+	}
+	return ts.Start(ctx)
+}
+
+func createSessionReconcilers(reconcilerTypes []string, factory *reconciler.SDKClientFactory, kube *kubeclient.KubeClient, projectKube *kubeclient.KubeClient, provisioner kubeclient.NamespaceProvisioner, gateway *openshell.GatewayClient, cfg reconciler.KubeReconcilerConfig, logger zerolog.Logger, inf *informer.Informer) []reconciler.Reconciler {
+	var reconcilers []reconciler.Reconciler
+
+	for _, reconcilerType := range reconcilerTypes {
+		switch reconcilerType {
+		case "kube":
+			kubeReconciler := reconciler.NewKubeReconciler(factory, kube, projectKube, provisioner, gateway, cfg, logger)
+			inf.OnMaxRetriesExceeded = kubeReconciler.HandleProvisioningFailure
+			reconcilers = append(reconcilers, kubeReconciler)
+			log.Info().Str("type", "kube").Msg("enabled direct Kubernetes session reconciler")
+		case "tally":
+			tallyReconciler := reconciler.NewSessionTallyReconciler(logger)
+			reconcilers = append(reconcilers, tallyReconciler)
+			log.Info().Str("type", "tally").Msg("enabled session tally reconciler")
+		default:
+			log.Warn().Str("type", reconcilerType).Msg("unknown reconciler type, skipping")
+		}
+	}
+
+	if len(reconcilers) == 0 {
+		log.Warn().Msg("no valid reconcilers configured, falling back to tally reconciler")
+		tallyReconciler := reconciler.NewSessionTallyReconciler(logger)
+		reconcilers = append(reconcilers, tallyReconciler)
+	}
+
+	log.Info().Int("count", len(reconcilers)).Strs("types", reconcilerTypes).Msg("configured session reconcilers")
+	return reconcilers
+}
+
+func loadServiceCAPool() *x509.CertPool {
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		pool = x509.NewCertPool()
+	}
+	if ca, readErr := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"); readErr == nil {
+		pool.AppendCertsFromPEM(ca)
+	}
+	return pool
+}
+
+func installServiceCAIntoDefaultTransport(pool *x509.CertPool) {
+	http.DefaultTransport = &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    pool,
+		},
+	}
+}
+
+func grpcCredentials(useTLS bool) credentials.TransportCredentials {
+	if !useTLS {
+		return insecure.NewCredentials()
+	}
+	return credentials.NewTLS(&tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    loadServiceCAPool(),
+	})
+}
+
+func runTestMode(ctx context.Context, cfg *config.ControlPlaneConfig) error {
+	log.Info().Msg("starting in test mode")
+
+	tokenProvider := buildTokenProvider(cfg, log.Logger)
+	initToken, err := tokenProvider.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("resolving API token: %w", err)
+	}
+
+	sdk, err := sdkclient.NewServiceClient(cfg.APIServerURL, initToken)
+	if err != nil {
+		return fmt.Errorf("creating SDK client: %w", err)
+	}
+
+	conn, err := grpc.NewClient(cfg.GRPCServerAddr, grpc.WithTransportCredentials(grpcCredentials(cfg.GRPCUseTLS)))
+	if err != nil {
+		return fmt.Errorf("connecting to gRPC server: %w", err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).
+				Str("grpc_server_addr", cfg.GRPCServerAddr).
+				Bool("grpc_use_tls", cfg.GRPCUseTLS).
+				Msg("failed to close gRPC connection")
+		}
+	}()
+
+	watchManager := watcher.NewWatchManager(conn, tokenProvider, log.Logger)
+	inf := informer.New(sdk, watchManager, log.Logger)
+
+	tallyReconciler := reconciler.NewTallyReconciler("sessions", sdk, log.Logger)
+	inf.RegisterHandler("sessions", tallyReconciler.Reconcile)
+
+	return inf.Run(ctx)
+}
