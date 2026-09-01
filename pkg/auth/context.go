@@ -110,3 +110,35 @@ func GetAuthPayloadFromContext(ctx context.Context) (*Payload, error) {
 func GetAuthPayload(r *http.Request) (*Payload, error) {
 	return GetAuthPayloadFromContext(r.Context())
 }
+
+// GetRolesFromContext extracts realm_access.roles from the JWT claims in the context.
+// Returns nil if no JWT token is present or if roles cannot be extracted.
+func GetRolesFromContext(ctx context.Context) []string {
+	userToken, err := TokenFromContext(ctx)
+	if err != nil || userToken == nil {
+		return nil
+	}
+
+	claims, ok := userToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil
+	}
+
+	realmAccess, ok := claims["realm_access"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	rolesRaw, ok := realmAccess["roles"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	roles := make([]string, 0, len(rolesRaw))
+	for _, r := range rolesRaw {
+		if role, ok := r.(string); ok {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}

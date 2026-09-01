@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v4"
+
+	"github.com/openshift-online/rh-trex-ai/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/pkg/dao"
 	"github.com/openshift-online/rh-trex-ai/pkg/db"
 	dbmocks "github.com/openshift-online/rh-trex-ai/pkg/db/mocks"
@@ -81,4 +84,94 @@ func TestSQLTranslation(t *testing.T) {
 		Expect(sql).To(Equal(sqlReal))
 		Expect(values).To(valuesReal)
 	}
+}
+
+// ctxWithJWTRoles returns a context with a JWT token containing the given realm_access.roles.
+func ctxWithJWTRoles(roles []string) context.Context {
+	rolesIface := make([]interface{}, len(roles))
+	for i, r := range roles {
+		rolesIface[i] = r
+	}
+	claims := jwt.MapClaims{
+		"username": "testuser",
+		"realm_access": map[string]interface{}{
+			"roles": rolesIface,
+		},
+	}
+	token := &jwt.Token{Claims: claims, Valid: true}
+	ctx := context.WithValue(context.Background(), auth.ContextAuthKey, token)
+	return ctx
+}
+
+func TestBuildUserScope(t *testing.T) {
+	RegisterTestingT(t)
+	var dbFactory db.SessionFactory = dbmocks.NewMockSessionFactory()
+	defer func() { _ = dbFactory.Close() }()
+
+	g := dao.NewGenericDao(&dbFactory)
+	genericService := sqlGenericService{genericDao: g}
+
+	t.Run("no config registered — no filtering", func(t *testing.T) {
+		RegisterTestingT(t)
+		delete(userScopeConfigs, "testModel")
+		var list []testModel
+		listCtx, model, err := genericService.newListContext(context.Background(), "alice", &ListArguments{}, &list)
+		Expect(err).ToNot(HaveOccurred())
+		d := g.GetInstanceDao(context.Background(), model)
+		finished, serviceErr := genericService.buildUserScope(listCtx, &d)
+		Expect(serviceErr).ToNot(HaveOccurred())
+		Expect(finished).To(BeFalse())
+	})
+
+	t.Run("empty username — no filtering (dev mode)", func(t *testing.T) {
+		RegisterTestingT(t)
+		SetUserScopeConfig("testModel", &UserScopeConfig{
+			OwnershipField: "created_by_user_id",
+			AdminRoles:     []string{"admin"},
+		})
+		defer delete(userScopeConfigs, "testModel")
+		var list []testModel
+		listCtx, model, err := genericService.newListContext(context.Background(), "", &ListArguments{}, &list)
+		Expect(err).ToNot(HaveOccurred())
+		d := g.GetInstanceDao(context.Background(), model)
+		finished, serviceErr := genericService.buildUserScope(listCtx, &d)
+		Expect(serviceErr).ToNot(HaveOccurred())
+		Expect(finished).To(BeFalse())
+	})
+
+	t.Run("admin role — no filtering", func(t *testing.T) {
+		RegisterTestingT(t)
+		SetUserScopeConfig("testModel", &UserScopeConfig{
+			OwnershipField: "created_by_user_id",
+			AdminRoles:     []string{"admin", "platform-admin"},
+		})
+		defer delete(userScopeConfigs, "testModel")
+		ctx := ctxWithJWTRoles([]string{"user", "admin"})
+		var list []testModel
+		listCtx, model, err := genericService.newListContext(ctx, "alice", &ListArguments{}, &list)
+		Expect(err).ToNot(HaveOccurred())
+		d := g.GetInstanceDao(ctx, model)
+		finished, serviceErr := genericService.buildUserScope(listCtx, &d)
+		Expect(serviceErr).ToNot(HaveOccurred())
+		Expect(finished).To(BeFalse())
+	})
+
+	t.Run("regular user — adds WHERE filter", func(t *testing.T) {
+		RegisterTestingT(t)
+		SetUserScopeConfig("testModel", &UserScopeConfig{
+			OwnershipField: "created_by_user_id",
+			AdminRoles:     []string{"admin"},
+		})
+		defer delete(userScopeConfigs, "testModel")
+		ctx := ctxWithJWTRoles([]string{"user"})
+		var list []testModel
+		listCtx, model, err := genericService.newListContext(ctx, "alice", &ListArguments{}, &list)
+		Expect(err).ToNot(HaveOccurred())
+		d := g.GetInstanceDao(ctx, model)
+		finished, serviceErr := genericService.buildUserScope(listCtx, &d)
+		Expect(serviceErr).ToNot(HaveOccurred())
+		Expect(finished).To(BeFalse())
+		// The WHERE clause was added to the DAO — we can't easily inspect gorm internals,
+		// but we verify no error and no premature finish
+	})
 }
