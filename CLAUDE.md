@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TRex (**T**rusted **R**EST **Ex**ample) is a Go-based REST and gRPC API template that serves as a full-featured foundation for building new microservices. It provides CRUD operations for "dinosaurs" as example business logic to be replaced. See [README.md](./README.md) for quick start and usage.
 
+## Structure
+
+- `components/api-server/` — Go REST + gRPC API microservice, PostgreSQL-backed
+- `scripts/` — project-wide generators (cli-generator, sdk-generator, console-plugin-generator, openapi-ir) and dependency checks
+- `templates/new-project/` — scaffolded project template for new consumers
+- `specs/` — desired state specifications
+- `skills/` — agent skills for SDLC workflow
+
 ## Agent Rules
 
 ### Always Define Specs
@@ -46,23 +54,25 @@ Specs (`specs/`) define desired state. Skills (`skills/`) define procedures. `sk
 ## Development Commands
 
 ### Build & Run
-- `make proto` — generate protobuf stubs (required before `make binary`)
-- `make binary` — build the trex binary
-- `make install` — build and install to GOPATH/bin
-- `make run` — run with auth enabled
-- `make run-no-auth` — run with auth disabled (local dev)
+- `cd components/api-server && make proto` — generate protobuf stubs (required before `make binary`)
+- `cd components/api-server && make binary` — build the trex binary
+- `cd components/api-server && make install` — build and install to GOPATH/bin
+- `cd components/api-server && make run` — run with auth enabled
+- `cd components/api-server && make run-no-auth` — run with auth disabled (local dev)
+- `make build-all` — build all components
 
 ### Test & Quality
-- `make test` — unit tests
+- `make test` — unit tests (api-server + generators)
 - `make test-integration` — integration tests
 - `make verify` — vet + formatting
 - `make lint` — golangci-lint
+- `make dependency-age` — enforce dependency age policy
 
 ### Database
 - `make db/setup` — start PostgreSQL container
 - `make db/teardown` — stop and remove PostgreSQL container
 - `make db/login` — connect to local PostgreSQL
-- `./trex migrate` — run database migrations
+- `cd components/api-server && ./trex migrate` — run database migrations
 
 ### Protobuf
 - `make proto` — generate Go stubs from `.proto` files
@@ -101,7 +111,7 @@ Same database flags as `trex serve`. Idempotent — safe to run multiple times.
 
 **Layers:** Handler → Service → DAO → Model
 
-**Key packages:**
+**Key packages** (under `components/api-server/`):
 - `pkg/api/` — models, OpenAPI client, presenters
 - `pkg/handlers/` — REST endpoints
 - `pkg/services/` — business logic + event handlers
@@ -120,6 +130,7 @@ Same database flags as `trex serve`. Idempotent — safe to run multiple times.
 ### Entity Generator
 
 ```bash
+cd components/api-server
 go run ./scripts/generator.go --kind FizzBuzz
 go run ./scripts/generator.go --kind FizzBuzz --fields "name:string:required,count:int"
 ```
@@ -135,7 +146,7 @@ Creates: model, DAO, service, handlers, presenter, migration, OpenAPI spec, test
 
 ```bash
 cd scripts/cli-generator
-go run . --spec ../../openapi/openapi.yaml --out /tmp/trex-cli
+go run . --spec ../../components/api-server/openapi/openapi.yaml --out /tmp/trex-cli
 ```
 
 Generates a complete Cobra CLI with `login`, `list`, `get`, `create` commands from the OpenAPI spec.
@@ -143,6 +154,7 @@ Generates a complete Cobra CLI with `login`, `list`, `get`, `create` commands fr
 ### Post-Generation Workflow
 
 ```bash
+cd components/api-server
 make binary
 make db/teardown && make db/setup
 ./trex migrate
