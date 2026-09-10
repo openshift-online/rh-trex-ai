@@ -34,7 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("connecting to gRPC server: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	dinosaurReconciler := reconciler.NewDinosaurReconciler()
 	fossilReconciler := reconciler.NewFossilReconciler()
