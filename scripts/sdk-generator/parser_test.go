@@ -13,7 +13,7 @@ import (
 )
 
 func TestRepositoryCharacterization(t *testing.T) {
-	spec, err := parseSpec(filepath.Join("..", "..", "openapi", "openapi.yaml"), "/api/rh-trex-ai/v1")
+	spec, err := parseSpec(filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml"), "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestSharedFixtureConformance(t *testing.T) {
 }
 
 func TestGeneratedSDKAcceptanceAndDeterminism(t *testing.T) {
-	specPath := filepath.Join("..", "..", "openapi", "openapi.yaml")
+	specPath := filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml")
 	spec, err := parseSpec(specPath, "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestGeneratedSDKAcceptanceAndDeterminism(t *testing.T) {
 }
 
 func TestGeneratedTypeScriptRuntimeAcceptance(t *testing.T) {
-	specPath := filepath.Join("..", "..", "openapi", "openapi.yaml")
+	specPath := filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml")
 	spec, err := parseSpec(specPath, "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)
