@@ -238,7 +238,7 @@ func runGeneratedCommand(t *testing.T, directory, name string, arguments ...stri
 
 func writeIntegratedHarness(t *testing.T, root string) {
 	t.Helper()
-	repository, err := filepath.Abs(filepath.Join("..", ".."))
+	apiServer, err := filepath.Abs(filepath.Join("..", "..", "components", "api-server"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,10 +246,10 @@ func writeIntegratedHarness(t *testing.T, root string) {
 
 go 1.24.2
 
-require github.com/openshift-online/rh-trex-ai v0.0.0
+require github.com/openshift-online/rh-trex-ai/components/api-server v0.0.0
 
-replace github.com/openshift-online/rh-trex-ai => %s
-`, filepath.ToSlash(repository))
+replace github.com/openshift-online/rh-trex-ai/components/api-server => %s
+`, filepath.ToSlash(apiServer))
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(module), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ import (
 	"os"
 
 	generatedtui "example.com/integrated-service/data/generated/tui"
-	pkgcmd "github.com/openshift-online/rh-trex-ai/pkg/cmd"
+	pkgcmd "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/cmd"
 )
 
 func main() {
