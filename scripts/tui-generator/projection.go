@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openshift-online/rh-trex-ai/pkg/tui"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/tui"
 	ir "github.com/openshift-online/rh-trex-ai/scripts/openapi-ir"
 )
 

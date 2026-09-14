@@ -38,7 +38,7 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/oasdiff/yaml v0.0.9 // indirect
 	github.com/oasdiff/yaml3 v0.0.9 // indirect
-	github.com/openshift-online/rh-trex-ai v0.0.0
+	github.com/openshift-online/rh-trex-ai/components/api-server v0.0.0
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
@@ -50,4 +50,4 @@ require (
 
 replace github.com/openshift-online/rh-trex-ai/scripts/openapi-ir => ../openapi-ir
 
-replace github.com/openshift-online/rh-trex-ai => ../..
+replace github.com/openshift-online/rh-trex-ai/components/api-server => ../../components/api-server
