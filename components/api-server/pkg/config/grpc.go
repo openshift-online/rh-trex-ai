@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/spf13/pflag"
 )
 
@@ -28,5 +30,28 @@ func (c *GRPCConfig) AddFlags(fs *pflag.FlagSet) {
 }
 
 func (c *GRPCConfig) ReadFiles() error {
+	return nil
+}
+
+// Validate rejects --grpc-enable-tls without both --grpc-tls-cert-file and
+// --grpc-tls-key-file. It only checks that the flags are set; whether the files
+// exist and parse is checked when the gRPC server loads them.
+func (c *GRPCConfig) Validate() error {
+	if !c.EnableTLS {
+		return nil
+	}
+	var missing []string
+	if c.TLSCertFile == "" {
+		missing = append(missing, "grpc-tls-cert-file")
+	}
+	if c.TLSKeyFile == "" {
+		missing = append(missing, "grpc-tls-key-file")
+	}
+	if len(missing) > 0 {
+		return &ConfigValidationError{
+			Field:   strings.Join(missing, "/"),
+			Message: "gRPC TLS certificate and key files are required when --grpc-enable-tls is set",
+		}
+	}
 	return nil
 }

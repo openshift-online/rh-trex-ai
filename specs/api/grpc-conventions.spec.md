@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** API-002
 **Related:** [Event-Driven Controllers](../framework/event-driven-controllers.spec.md), [Authentication](../security/authentication.spec.md)
-**Implements:** `pkg/server/grpc_server.go`, `pkg/server/grpc_registry.go`, `proto/rh_trex/v1/`, `plugins/*/grpc_handler.go`
+**Implements:** `pkg/server/grpc_server.go`, `pkg/server/grpc_registry.go`, `pkg/server/grpc_tls.go`, `pkg/config/grpc.go`, `proto/rh_trex/v1/`, `plugins/*/grpc_handler.go`, `components/control-plane/internal/grpcclient/`
 
 ---
 
@@ -85,6 +85,50 @@ The gRPC server SHALL register the gRPC health check service and reflection serv
 - WHEN a health check probe calls `grpc.health.v1.Health/Check`
 - THEN the server SHALL respond with `SERVING` status
 
+### Requirement: gRPC Transport Security
+
+The gRPC server SHALL serve TLS when `--grpc-enable-tls=true`, using `--grpc-tls-cert-file` and `--grpc-tls-key-file`, independently of the shared `--enable-tls` flag. When the shared TLS configuration (`--enable-tls`) is enabled it SHALL take precedence for the gRPC listener as well, so deployments that already use one shared certificate keep working. The gRPC-only TLS configuration SHALL require TLS 1.2 or newer (or the shared `--tls-min-version` when that is higher), SHALL offer only `h2` over ALPN, and SHALL fail server startup when either file is unset, missing, or unparsable. It SHALL serve a renewed key pair on new connections without a restart when either file changes on disk. A renewal that cannot be loaded SHALL NOT take the listener down; the previous key pair SHALL keep being served and the failure SHALL be logged. The control-plane watch client SHALL dial with TLS when `TREX_GRPC_TLS=true` and in plaintext otherwise.
+
+#### Scenario: gRPC-only TLS
+- GIVEN `--enable-tls` is off
+- AND `--grpc-enable-tls=true` with `--grpc-tls-cert-file` and `--grpc-tls-key-file` pointing at a valid key pair
+- WHEN a client that trusts the certificate calls `grpc.health.v1.Health/Check`
+- THEN the TLS handshake SHALL negotiate TLS 1.2 or newer with ALPN protocol `h2`
+- AND the call SHALL succeed
+- AND a plaintext client calling the same service SHALL fail
+
+#### Scenario: Shared TLS precedence
+- GIVEN `--enable-tls` is on with its own `--tls-cert-file` and `--tls-key-file`
+- AND `--grpc-enable-tls=true` with a different key pair
+- WHEN a client connects to the gRPC listener
+- THEN the server SHALL present the shared certificate
+
+#### Scenario: Missing files fail fast
+- GIVEN `--grpc-enable-tls=true` and `--enable-tls` off
+- WHEN `--grpc-tls-cert-file` or `--grpc-tls-key-file` is unset, or names a missing or unparsable file
+- THEN `NewDefaultGRPCServer` SHALL report an error naming the offending flag or file
+- AND the process SHALL exit non-zero before listening
+
+#### Scenario: Renewal without restart
+- GIVEN a gRPC server serving gRPC-only TLS
+- WHEN the certificate and key files are replaced with a new key pair
+- THEN the next new connection SHALL be presented the new certificate
+- AND the server SHALL NOT be restarted
+
+#### Scenario: Unreadable renewal keeps serving
+- GIVEN a gRPC server serving gRPC-only TLS
+- WHEN the certificate file is replaced with content that cannot be parsed
+- THEN new connections SHALL still be presented the previous certificate
+- AND the reload failure SHALL be logged
+
+#### Scenario: Control-plane TLS client
+- GIVEN the control plane starts with `TREX_GRPC_TLS=true`
+- WHEN it dials `TREX_GRPC_SERVER_ADDR`
+- THEN it SHALL use TLS 1.2 or newer and verify the server certificate against the system roots, or against `TREX_GRPC_TLS_CA_FILE` when set
+- AND `TREX_GRPC_TLS_SERVER_NAME`, when set, SHALL override the name used for SNI and verification
+- AND an unparsable `TREX_GRPC_TLS` value or an unreadable CA file SHALL be a startup error
+- AND without `TREX_GRPC_TLS=true` the dial SHALL stay plaintext
+
 ### Requirement: Buf-Managed Code Generation
 
 Proto stub generation SHALL use `buf` via `make proto` with configuration in `buf.yaml` and `buf.gen.yaml`.
@@ -106,3 +150,6 @@ Proto stub generation SHALL use `buf` via `make proto` with configuration in `bu
 | Pre/post auth interceptor hooks | Enables downstream projects to inject custom auth without modifying framework |
 | Reflection enabled by default | Enables grpcurl and gRPC GUI tools for development |
 | Transaction interceptor for unary only | Streaming RPCs have different lifecycle; transactions don't span multiple messages |
+| gRPC TLS independent of shared `--enable-tls` | REST is commonly edge-terminated by a Route or Ingress while gRPC needs end-to-end TLS (passthrough); enabling shared TLS would also switch REST to HTTPS |
+| Shared TLS wins when both are enabled | Keeps existing single-certificate deployments working unchanged |
+| Reload gRPC key pair on file change, keep old pair on failure | cert-manager and service-CA rotate files in place; a half-written renewal must not take the listener down |

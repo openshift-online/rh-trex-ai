@@ -305,6 +305,12 @@ func (c *TLSConfig) tlsVersionToInt(version string) uint16 {
 	}
 }
 
+// MinTLSVersion returns the configured minimum TLS version as a crypto/tls
+// constant, or 0 when MinVersion is not a supported version string.
+func (c *TLSConfig) MinTLSVersion() uint16 {
+	return c.tlsVersionToInt(c.MinVersion)
+}
+
 // cipherSuiteByName returns cipher suite ID by name
 func (c *TLSConfig) cipherSuiteByName(name string) uint16 {
 	// Map common cipher suite names to IDs

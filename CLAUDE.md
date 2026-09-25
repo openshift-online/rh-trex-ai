@@ -98,7 +98,7 @@ Specs (`specs/`) define desired state. Skills (`skills/`) define procedures. `sk
 
 **Auth:** `--enable-jwt` (default: true), `--enable-authz` (default: true), `--jwk-cert-url` (default: Red Hat SSO), `--jwk-cert-file`, `--acl-file`
 
-**gRPC:** `--enable-grpc` (default: true), `--grpc-server-bindaddress` (default: `localhost:9000`), `--grpc-enable-tls`, `--grpc-tls-cert-file`, `--grpc-tls-key-file`
+**gRPC:** `--enable-grpc` (default: true), `--grpc-server-bindaddress` (default: `localhost:9000`), `--grpc-enable-tls`, `--grpc-tls-cert-file`, `--grpc-tls-key-file` (the gRPC TLS flags work without the shared `--enable-tls`, which takes precedence when on; the gRPC key pair is hot-reloaded on renewal; see `components/api-server/GRPC.md`)
 
 **Monitoring:** `--health-check-server-bindaddress` (default: `localhost:8083`), `--metrics-server-bindaddress` (default: `localhost:8080`), `--enable-sentry`
 
