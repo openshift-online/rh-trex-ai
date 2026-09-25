@@ -79,6 +79,28 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	return messages
 }
 
+// Validate runs every sub-configuration's Validate after flags and files have
+// been read and returns one message per failure, mirroring ReadFiles, so the
+// caller can report every problem at once instead of the first one. An empty
+// result means the configuration is consistent.
+func (c *ApplicationConfig) Validate() []string {
+	validators := []struct {
+		f    func() error
+		name string
+	}{
+		{c.GRPC.Validate, "GRPC"},
+		{c.Auth.Validate, "Auth"},
+		{c.TLS.Validate, "TLS"},
+	}
+	var messages []string
+	for _, v := range validators {
+		if err := v.f(); err != nil {
+			messages = append(messages, fmt.Sprintf("%s %s", v.name, err.Error()))
+		}
+	}
+	return messages
+}
+
 // Read the contents of file into integer value
 func readFileValueInt(file string, val *int) error {
 	fileContents, err := ReadFile(file)

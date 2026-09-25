@@ -320,6 +320,7 @@ CLI flags:
 - When the shared `--enable-tls` is on it takes precedence for gRPC, so one shared certificate keeps working. If the shared configuration cannot be built, gRPC startup fails instead of falling back to the gRPC-only files.
 - The gRPC-only listener requires TLS 1.2 or newer (or `--tls-min-version` when that is higher) and offers only `h2` over ALPN.
 - `--grpc-enable-tls` with an unset, missing, or unparsable cert or key file fails startup with an error naming the flag or file.
+- Environment initialization runs every configuration validator (`GRPCConfig`, `AuthConfig`, `TLSConfig`) right after configuration files are read (`ApplicationConfig.Validate`, called from `Env.Initialize`) and fails startup listing every violation. Before this, the `Validate` methods existed but nothing called them.
 - The gRPC key pair is hot-reloaded: when either file's modification time or size changes (for example a cert-manager or service-CA renewal), the next new connection is served the new certificate without a restart. A renewal that cannot be loaded is logged and the previous key pair keeps being served.
 - The template control plane dials with TLS when `TREX_GRPC_TLS=true`; see [Control-plane client TLS](#control-plane-client-tls).
 

@@ -87,7 +87,7 @@ The gRPC server SHALL register the gRPC health check service and reflection serv
 
 ### Requirement: gRPC Transport Security
 
-The gRPC server SHALL serve TLS when `--grpc-enable-tls=true`, using `--grpc-tls-cert-file` and `--grpc-tls-key-file`, independently of the shared `--enable-tls` flag. When the shared TLS configuration (`--enable-tls`) is enabled it SHALL take precedence for the gRPC listener as well, so deployments that already use one shared certificate keep working. The gRPC-only TLS configuration SHALL require TLS 1.2 or newer (or the shared `--tls-min-version` when that is higher), SHALL offer only `h2` over ALPN, and SHALL fail server startup when either file is unset, missing, or unparsable. It SHALL serve a renewed key pair on new connections without a restart when either file changes on disk. A renewal that cannot be loaded SHALL NOT take the listener down; the previous key pair SHALL keep being served and the failure SHALL be logged. The control-plane watch client SHALL dial with TLS when `TREX_GRPC_TLS=true` and in plaintext otherwise.
+The gRPC server SHALL serve TLS when `--grpc-enable-tls=true`, using `--grpc-tls-cert-file` and `--grpc-tls-key-file`, independently of the shared `--enable-tls` flag. When the shared TLS configuration (`--enable-tls`) is enabled it SHALL take precedence for the gRPC listener as well, so deployments that already use one shared certificate keep working. The gRPC-only TLS configuration SHALL require TLS 1.2 or newer (or the shared `--tls-min-version` when that is higher), SHALL offer only `h2` over ALPN, and SHALL fail server startup when either file is unset, missing, or unparsable. It SHALL serve a renewed key pair on new connections without a restart when either file changes on disk. A renewal that cannot be loaded SHALL NOT take the listener down; the previous key pair SHALL keep being served and the failure SHALL be logged. The control-plane watch client SHALL dial with TLS when `TREX_GRPC_TLS=true` and in plaintext otherwise. Environment initialization SHALL run every configuration validator (`GRPCConfig`, `AuthConfig`, `TLSConfig`) after configuration files are read and SHALL fail startup listing every violation, so a misconfiguration is reported before any listener opens.
 
 #### Scenario: gRPC-only TLS
 - GIVEN `--enable-tls` is off
@@ -108,6 +108,12 @@ The gRPC server SHALL serve TLS when `--grpc-enable-tls=true`, using `--grpc-tls
 - WHEN `--grpc-tls-cert-file` or `--grpc-tls-key-file` is unset, or names a missing or unparsable file
 - THEN `NewDefaultGRPCServer` SHALL report an error naming the offending flag or file
 - AND the process SHALL exit non-zero before listening
+
+#### Scenario: Configuration is validated at startup
+- GIVEN `--grpc-enable-tls=true` without `--grpc-tls-key-file`, `--enable-bearer=true` without a token, and `--enable-tls=true` without certificate files
+- WHEN the environment initializes after reading configuration files
+- THEN startup SHALL fail with one message per violation, each naming the offending flag
+- AND no server SHALL start listening
 
 #### Scenario: Renewal without restart
 - GIVEN a gRPC server serving gRPC-only TLS

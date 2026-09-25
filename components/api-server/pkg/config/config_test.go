@@ -78,3 +78,23 @@ func createConfigFile(namePrefix, contents string) (*os.File, error) {
 	err = configFile.Close()
 	return configFile, err
 }
+
+func TestApplicationConfigValidateReportsEveryFailure(t *testing.T) {
+	RegisterTestingT(t)
+
+	cfg := NewApplicationConfig()
+	Expect(cfg.Validate()).To(BeEmpty(), "defaults must validate")
+
+	cfg.GRPC.EnableTLS = true
+	cfg.Auth.EnableBearer = true
+	cfg.Auth.BearerToken = ""
+	cfg.TLS.EnableTLS = true
+	cfg.TLS.CertFile = ""
+	cfg.TLS.KeyFile = ""
+
+	messages := cfg.Validate()
+	Expect(messages).To(HaveLen(3))
+	Expect(messages[0]).To(HavePrefix("GRPC configuration error for grpc-tls-cert-file/grpc-tls-key-file"))
+	Expect(messages[1]).To(HavePrefix("Auth configuration error for bearer-token"))
+	Expect(messages[2]).To(HavePrefix("TLS configuration error for tls-cert-file/tls-key-file"))
+}
