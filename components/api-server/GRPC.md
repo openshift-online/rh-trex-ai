@@ -321,6 +321,18 @@ CLI flags:
 - The gRPC-only listener requires TLS 1.2 or newer (or `--tls-min-version` when that is higher) and offers only `h2` over ALPN.
 - `--grpc-enable-tls` with an unset, missing, or unparsable cert or key file fails startup with an error naming the flag or file.
 - The gRPC key pair is hot-reloaded: when either file's modification time or size changes (for example a cert-manager or service-CA renewal), the next new connection is served the new certificate without a restart. A renewal that cannot be loaded is logged and the previous key pair keeps being served.
+- The template control plane dials with TLS when `TREX_GRPC_TLS=true`; see [Control-plane client TLS](#control-plane-client-tls).
+
+##### Control-plane client TLS
+
+`components/control-plane` reads these environment variables (`internal/config/config.go`):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TREX_GRPC_SERVER_ADDR` | `localhost:9000` | gRPC server address |
+| `TREX_GRPC_TLS` | `false` | Dial with TLS 1.2+ instead of plaintext; any value `strconv.ParseBool` rejects is a startup error |
+| `TREX_GRPC_TLS_CA_FILE` | unset | PEM CA bundle to verify the server certificate; system roots when unset. An unreadable or unparsable file is a startup error |
+| `TREX_GRPC_TLS_SERVER_NAME` | unset | Override the name used for SNI and certificate verification; the host part of `TREX_GRPC_SERVER_ADDR` when unset |
 
 #### 2.2 gRPC Service Registration (mirrors `routes.go` pattern)
 
