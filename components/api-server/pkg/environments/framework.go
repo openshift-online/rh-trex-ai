@@ -71,6 +71,12 @@ func (e *Env) Initialize() error {
 		glog.Fatalf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}
 
+	// Validate after ReadFiles so file-derived values (for example TLS
+	// certificate paths filled in from the environment) are already in place.
+	if messages := globalEnv.Config.Validate(); len(messages) != 0 {
+		glog.Fatalf("invalid configuration:\n%s", strings.Join(messages, "\n"))
+	}
+
 	if err := envImpl.OverrideDatabase(&e.Database); err != nil {
 		glog.Fatalf("Failed to configure Database: %s", err)
 	}

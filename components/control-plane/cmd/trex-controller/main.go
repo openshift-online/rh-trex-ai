@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/config"
+	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/grpcclient"
 	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/reconciler"
 	"github.com/openshift-online/rh-trex-ai/components/control-plane/internal/watcher"
 )
@@ -25,11 +25,25 @@ func main() {
 	log.Printf("INFO trex-controller starting")
 	log.Printf("INFO grpc=%s api=%s namespace=%s", cfg.GRPCServerAddr, cfg.APIServerURL, cfg.Namespace)
 
+	creds, err := grpcclient.TransportCredentials(cfg)
+	if err != nil {
+		log.Fatalf("configuring gRPC transport: %v", err)
+	}
+	if cfg.GRPCTLS {
+		caSource := "system roots"
+		if cfg.GRPCTLSCAFile != "" {
+			caSource = cfg.GRPCTLSCAFile
+		}
+		log.Printf("INFO grpc transport=tls ca=%s server_name=%q", caSource, cfg.GRPCTLSServerName)
+	} else {
+		log.Printf("INFO grpc transport=plaintext")
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	conn, err := grpc.NewClient(cfg.GRPCServerAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
 		log.Fatalf("connecting to gRPC server: %v", err)

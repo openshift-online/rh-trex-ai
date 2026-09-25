@@ -306,6 +306,35 @@ CLI flags:
 --grpc-tls-key-file             TLS key file for gRPC
 ```
 
+##### gRPC transport security
+
+`pkg/server/grpc_tls.go` chooses the gRPC listener's credentials (spec: `specs/api/grpc-conventions.spec.md`, "gRPC Transport Security"):
+
+| Flags | gRPC listener | REST listener |
+|-------|---------------|---------------|
+| neither | plaintext | plaintext |
+| `--grpc-enable-tls` + `--grpc-tls-cert-file` + `--grpc-tls-key-file` | TLS with the gRPC key pair | unchanged (plaintext unless `--enable-https`) |
+| `--enable-tls` (shared), with or without `--grpc-enable-tls` | TLS with the shared configuration | TLS with the shared configuration |
+
+- The gRPC flags work on their own; they do not require the shared `--enable-tls`. Use them when REST is edge-terminated (Route or Ingress) and gRPC needs end-to-end TLS (passthrough).
+- When the shared `--enable-tls` is on it takes precedence for gRPC, so one shared certificate keeps working. If the shared configuration cannot be built, gRPC startup fails instead of falling back to the gRPC-only files.
+- The gRPC-only listener requires TLS 1.2 or newer (or `--tls-min-version` when that is higher) and offers only `h2` over ALPN.
+- `--grpc-enable-tls` with an unset, missing, or unparsable cert or key file fails startup with an error naming the flag or file.
+- Environment initialization runs every configuration validator (`GRPCConfig`, `AuthConfig`, `TLSConfig`) right after configuration files are read (`ApplicationConfig.Validate`, called from `Env.Initialize`) and fails startup listing every violation. Before this, the `Validate` methods existed but nothing called them.
+- The gRPC key pair is hot-reloaded: when either file's modification time or size changes (for example a cert-manager or service-CA renewal), the next new connection is served the new certificate without a restart. A renewal that cannot be loaded is logged and the previous key pair keeps being served.
+- The template control plane dials with TLS when `TREX_GRPC_TLS=true`; see [Control-plane client TLS](#control-plane-client-tls).
+
+##### Control-plane client TLS
+
+`components/control-plane` reads these environment variables (`internal/config/config.go`):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TREX_GRPC_SERVER_ADDR` | `localhost:9000` | gRPC server address |
+| `TREX_GRPC_TLS` | `false` | Dial with TLS 1.2+ instead of plaintext; any value `strconv.ParseBool` rejects is a startup error |
+| `TREX_GRPC_TLS_CA_FILE` | unset | PEM CA bundle to verify the server certificate; system roots when unset. An unreadable or unparsable file is a startup error |
+| `TREX_GRPC_TLS_SERVER_NAME` | unset | Override the name used for SNI and certificate verification; the host part of `TREX_GRPC_SERVER_ADDR` when unset |
+
 #### 2.2 gRPC Service Registration (mirrors `routes.go` pattern)
 
 `pkg/server/grpc_registry.go`:
@@ -383,14 +412,13 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
         ),
     }
 
-    if env.Config.GRPC.EnableTLS {
-        creds, err := credentials.NewServerTLSFromFile(
-            env.Config.GRPC.TLSCertFile,
-            env.Config.GRPC.TLSKeyFile,
-        )
-        if err != nil {
-            glog.Fatalf("Failed to load gRPC TLS credentials: %v", err)
-        }
+    // Shared --enable-tls takes precedence; otherwise --grpc-enable-tls enables
+    // TLS on the gRPC listener alone (see grpc_tls.go).
+    creds, err := grpcTransportCredentials(env.Config.TLS, env.Config.GRPC)
+    if err != nil {
+        glog.Fatalf("Unable to configure gRPC TLS: %v", err)
+    }
+    if creds != nil {
         opts = append(opts, grpc.Creds(creds))
     }
 
@@ -439,7 +467,7 @@ func (s *grpcAPIServer) Stop() error {
 **Error handling strategy** (consistent with `defaultAPIServer`):
 - `Listen()` returns errors to the caller. `Start()` calls `glog.Fatalf` if listen fails — the server cannot start, so the process must exit. This matches the existing `defaultAPIServer.Start()` pattern.
 - `Serve()` delegates to `Check()` (from `server.go`) which logs to sentry and calls `os.Exit(1)` on real errors, but ignores `http.ErrServerClosed`-equivalent scenarios.
-- TLS credential failures are fatal — if you configured TLS but the cert is broken, the server refuses to start. No silent fallback to plaintext.
+- TLS credential failures are fatal — if you configured TLS but the cert is broken, the server refuses to start. No silent fallback to plaintext. After startup, a gRPC-only key pair that fails to reload is logged and the previous key pair keeps being served.
 
 #### 2.4 gRPC Interceptors (mirrors HTTP middleware)
 
@@ -1292,6 +1320,7 @@ pkg/api/grpc/                                    # generated proto Go code (giti
 pkg/config/grpc.go                               # gRPC configuration struct + flags
 pkg/server/grpc_server.go                        # gRPC server implementing Server interface
 pkg/server/grpc_registry.go                      # RegisterGRPCService / LoadDiscoveredGRPCServices
+pkg/server/grpc_tls.go                           # gRPC transport credentials + key pair hot reload
 pkg/server/grpc_interceptors.go                  # Auth, logging, metrics, transaction, recovery interceptors
 pkg/server/grpcutil/validation.go                # Shared gRPC input validation helpers
 plugins/dinosaurs/grpc_handler.go                # gRPC handler for Dinosaurs (with validation)

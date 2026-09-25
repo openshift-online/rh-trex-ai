@@ -1,7 +1,7 @@
 # Reconciliation Checkpoint
 
-**Last Updated:** 2026-08-04
-**Last Run By:** Codex (reconcile skill — no-auth TUI/server security alignment)
+**Last Updated:** 2026-09-25
+**Last Run By:** Claude (reconcile skill: API-002 gRPC Transport Security)
 
 ---
 
@@ -10,12 +10,12 @@
 | Domain | Specs | Requirements | Covered | Partial | Missing | Coverage |
 |--------|-------|-------------|---------|---------|---------|----------|
 | framework | 4 | 24 | 24 | 0 | 0 | 100% |
-| api | 2 | 20 | 20 | 0 | 0 | 100% |
+| api | 2 | 21 | 21 | 0 | 0 | 100% |
 | data | 2 | 14 | 13 | 1 | 0 | 92.9% |
 | security | 3 | 17 | 17 | 0 | 0 | 100% |
 | codegen | 6 | 89 | 79 | 9 | 1 | 88.8% |
 | standards | 4 | 30 | 30 | 0 | 0 | 100% |
-| **Total** | **21** | **194** | **183** | **10** | **1** | **94.3%** |
+| **Total** | **21** | **195** | **184** | **10** | **1** | **94.4%** |
 
 ## Spec Dependency Order
 
@@ -128,6 +128,7 @@ Reconciliation MUST proceed in this order to respect dependencies:
 | GAP-052 | STD-003 | Untrusted Pull Request Isolation | closed | major | Fixed: `.github/workflows/trex-pr-ci.yml` runs fork code on `pull_request` with only `contents: read`, no persisted checkout credentials, immutable action SHAs, draft-transition coverage, and no secrets. |
 | GAP-053 | STD-003 | Privilege-Separated Review Comments | closed | major | Fixed: `.github/workflows/trex-auto-review.yml` consumes completed CI through `workflow_run`, verifies the current open PR/head SHA via GitHub APIs, treats patches as data, and creates or updates one marker-owned comment without checking out or executing fork content. |
 | GAP-054 | STD-003 | Workflow Trust-Boundary Verification | closed | major | Fixed: `scripts/test_trex_review_workflows.py` validates triggers, exact permissions, immutable pins, valid expression operators, and prohibited privileged operations, with unsafe mutation cases. |
+| GAP-095 | API-002 | gRPC Transport Security | closed | major | Fixed: `--grpc-enable-tls` was inert unless the shared `--enable-tls` was also on. `pkg/server/grpc_tls.go` now serves gRPC-only TLS (TLS 1.2+, ALPN `h2`, fail-fast on bad files, hot reload on renewal, keep previous pair on a bad renewal) with shared TLS taking precedence; `GRPCConfig.Validate()` names the missing flag; the control plane dials TLS with `TREX_GRPC_TLS`. Covered by `pkg/server/grpc_tls_test.go`, `pkg/config/grpc_test.go`, and control-plane `internal/config` and `internal/grpcclient` tests. |
 
 ### Gap Execution Plan
 
@@ -188,3 +189,4 @@ API parity, CG-005, CG-006, STD-003, and STD-004 are fully covered. The remainin
 | 2026-08-04 | 94.3% (183/194) | Closed GAP-057, GAP-070, GAP-076, GAP-077, GAP-081, and GAP-091 by moving the reusable runtime to `pkg/tui`, generating only embedded in-module descriptors, registering the real primary-binary Cobra command, removing standalone output, wiring normal generation, and proving deterministic integrated builds and command behavior. | Codex |
 | 2026-08-04 | 94.3% (183/194) | Kept CG-006 fully covered while making the standard `binary` and `install` targets regenerate the embedded TUI descriptor, so one top-level build produces the unified CLI/TUI executable without a separate TUI step. | Codex |
 | 2026-08-05 | 94.3% (183/194) | Kept CG-006 fully covered by deferring missing-token enforcement to the configured server: `run-no-auth` now accepts anonymous TUI requests, supplied Bearer credentials retain origin protections, and authentication-enabled servers still surface their `401` response safely. | Codex |
+| 2026-09-25 | 94.4% (184/195) | Added and closed GAP-095 (API-002 gRPC Transport Security): gRPC-only TLS independent of shared `--enable-tls`, shared TLS precedence, fail-fast validation, certificate hot reload, and a TLS dial option for the control-plane watch client. | Claude |

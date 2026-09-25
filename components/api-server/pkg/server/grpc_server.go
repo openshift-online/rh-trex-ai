@@ -1,12 +1,10 @@
 package server
 
 import (
-	"crypto/tls"
 	"net"
 
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -112,38 +110,14 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 		grpc.ChainStreamInterceptor(streamChain...),
 	}
 
-	// Apply TLS configuration using the new TLS framework
-	if env.Config.TLS.EnableTLS || env.Config.GRPC.EnableTLS {
-		// Use new TLS framework for server configuration
-		tlsConfig, err := env.Config.TLS.BuildServerTLSConfig()
-		if err != nil {
-			// Fall back to legacy gRPC TLS configuration if new framework fails
-			if env.Config.GRPC.EnableTLS {
-				creds, err := credentials.NewServerTLSFromFile(
-					env.Config.GRPC.TLSCertFile,
-					env.Config.GRPC.TLSKeyFile,
-				)
-				if err != nil {
-					glog.Fatalf("Failed to load gRPC TLS credentials: %v", err)
-				}
-				opts = append(opts, grpc.Creds(creds))
-				glog.Info("Using legacy gRPC TLS configuration")
-			}
-		} else if tlsConfig != nil {
-			creds := credentials.NewTLS(tlsConfig)
-			opts = append(opts, grpc.Creds(creds))
-			glog.Infof("Using enhanced TLS configuration with minimum version %s",
-				func() string {
-					switch tlsConfig.MinVersion {
-					case tls.VersionTLS12:
-						return "TLS 1.2"
-					case tls.VersionTLS13:
-						return "TLS 1.3"
-					default:
-						return "unknown"
-					}
-				}())
-		}
+	// Shared --enable-tls takes precedence; otherwise --grpc-enable-tls enables
+	// TLS on the gRPC listener alone (see grpc_tls.go).
+	creds, err := grpcTransportCredentials(env.Config.TLS, env.Config.GRPC)
+	if err != nil {
+		glog.Fatalf("Unable to configure gRPC TLS: %v", err)
+	}
+	if creds != nil {
+		opts = append(opts, grpc.Creds(creds))
 	}
 
 	s := &grpcAPIServer{
