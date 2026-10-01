@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/golang/glog"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -22,6 +24,38 @@ import (
 )
 
 const defaultPostgresImage = "postgres:16"
+
+// disableRyukIfPodman detects whether the container runtime is Podman and, if
+// so, sets TESTCONTAINERS_RYUK_DISABLED=true before testcontainers reads its
+// configuration. Ryuk hardcodes the Docker "bridge" network which does not
+// exist in Podman, so it must be disabled when running against Podman.
+//
+// Explicit env-var values are never overwritten, so callers can always
+// override auto-detection by setting TESTCONTAINERS_RYUK_DISABLED themselves.
+func disableRyukIfPodman(ctx context.Context) {
+	if os.Getenv("TESTCONTAINERS_RYUK_DISABLED") != "" {
+		return
+	}
+
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	ver, err := cli.ServerVersion(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, c := range ver.Components {
+		if strings.Contains(c.Name, "Podman") {
+			glog.Infof("Detected Podman runtime - disabling Ryuk reaper (bridge network not available in Podman)")
+			_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+			return
+		}
+	}
+}
 
 type Testcontainer struct {
 	config    *config.DatabaseConfig
@@ -44,6 +78,8 @@ func NewTestcontainerFactory(config *config.DatabaseConfig) *Testcontainer {
 
 func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 	ctx := context.Background()
+
+	disableRyukIfPodman(ctx)
 
 	image := os.Getenv("POSTGRES_IMAGE")
 	if image == "" {
