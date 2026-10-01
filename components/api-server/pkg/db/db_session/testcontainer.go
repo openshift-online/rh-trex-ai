@@ -23,7 +23,7 @@ import (
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
 
-const defaultPostgresImage = "postgres:16"
+const defaultPostgresImage = "postgres:18"
 
 // disableRyukIfPodman detects whether the container runtime is Podman and, if
 // so, sets TESTCONTAINERS_RYUK_DISABLED=true before testcontainers reads its
