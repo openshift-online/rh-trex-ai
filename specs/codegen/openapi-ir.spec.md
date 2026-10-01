@@ -129,6 +129,24 @@ The IR SHALL model every collection or item exposure as a distinct resource view
 - AND each view SHALL have a distinct stable identity
 - AND neither view SHALL overwrite the other
 
+### Requirement: Shared Base Schema Representation
+
+Operations that expose one resource view SHALL be represented by a single schema. When the response schemas of those operations are related through `allOf` (directly or transitively), the schema that the others extend SHALL represent the view, regardless of operation order. Each operation's own response schema SHALL remain recorded in the IR schema uses. Response schemas on one view that are not related through `allOf` SHALL produce a diagnostic identifying the view and both schemas.
+
+#### Scenario: Responses extend a shared base
+- GIVEN a list operation returns a collection of `Item`
+- AND a create operation on the same path returns `allOf: [Item, {secret}]`
+- AND a get operation on the item path returns `allOf: [Item, {extra}]`
+- WHEN normalization runs, in either operation order
+- THEN the IR SHALL contain one collection view and one item view
+- AND both views SHALL be represented by `Item`
+- AND the create and get operations SHALL retain their own response schemas as schema uses
+
+#### Scenario: Unrelated response schemas on one view
+- GIVEN two operations on one resource view return `Thing` and `Other`, neither extending the other through `allOf`
+- WHEN normalization runs
+- THEN normalization SHALL fail with a conflicting-represented-schemas diagnostic naming the view, `Thing`, and `Other`
+
 ### Requirement: Relationship Semantics
 
 The IR SHALL represent standard OpenAPI Link Objects as directed operation relationships, including stable source and target operation identities, stable source and target resource-view identities when the operations belong to views, and the target parameter mapping values and runtime expressions needed by a consumer to construct a binding plan. An explicit relationship SHALL retain the exact source response and target capability selected by the Link rather than substituting another operation over the same schema.

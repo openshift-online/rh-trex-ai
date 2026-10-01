@@ -223,3 +223,53 @@ func namedSchemaOrNil(document *Document, name string) *Schema {
 	}
 	return nil
 }
+
+func TestSharedAllOfBaseRepresentsResourceView(t *testing.T) {
+	for _, testCase := range []struct{ name, path string }{
+		{"list operation first", "testdata/conformance/shared-base-list-first.yaml"},
+		{"extension operation first", "testdata/conformance/shared-base-extension-first.yaml"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			document, err := Load(testCase.path, LoadOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			item := namedSchema(t, document, "Item")
+			if len(document.ResourceViews) != 2 {
+				t.Fatalf("resource views = %d, want 1 collection and 1 item: %#v", len(document.ResourceViews), document.ResourceViews)
+			}
+			counts := make(map[ResourceViewKind]int)
+			for _, view := range document.ResourceViews {
+				counts[view.Kind]++
+				if view.SchemaRef != item.Ref {
+					t.Fatalf("view %s SchemaRef = %q, want Item %q", view.ID, view.SchemaRef, item.Ref)
+				}
+			}
+			if counts[ResourceCollection] != 1 || counts[ResourceItem] != 1 {
+				t.Fatalf("view kinds = %v, want one collection and one item", counts)
+			}
+			// Schema uses keep each operation's own response schema.
+			uses := make(map[string]string)
+			for _, use := range document.SchemaUses {
+				if use.Role == SchemaRoleResponse && (use.OperationID == "createSecret" || use.OperationID == "getSecret") {
+					uses[use.OperationID] = use.SchemaRef
+				}
+			}
+			if len(uses) != 2 || uses["createSecret"] == item.Ref || uses["getSecret"] == item.Ref {
+				t.Fatalf("response uses = %v, want each operation's own extension schema", uses)
+			}
+		})
+	}
+}
+
+func TestUnrelatedSchemasOnOneViewConflict(t *testing.T) {
+	_, err := Load("testdata/invalid/conflicting-schemas.yaml", LoadOptions{})
+	if err == nil {
+		t.Fatal("unrelated schemas on one resource view unexpectedly normalized")
+	}
+	for _, expected := range []string{"has conflicting represented schemas", "Thing", "Other"} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("diagnostic = %v, want text %q", err, expected)
+		}
+	}
+}

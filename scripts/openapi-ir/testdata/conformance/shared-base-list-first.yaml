@@ -1,0 +1,53 @@
+openapi: 3.0.3
+info: {title: shared base (list-first), version: 1.0.0}
+paths:
+  /secrets:
+    get:
+      operationId: listSecrets
+      responses:
+        "200":
+          description: secrets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: "#/components/schemas/Item"}}
+    post:
+      operationId: createSecret
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Item"
+                  - {type: object, properties: {secret: {type: string}}}
+  /secrets/{secret_id}:
+    get:
+      operationId: getSecret
+      parameters:
+        - {name: secret_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: secret
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Item"
+                  - {type: object, properties: {extra: {type: string}}}
+    patch:
+      operationId: updateSecret
+      parameters:
+        - {name: secret_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Item"}
+components:
+  schemas:
+    Item: {type: object, properties: {id: {type: string}, name: {type: string}}}

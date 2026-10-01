@@ -60,7 +60,16 @@ func (normalizer *normalizer) buildSchemaUsesAndGraph() error {
 			views[key] = view
 			normalizer.document.ResourceViews = append(normalizer.document.ResourceViews, view)
 		} else if view.SchemaRef != schemaRef {
-			return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			switch {
+			case normalizer.composesSchema(view.SchemaRef, schemaRef):
+				// An earlier operation returned an extension of this schema;
+				// the shared base represents the resource.
+				view.SchemaRef = schemaRef
+			case normalizer.composesSchema(schemaRef, view.SchemaRef):
+				// This operation returns an extension of the view's schema.
+			default:
+				return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			}
 		}
 		attachOperationToView(operation, view, operationViews)
 		if len(view.Extensions) == 0 && len(operation.Extensions) > 0 {
@@ -152,6 +161,29 @@ func (normalizer *normalizer) listItemReference(ref string, visiting map[string]
 		}
 	}
 	return ""
+}
+
+// composesSchema reports whether the schema at ref extends base through allOf,
+// directly or transitively.
+func (normalizer *normalizer) composesSchema(ref, base string) bool {
+	return normalizer.composesSchemaVisiting(ref, base, make(map[string]bool))
+}
+
+func (normalizer *normalizer) composesSchemaVisiting(ref, base string, visiting map[string]bool) bool {
+	if visiting[ref] {
+		return false
+	}
+	visiting[ref] = true
+	schema := normalizer.schemas[ref]
+	if schema == nil {
+		return false
+	}
+	for _, composed := range schema.AllOf {
+		if composed.Ref == base || normalizer.composesSchemaVisiting(composed.Ref, base, visiting) {
+			return true
+		}
+	}
+	return false
 }
 
 func (normalizer *normalizer) EffectiveProperties(ref string) map[string]*Property {
