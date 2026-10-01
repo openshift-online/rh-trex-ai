@@ -100,13 +100,13 @@ The handler SHALL periodically refresh JWK keys and support on-demand refresh fo
 The handler SHALL support configuring paths that bypass JWT authentication.
 
 #### Scenario: Public path access
-- GIVEN `/api/rh-trex/v1` and `/api/rh-trex/v1/openapi` are configured as public paths
-- WHEN a request arrives for `/api/rh-trex/v1/openapi`
+- GIVEN `/api/rh-trex-ai/v1` and `/api/rh-trex-ai/v1/openapi` are configured as public paths
+- WHEN a request arrives for `/api/rh-trex-ai/v1/openapi`
 - THEN the request SHALL be forwarded without JWT validation
 
 #### Scenario: Path traversal prevention
-- GIVEN `/api/rh-trex/v1` is a public path
-- WHEN a request arrives for `/api/rh-trex/v1/dinosaurs` (a sub-path)
+- GIVEN `/api/rh-trex-ai/v1` is a public path
+- WHEN a request arrives for `/api/rh-trex-ai/v1/dinosaurs` (a sub-path)
 - THEN the request SHALL NOT bypass authentication
 - AND only exact path matches (with optional trailing slash) SHALL be treated as public
 
@@ -185,6 +185,7 @@ The authentication system SHALL support multiple JWK certificate URLs for multi-
 | Custom JWTHandler over third-party library | Removes OCM SDK dependency; supports multi-provider OIDC |
 | Atomic key map replacement | Thread-safe; avoids partial key set state during refresh |
 | 30-second cooldown on kid-refresh | Prevents refresh storms from invalid tokens |
+| OpenAPI routes registered outside auth subrouter | `/openapi` and `/openapi.html` are placed on the parent router before the auth-middleware subrouter so they are never wrapped by auth; `WithPublicPath` in the outer JWT handler provides defense-in-depth |
 | Exact path matching for public paths | Prevents auth bypass via path prefix exploitation |
 | Same JWK infrastructure for HTTP and gRPC | Consistent authentication; single key management surface |
 | Shared issuer and audience requirements for HTTP and gRPC | Prevents a token intended for another resource or issuer from being replayed across protocols |
