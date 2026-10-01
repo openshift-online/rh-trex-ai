@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/golang/glog"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -18,6 +20,8 @@ import (
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
+
+const defaultPostgresImage = "postgres:16"
 
 type Testcontainer struct {
 	config    *config.DatabaseConfig
@@ -41,11 +45,15 @@ func NewTestcontainerFactory(config *config.DatabaseConfig) *Testcontainer {
 func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 	ctx := context.Background()
 
-	glog.Infof("Starting PostgreSQL testcontainer...")
+	image := os.Getenv("POSTGRES_IMAGE")
+	if image == "" {
+		image = defaultPostgresImage
+	}
 
-	// Create PostgreSQL container
-	container, err := postgres.Run(ctx,
-		"postgres:14.2",
+	glog.Infof("Starting PostgreSQL testcontainer (image=%s)...", image)
+
+	ctr, err := postgres.Run(ctx,
+		image,
 		postgres.WithDatabase(config.Name),
 		postgres.WithUsername(config.Username),
 		postgres.WithPassword(config.Password),
@@ -53,15 +61,22 @@ func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
 				WithStartupTimeout(60*time.Second)),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				HostConfigModifier: func(hc *container.HostConfig) {
+					hc.AutoRemove = true
+				},
+			},
+		}),
 	)
 	if err != nil {
 		glog.Fatalf("Failed to start PostgreSQL testcontainer: %s", err)
 	}
 
-	f.container = container
+	f.container = ctr
 
 	// Get connection string from container
-	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	connStr, err := ctr.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		glog.Fatalf("Failed to get connection string from testcontainer: %s", err)
 	}
