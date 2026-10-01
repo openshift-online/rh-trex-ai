@@ -19,7 +19,7 @@ Define the lifecycle of an entity from code generation through CRUD operations, 
 Every entity SHALL follow the four-layer architecture: Handler → Service → DAO → Model.
 
 #### Scenario: Request flow for entity creation
-- GIVEN a POST request to `/api/rh-trex/v1/{kinds}`
+- GIVEN a POST request to `/api/rh-trex-ai/v1/{kinds}`
 - WHEN the request is processed
 - THEN the handler SHALL validate and parse the request body
 - AND the handler SHALL delegate to the service layer

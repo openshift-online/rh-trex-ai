@@ -1,13 +1,28 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
 
+// repoSpecPath is the canonical location of the repository's own OpenAPI spec.
+// It only exists in downstream projects; the bare framework repo is a template.
+const repoSpecPath = "../../openapi/openapi.yaml"
+
+// skipIfNoRepoSpec skips the test when the repository spec is absent, which is
+// expected when running tests inside the rh-trex-ai framework repo itself.
+func skipIfNoRepoSpec(t *testing.T) {
+	t.Helper()
+	if _, err := os.Stat(repoSpecPath); os.IsNotExist(err) {
+		t.Skip("openapi/openapi.yaml not present — this repo is a framework template; downstream projects that ship an OpenAPI spec will run this test")
+	}
+}
+
 func TestRepositoryCharacterization(t *testing.T) {
+	skipIfNoRepoSpec(t)
 	resources, err := parseResources(filepath.Join("..", "..", "openapi", "openapi.yaml"), "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)
@@ -38,6 +53,7 @@ func TestSharedFixtureConformance(t *testing.T) {
 }
 
 func TestGeneratedCLIAcceptance(t *testing.T) {
+	skipIfNoRepoSpec(t)
 	resources, err := parseResources(filepath.Join("..", "..", "openapi", "openapi.yaml"), "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)

@@ -63,14 +63,17 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	apiRouter := mainRouter.PathPrefix(apiPrefix).Subrouter()
 	apiRouter.HandleFunc("", metadataHandler.Get).Methods(http.MethodGet)
 
-	apiV1Router := apiRouter.PathPrefix("/v1").Subrouter()
-
+	// OpenAPI routes are public — register them on apiRouter before the
+	// apiV1Router prefix subrouter so gorilla/mux matches them first and they
+	// are not wrapped by the auth middleware applied to apiV1Router.
 	openapiHandler, err := handlers.NewOpenAPIHandler(specData)
 	if err != nil {
 		Check(err, "Unable to create OpenAPI handler")
 	}
-	apiV1Router.HandleFunc("/openapi.html", openapiHandler.GetOpenAPIUI).Methods(http.MethodGet)
-	apiV1Router.HandleFunc("/openapi", openapiHandler.GetOpenAPI).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/v1/openapi.html", openapiHandler.GetOpenAPIUI).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/v1/openapi", openapiHandler.GetOpenAPI).Methods(http.MethodGet)
+
+	apiV1Router := apiRouter.PathPrefix("/v1").Subrouter()
 
 	apiV1Router.Use(MetricsMiddleware)
 

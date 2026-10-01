@@ -42,7 +42,7 @@ Authorization SHALL be toggleable via `--enable-authz` flag.
 Authorization middleware SHALL be applied at the subrouter level for each entity.
 
 #### Scenario: Entity route protection
-- GIVEN a dinosaurs subrouter at `/api/rh-trex/v1/dinosaurs`
+- GIVEN a dinosaurs subrouter at `/api/rh-trex-ai/v1/dinosaurs`
 - WHEN routes are registered in the plugin's `init()` function
 - THEN `dinosaursRouter.Use(authzMiddleware.AuthorizeApi)` SHALL be applied
 - AND all CRUD endpoints under that router SHALL require authorization

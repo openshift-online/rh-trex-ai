@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/golang/glog"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -18,6 +22,40 @@ import (
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
+
+const defaultPostgresImage = "postgres:18"
+
+// disableRyukIfPodman detects whether the container runtime is Podman and, if
+// so, sets TESTCONTAINERS_RYUK_DISABLED=true before testcontainers reads its
+// configuration. Ryuk hardcodes the Docker "bridge" network which does not
+// exist in Podman, so it must be disabled when running against Podman.
+//
+// Explicit env-var values are never overwritten, so callers can always
+// override auto-detection by setting TESTCONTAINERS_RYUK_DISABLED themselves.
+func disableRyukIfPodman(ctx context.Context) {
+	if os.Getenv("TESTCONTAINERS_RYUK_DISABLED") != "" {
+		return
+	}
+
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	ver, err := cli.ServerVersion(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, c := range ver.Components {
+		if strings.Contains(c.Name, "Podman") {
+			glog.Infof("Detected Podman runtime - disabling Ryuk reaper (bridge network not available in Podman)")
+			_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+			return
+		}
+	}
+}
 
 type Testcontainer struct {
 	config    *config.DatabaseConfig
@@ -41,11 +79,17 @@ func NewTestcontainerFactory(config *config.DatabaseConfig) *Testcontainer {
 func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 	ctx := context.Background()
 
-	glog.Infof("Starting PostgreSQL testcontainer...")
+	disableRyukIfPodman(ctx)
 
-	// Create PostgreSQL container
-	container, err := postgres.Run(ctx,
-		"postgres:14.2",
+	image := os.Getenv("POSTGRES_IMAGE")
+	if image == "" {
+		image = defaultPostgresImage
+	}
+
+	glog.Infof("Starting PostgreSQL testcontainer (image=%s)...", image)
+
+	ctr, err := postgres.Run(ctx,
+		image,
 		postgres.WithDatabase(config.Name),
 		postgres.WithUsername(config.Username),
 		postgres.WithPassword(config.Password),
@@ -53,15 +97,22 @@ func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
 				WithStartupTimeout(60*time.Second)),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				HostConfigModifier: func(hc *container.HostConfig) {
+					hc.AutoRemove = true
+				},
+			},
+		}),
 	)
 	if err != nil {
 		glog.Fatalf("Failed to start PostgreSQL testcontainer: %s", err)
 	}
 
-	f.container = container
+	f.container = ctr
 
 	// Get connection string from container
-	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	connStr, err := ctr.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		glog.Fatalf("Failed to get connection string from testcontainer: %s", err)
 	}

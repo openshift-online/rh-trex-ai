@@ -61,9 +61,26 @@ Integration tests SHALL use testcontainers-go to automatically provision a Postg
 #### Scenario: Automatic database provisioning
 - GIVEN an integration test calls `test.RegisterIntegration(t)`
 - WHEN the test environment initializes
-- THEN a PostgreSQL container SHALL be started
+- THEN a PostgreSQL container SHALL be started using the image from `POSTGRES_IMAGE` env var, defaulting to `postgres:18`
 - AND migrations SHALL be applied
 - AND the container SHALL be torn down after tests complete
+
+#### Scenario: Container auto-removal
+- GIVEN the test process is killed without running cleanup handlers
+- THEN the PostgreSQL container SHALL be removed automatically via the Docker/Podman `AutoRemove` flag
+- AND no orphaned containers SHALL remain on the host after the process exits
+
+#### Scenario: Podman runtime detection
+- GIVEN the container runtime is Podman (detected via `ServerVersion` returning a component named `Podman Engine`)
+- AND `TESTCONTAINERS_RYUK_DISABLED` is not already set
+- THEN the framework SHALL set `TESTCONTAINERS_RYUK_DISABLED=true` before testcontainers initializes
+- AND a log message SHALL explain that Ryuk was disabled because Podman lacks the `bridge` network Ryuk requires
+- AND callers can override auto-detection by pre-setting `TESTCONTAINERS_RYUK_DISABLED`
+
+#### Scenario: Configurable postgres image
+- GIVEN `POSTGRES_IMAGE=postgres:17` is set in the environment
+- WHEN a testcontainer is provisioned
+- THEN the specified image SHALL be used instead of the default
 
 ### Requirement: Test Factory Pattern
 
@@ -159,6 +176,9 @@ The repository SHALL have an offline automated test that validates the event tri
 | Decision | Rationale |
 |----------|-----------|
 | Testcontainers over shared database | Hermetic tests; no external dependencies; parallel-safe |
+| `AutoRemove=true` on testcontainer | Guarantees container removal even when the test process is killed before cleanup handlers run (e.g., SIGKILL, OOM) |
+| Podman auto-detection disables Ryuk | Ryuk hardcodes the Docker `bridge` network which Podman does not expose; auto-detection eliminates the need for manual `TESTCONTAINERS_RYUK_DISABLED` in Podman environments |
+| `POSTGRES_IMAGE` env override | Allows CI and downstream projects to pin a specific image digest without code changes |
 | Factory pattern over fixture files | Type-safe; composable; discoverable via IDE completion |
 | Tests co-located with plugin code | Tests live next to the code they test; easy to navigate |
 | TestMain for lifecycle management | Standard Go pattern; controls setup/teardown for entire package |

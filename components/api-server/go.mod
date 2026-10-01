@@ -13,6 +13,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20260311145557-c83711a11ffa
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-healthcheck v0.1.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.5
@@ -75,7 +76,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v28.5.1+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shoenig/go-m1cpu v0.2.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect

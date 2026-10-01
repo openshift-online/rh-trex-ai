@@ -46,7 +46,7 @@ func NewAuthConfig() *AuthConfig {
 		// Bearer token defaults (disabled by default)
 		EnableBearer:  false,
 		BearerToken:   "",
-		BypassPaths:   []string{"/healthcheck", "/metrics", "/api/rh-trex/v1/openapi", "/openapi"},
+		BypassPaths:   []string{"/healthcheck", "/metrics", "/api/rh-trex-ai/v1/openapi", "/api/rh-trex-ai/v1/openapi.html", "/openapi"},
 		BypassMethods: []string{"/grpc.health.v1.Health/", "/grpc.reflection.v1alpha.ServerReflection/"},
 	}
 }
