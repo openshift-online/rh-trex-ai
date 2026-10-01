@@ -56,7 +56,8 @@ func DefaultBypassPaths() []string {
 	return []string{
 		"/healthcheck",
 		"/metrics",
-		"/api/rh-trex/v1/openapi",
+		"/api/rh-trex-ai/v1/openapi",
+		"/api/rh-trex-ai/v1/openapi.html",
 		"/openapi",
 	}
 }
