@@ -116,6 +116,9 @@ func parseResources(specPath, apiPrefix string) ([]cliResource, error) {
 		if schema == nil || schema.Name == "" {
 			continue
 		}
+		if schema.Name == "ObjectReference" {
+			continue
+		}
 		fields := extractWritableFields(document, schema)
 		columns := buildDefaultColumns(document, schema)
 		nameLower := toLowerFirst(schema.Name)
@@ -255,38 +258,48 @@ func generateCLI(data cliData, outDir string) error {
 	type tmplMapping struct {
 		tmplPath string
 		outPath  string
+		resource *cliResource
 	}
 
 	var mappings []tmplMapping
 
+	// Preserved files (hand-maintained, not overwritten by the generator):
+	//   cmd/<binary>/main.go         - registers both generated and hand-authored commands
+	//   cmd/<binary>/login/cmd.go    - full OIDC login (browser PKCE + device flow); the
+	//                                  template only has a static-token stub for bootstrapping
+	//   cmd/<binary>/logout/cmd.go   - revokes the refresh token at Keycloak before clearing
+	//                                  credentials; the template omits the revocation call
+	//   go.mod                       - managed by go mod tidy; hand-authored cmds may add deps
+	//
+	// To bootstrap a brand-new project, render cmd/main.go.tmpl and gomod.tmpl
+	// once by hand before committing.
 	mappings = append(mappings,
-		tmplMapping{"cmd/main.go.tmpl", filepath.Join("cmd", data.Binary, "main.go")},
-		tmplMapping{"cmd/login.go.tmpl", filepath.Join("cmd", data.Binary, "login", "cmd.go")},
-		tmplMapping{"cmd/logout.go.tmpl", filepath.Join("cmd", data.Binary, "logout", "cmd.go")},
-		tmplMapping{"cmd/version.go.tmpl", filepath.Join("cmd", data.Binary, "version", "cmd.go")},
-		tmplMapping{"cmd/completion.go.tmpl", filepath.Join("cmd", data.Binary, "completion", "cmd.go")},
-		tmplMapping{"cmd/config.go.tmpl", filepath.Join("cmd", data.Binary, "config", "cmd.go")},
-		tmplMapping{"cmd/list.go.tmpl", filepath.Join("cmd", data.Binary, "list", "cmd.go")},
-		tmplMapping{"cmd/get.go.tmpl", filepath.Join("cmd", data.Binary, "get", "cmd.go")},
-		tmplMapping{"cmd/create.go.tmpl", filepath.Join("cmd", data.Binary, "create", "cmd.go")},
-		tmplMapping{"pkg/config.go.tmpl", filepath.Join("pkg", "config", "config.go")},
-		tmplMapping{"pkg/token.go.tmpl", filepath.Join("pkg", "config", "token.go")},
-		tmplMapping{"pkg/connection.go.tmpl", filepath.Join("pkg", "connection", "connection.go")},
-		tmplMapping{"pkg/dump.go.tmpl", filepath.Join("pkg", "dump", "dump.go")},
-		tmplMapping{"pkg/printer.go.tmpl", filepath.Join("pkg", "output", "printer.go")},
-		tmplMapping{"pkg/table.go.tmpl", filepath.Join("pkg", "output", "table.go")},
-		tmplMapping{"pkg/terminal.go.tmpl", filepath.Join("pkg", "output", "terminal.go")},
-		tmplMapping{"pkg/arguments.go.tmpl", filepath.Join("pkg", "arguments", "arguments.go")},
-		tmplMapping{"pkg/urls.go.tmpl", filepath.Join("pkg", "urls", "urls.go")},
-		tmplMapping{"pkg/info.go.tmpl", filepath.Join("pkg", "info", "info.go")},
-		tmplMapping{"gomod.tmpl", "go.mod"},
+		tmplMapping{"cmd/login.go.tmpl", filepath.Join("cmd", data.Binary, "login", "cmd.go"), nil},
+		tmplMapping{"cmd/logout.go.tmpl", filepath.Join("cmd", data.Binary, "logout", "cmd.go"), nil},
+		tmplMapping{"cmd/version.go.tmpl", filepath.Join("cmd", data.Binary, "version", "cmd.go"), nil},
+		tmplMapping{"cmd/completion.go.tmpl", filepath.Join("cmd", data.Binary, "completion", "cmd.go"), nil},
+		tmplMapping{"cmd/config.go.tmpl", filepath.Join("cmd", data.Binary, "config", "cmd.go"), nil},
+		tmplMapping{"cmd/list.go.tmpl", filepath.Join("cmd", data.Binary, "list", "cmd.go"), nil},
+		tmplMapping{"cmd/get.go.tmpl", filepath.Join("cmd", data.Binary, "get", "cmd.go"), nil},
+		tmplMapping{"cmd/create.go.tmpl", filepath.Join("cmd", data.Binary, "create", "cmd.go"), nil},
+		tmplMapping{"pkg/config.go.tmpl", filepath.Join("pkg", "config", "config.go"), nil},
+		tmplMapping{"pkg/token.go.tmpl", filepath.Join("pkg", "config", "token.go"), nil},
+		tmplMapping{"pkg/connection.go.tmpl", filepath.Join("pkg", "connection", "connection.go"), nil},
+		tmplMapping{"pkg/dump.go.tmpl", filepath.Join("pkg", "dump", "dump.go"), nil},
+		tmplMapping{"pkg/printer.go.tmpl", filepath.Join("pkg", "output", "printer.go"), nil},
+		tmplMapping{"pkg/table.go.tmpl", filepath.Join("pkg", "output", "table.go"), nil},
+		tmplMapping{"pkg/terminal.go.tmpl", filepath.Join("pkg", "output", "terminal.go"), nil},
+		tmplMapping{"pkg/arguments.go.tmpl", filepath.Join("pkg", "arguments", "arguments.go"), nil},
+		tmplMapping{"pkg/urls.go.tmpl", filepath.Join("pkg", "urls", "urls.go"), nil},
+		tmplMapping{"pkg/info.go.tmpl", filepath.Join("pkg", "info", "info.go"), nil},
 	)
 
-	for _, r := range data.Resources {
+	for i := range data.Resources {
+		r := &data.Resources[i]
 		mappings = append(mappings,
-			tmplMapping{"cmd/list_resource.go.tmpl", filepath.Join("cmd", data.Binary, "list", r.PluralLower, "cmd.go")},
-			tmplMapping{"cmd/get_resource.go.tmpl", filepath.Join("cmd", data.Binary, "get", r.NameLower, "cmd.go")},
-			tmplMapping{"cmd/create_resource.go.tmpl", filepath.Join("cmd", data.Binary, "create", r.NameLower, "cmd.go")},
+			tmplMapping{"cmd/list_resource.go.tmpl", filepath.Join("cmd", data.Binary, "list", r.PluralLower, "cmd.go"), r},
+			tmplMapping{"cmd/get_resource.go.tmpl", filepath.Join("cmd", data.Binary, "get", r.NameLower, "cmd.go"), r},
+			tmplMapping{"cmd/create_resource.go.tmpl", filepath.Join("cmd", data.Binary, "create", r.NameLower, "cmd.go"), r},
 		)
 	}
 
@@ -311,13 +324,8 @@ func generateCLI(data cliData, outDir string) error {
 			Resource cliResource
 		}{cliData: data}
 
-		if strings.Contains(m.tmplPath, "_resource") {
-			for _, r := range data.Resources {
-				if strings.Contains(m.outPath, r.PluralLower) || strings.Contains(m.outPath, r.NameLower) {
-					td.Resource = r
-					break
-				}
-			}
+		if m.resource != nil {
+			td.Resource = *m.resource
 		}
 
 		f, err := os.Create(outPath)
