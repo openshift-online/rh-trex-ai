@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -13,62 +14,42 @@ import (
 	"{{.Module}}/pkg/info"
 )
 
+// HTTPClient is the interface for making HTTP requests.
+// Implement this interface to customize HTTP behavior (context support, retries, telemetry, etc.)
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// TokenProvider is the interface for retrieving authentication tokens.
+// Implement this interface to customize authentication (OIDC, token refresh, etc.)
+type TokenProvider interface {
+	GetToken() (string, error)
+}
+
+// Connection manages HTTP communication with the API server.
 type Connection struct {
-	baseURL    string
-	token      string
-	httpClient *http.Client
+	baseURL       string
+	httpClient    HTTPClient
+	tokenProvider TokenProvider
 }
 
-type ConnectionBuilder struct {
-	cfg *config.Config
-}
-
-func NewConnection() *ConnectionBuilder {
-	return &ConnectionBuilder{}
-}
-
-func (b *ConnectionBuilder) Config(value *config.Config) *ConnectionBuilder {
-	b.cfg = value
-	return b
-}
-
-func (b *ConnectionBuilder) Build() (result *Connection, err error) {
-	if b.cfg == nil {
-		b.cfg, err = config.Load()
-		if err != nil {
-			return
-		}
-		if b.cfg == nil {
-			err = fmt.Errorf("not logged in, run the 'login' command")
-			return
-		}
+// NewConnection creates a connection with custom HTTP client and token provider.
+// This allows injecting custom implementations for testing or enhanced behavior.
+func NewConnection(httpClient HTTPClient, tokenProvider TokenProvider, baseURL string) *Connection {
+	return &Connection{
+		baseURL:       strings.TrimRight(baseURL, "/"),
+		httpClient:    httpClient,
+		tokenProvider: tokenProvider,
 	}
-
-	armed, reason := b.cfg.Armed()
-	if !armed {
-		err = fmt.Errorf("not logged in, %s, run the 'login' command", reason)
-		return
-	}
-
-	transport := &http.Transport{}
-	if b.cfg.Insecure {
-		transport.TLSClientConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true, //nolint:gosec
-		}
-	}
-
-	result = &Connection{
-		baseURL: strings.TrimRight(b.cfg.URL, "/"),
-		token:   b.cfg.AccessToken,
-		httpClient: &http.Client{
-			Transport: transport,
-		},
-	}
-	return
 }
 
+// Do executes an HTTP request with automatic token injection.
 func (c *Connection) Do(method, path string, query url.Values, body io.Reader) (*http.Response, error) {
+	token, err := c.tokenProvider.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
 	fullURL := c.baseURL + path
 	if query != nil {
 		fullURL += "?" + query.Encode()
@@ -79,13 +60,50 @@ func (c *Connection) Do(method, path string, query url.Values, body io.Reader) (
 		return nil, fmt.Errorf("can't create request: %v", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", "{{.Binary}}/"+info.Version)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	return c.httpClient.Do(req)
+}
+
+// DoContext executes an HTTP request with context support and automatic token injection.
+// If the underlying HTTPClient implements DoContext, it will be used for better cancellation support.
+func (c *Connection) DoContext(ctx context.Context, method, path string, query url.Values, body io.Reader) (*http.Response, error) {
+	token, err := c.tokenProvider.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	fullURL := c.baseURL + path
+	if query != nil {
+		fullURL += "?" + query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("can't create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", "{{.Binary}}/"+info.Version)
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// If the HTTPClient implements DoContext, use it
+	type contextDoer interface {
+		DoContext(context.Context, *http.Request) (*http.Response, error)
+	}
+	if cd, ok := c.httpClient.(contextDoer); ok {
+		return cd.DoContext(ctx, req)
+	}
+
+	// Otherwise use the standard Do method (context is already on the request)
 	return c.httpClient.Do(req)
 }
 
@@ -144,6 +162,90 @@ func (c *Connection) List(path string, page, size int, search, orderBy string) (
 }
 
 func (c *Connection) Close() error {
-	c.httpClient.CloseIdleConnections()
+	// Close idle connections if the HTTP client supports it
+	if closer, ok := c.httpClient.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
 	return nil
+}
+
+// defaultHTTPClient is the default HTTP client implementation.
+type defaultHTTPClient struct {
+	client *http.Client
+}
+
+func newDefaultHTTPClient(insecure bool) HTTPClient {
+	transport := &http.Transport{}
+	if insecure {
+		transport.TLSClientConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true, //nolint:gosec
+		}
+	}
+
+	return &defaultHTTPClient{
+		client: &http.Client{
+			Transport: transport,
+		},
+	}
+}
+
+func (c *defaultHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return c.client.Do(req)
+}
+
+func (c *defaultHTTPClient) CloseIdleConnections() {
+	c.client.CloseIdleConnections()
+}
+
+// staticTokenProvider provides a static authentication token.
+type staticTokenProvider struct {
+	token string
+}
+
+func newStaticTokenProvider(token string) TokenProvider {
+	return &staticTokenProvider{token: token}
+}
+
+func (p *staticTokenProvider) GetToken() (string, error) {
+	return p.token, nil
+}
+
+// ConnectionBuilder provides a backward-compatible builder for creating connections.
+type ConnectionBuilder struct {
+	cfg *config.Config
+}
+
+func NewConnectionBuilder() *ConnectionBuilder {
+	return &ConnectionBuilder{}
+}
+
+func (b *ConnectionBuilder) Config(value *config.Config) *ConnectionBuilder {
+	b.cfg = value
+	return b
+}
+
+func (b *ConnectionBuilder) Build() (result *Connection, err error) {
+	if b.cfg == nil {
+		b.cfg, err = config.Load()
+		if err != nil {
+			return
+		}
+		if b.cfg == nil {
+			err = fmt.Errorf("not logged in, run the 'login' command")
+			return
+		}
+	}
+
+	armed, reason := b.cfg.Armed()
+	if !armed {
+		err = fmt.Errorf("not logged in, %s, run the 'login' command", reason)
+		return
+	}
+
+	httpClient := newDefaultHTTPClient(b.cfg.Insecure)
+	tokenProvider := newStaticTokenProvider(b.cfg.AccessToken)
+
+	result = NewConnection(httpClient, tokenProvider, b.cfg.URL)
+	return
 }
