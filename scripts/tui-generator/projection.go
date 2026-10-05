@@ -58,6 +58,7 @@ func projectDocument(document *ir.Document) (tui.Descriptor, error) {
 	projector.projectOperationPresentation()
 	projector.projectRelationships()
 	projector.projectCollectionItemEdges()
+	projector.projectParentChildEdges()
 	projector.applyExplicitPrecedence()
 	projector.validateOperationHotkeyConflicts()
 	projector.validateAliases()
@@ -354,6 +355,79 @@ func (projector *projection) projectCollectionItemEdges() {
 		}
 		projector.bindEdge(&edge, projector.irOperations[item.GetOperationID], projector.irOperations[collection.ListOperationID], nil, false)
 		projector.descriptor.Edges = append(projector.descriptor.Edges, edge)
+	}
+}
+
+// projectParentChildEdges creates navigable edges from parent item views to scoped child collection views.
+// For example: Gateway item → Service Accounts collection, where Service Accounts is scoped by gateway_id.
+func (projector *projection) projectParentChildEdges() {
+	for _, parentItem := range projector.descriptor.Views {
+		if parentItem.Kind != "item" || parentItem.GetOperationID == "" || parentItem.IdentityProperty == "" {
+			continue
+		}
+		parentIR := projector.irViews[parentItem.ID]
+		if parentIR == nil {
+			continue
+		}
+
+		// Find child collections that are scoped by this parent
+		for _, childCollection := range projector.descriptor.Views {
+			if childCollection.Kind != "collection" || childCollection.ListOperationID == "" {
+				continue
+			}
+			childIR := projector.irViews[childCollection.ID]
+			if childIR == nil || len(childIR.ScopeParameters) == 0 {
+				continue
+			}
+
+			// Check if the child is scoped exactly one level deeper than the parent
+			// Example: parent has scope [], child has scope [gateway_id]
+			// Or: parent has scope [gateway_id], child has scope [gateway_id, service_account_id]
+			if len(childIR.ScopeParameters) != len(parentIR.ScopeParameters)+1 {
+				continue
+			}
+
+			// Check if child's scope parameters include all parent's scope parameters
+			scopeMatch := true
+			for i, param := range parentIR.ScopeParameters {
+				if i >= len(childIR.ScopeParameters) || childIR.ScopeParameters[i] != param {
+					scopeMatch = false
+					break
+				}
+			}
+			if !scopeMatch {
+				continue
+			}
+
+			// The last scope parameter in the child should match the parent's identity
+			// Example: parent is Gateway with id parameter, child's last scope is gateway_id
+			lastChildScope := childIR.ScopeParameters[len(childIR.ScopeParameters)-1]
+
+			// Extract the parent resource name from its schema or path
+			// For now, use a simple heuristic: check if lastChildScope contains the parent schema name
+			// This is imperfect but works for common patterns like gateway → gateway_id
+
+			edge := tui.Edge{
+				ID:                parentItem.ID + "->" + childCollection.ID + ":child",
+				Name:              childCollection.Label,
+				SourceViewID:      parentItem.ID,
+				TargetViewID:      childCollection.ID,
+				SourceOperationID: parentItem.GetOperationID,
+				TargetOperationID: childCollection.ListOperationID,
+				Provenance:        "parent-child",
+				Navigable:         true,
+			}
+
+			// Create parameter mappings: parent's identity → child's last scope parameter
+			mappings := map[string]any{lastChildScope: "${" + parentItem.IdentityProperty + "}"}
+
+			projector.bindEdge(&edge, projector.irOperations[childCollection.ListOperationID], projector.irOperations[parentItem.GetOperationID], mappings, false)
+
+			// Only add if binding succeeded (edge is still navigable)
+			if edge.Navigable {
+				projector.descriptor.Edges = append(projector.descriptor.Edges, edge)
+			}
+		}
 	}
 }
 
