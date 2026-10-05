@@ -418,12 +418,18 @@ func (projector *projection) projectParentChildEdges() {
 				Navigable:         true,
 			}
 
-			// Create parameter mappings: parent's identity → child's last scope parameter
-			mappings := map[string]any{lastChildScope: "${" + parentItem.IdentityProperty + "}"}
+			// Let bindEdge handle common parent scope parameters
+			projector.bindEdge(&edge, projector.irOperations[childCollection.ListOperationID], projector.irOperations[parentItem.GetOperationID], nil, false)
 
-			projector.bindEdge(&edge, projector.irOperations[childCollection.ListOperationID], projector.irOperations[parentItem.GetOperationID], mappings, false)
+			// Manually add binding for parent identity → child's last scope parameter
+			// This binds the selected row's identity property to the child's scope parameter
+			edge.Bindings = append(edge.Bindings, tui.Binding{
+				Target:     lastChildScope,
+				SourceKind: "row-property",
+				Source:     parentItem.IdentityProperty,
+			})
 
-			// Only add if binding succeeded (edge is still navigable)
+			// Only add if edge is still navigable after binding
 			if edge.Navigable {
 				projector.descriptor.Edges = append(projector.descriptor.Edges, edge)
 			}
