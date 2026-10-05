@@ -60,7 +60,14 @@ func (normalizer *normalizer) buildSchemaUsesAndGraph() error {
 			views[key] = view
 			normalizer.document.ResourceViews = append(normalizer.document.ResourceViews, view)
 		} else if view.SchemaRef != schemaRef {
-			return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			// Check if schemas are compatible via allOf inheritance
+			baseSchema := normalizer.findCommonBaseSchema(view.SchemaRef, schemaRef)
+			if baseSchema != "" {
+				// Use the common base schema for the view
+				view.SchemaRef = baseSchema
+			} else {
+				return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			}
 		}
 		attachOperationToView(operation, view, operationViews)
 		if len(view.Extensions) == 0 && len(operation.Extensions) > 0 {
@@ -152,6 +159,41 @@ func (normalizer *normalizer) listItemReference(ref string, visiting map[string]
 		}
 	}
 	return ""
+}
+
+// findCommonBaseSchema checks if two schema references are compatible via allOf inheritance
+// and returns their common base schema if found. Returns empty string if incompatible.
+func (normalizer *normalizer) findCommonBaseSchema(schemaRefA, schemaRefB string) string {
+	// Check if schemaA extends schemaB via allOf
+	if normalizer.schemaExtendsViaAllOf(schemaRefA, schemaRefB) {
+		return schemaRefB // B is the base
+	}
+	// Check if schemaB extends schemaA via allOf
+	if normalizer.schemaExtendsViaAllOf(schemaRefB, schemaRefA) {
+		return schemaRefA // A is the base
+	}
+	// Could also check for common ancestor, but for now just check direct inheritance
+	return ""
+}
+
+// schemaExtendsViaAllOf checks if childRef extends baseRef via allOf composition
+func (normalizer *normalizer) schemaExtendsViaAllOf(childRef, baseRef string) bool {
+	child := normalizer.schemas[childRef]
+	if child == nil {
+		return false
+	}
+
+	// Check if this schema's allOf directly references the base
+	for _, composed := range child.AllOf {
+		if composed.Ref == baseRef {
+			return true
+		}
+		// Recursively check if any allOf member extends the base
+		if normalizer.schemaExtendsViaAllOf(composed.Ref, baseRef) {
+			return true
+		}
+	}
+	return false
 }
 
 func (normalizer *normalizer) EffectiveProperties(ref string) map[string]*Property {
