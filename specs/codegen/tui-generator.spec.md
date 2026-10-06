@@ -535,6 +535,38 @@ An explicit Link mapping SHALL support standard literal values and OpenAPI runti
 - THEN it SHALL reject that edge as non-navigable
 - AND the diagnostic SHALL identify the target operation and every unsatisfied parameter
 
+### Requirement: Name Property Leftmost Display
+
+When a resource view's item schema has a readable scalar property named exactly `name` and that property is displayed as a table column, the generator SHALL place it as the leftmost column. This SHALL apply to default-derived columns and to explicit `x-trex-tui.columns`, regardless of where the property appears in the declared list, and SHALL preserve the relative order of every other column along with each column's label and priority. The rule is keyed only to the property name and SHALL NOT depend on the resource kind. It SHALL NOT add a `name` column that the explicit column list omits, and it SHALL NOT change the order of fields in item detail.
+
+#### Scenario: Default columns put name first
+
+- GIVEN a resource schema has readable scalar properties `id`, `status`, and `name` and its collection declares no `x-trex-tui.columns`
+- WHEN the TUI descriptor is generated
+- THEN the `name` column SHALL be the leftmost column
+- AND `id` and `status` SHALL follow in their canonical relative order
+- AND the default sort SHALL be `name` when no explicit default sort is declared
+
+#### Scenario: Explicit columns still put name first
+
+- GIVEN a collection declares `x-trex-tui.columns` ordered `status`, `id`, `name`
+- WHEN the TUI descriptor is generated
+- THEN the columns SHALL be ordered `name`, `status`, `id`
+- AND each column SHALL keep its declared label and priority
+
+#### Scenario: Name is not forced into an explicit list
+
+- GIVEN a collection declares `x-trex-tui.columns` that omit `name`
+- WHEN the TUI descriptor is generated
+- THEN the descriptor SHALL contain no `name` column
+- AND the declared column order SHALL be unchanged
+
+#### Scenario: Resources without a name keep their order
+
+- GIVEN a resource schema has no readable scalar `name` property
+- WHEN the TUI descriptor is generated
+- THEN its columns SHALL appear in their declared or canonical order
+
 ### Requirement: Typed Resource Presentation Extension
 
 The collection-operation form of `x-trex-tui` SHALL be an optional typed presentation block with only the following fields. It SHALL NOT define operations, relationships, authorization, or request semantics.
@@ -545,10 +577,10 @@ The collection-operation form of `x-trex-tui` SHALL be an optional typed present
 | `aliases` | array of unique strings | Alternate resource-switcher commands |
 | `identity-property` | string | Readable scalar property used to identify a selected row |
 | `default-sort` | string | Readable scalar property used for the initial ascending sort |
-| `columns` | ordered array | Explicit table columns in display order |
+| `columns` | ordered array | Explicit table columns in display order, except that a readable scalar `name` column is always displayed leftmost (see Name Property Leftmost Display) |
 | `columns[].property` | string | Readable scalar item property |
 | `columns[].label` | non-empty string | Column heading |
-| `columns[].priority` | integer | Relative resistance to width compression; higher values shrink after lower values without changing declared order or accessibility |
+| `columns[].priority` | integer | Relative resistance to width compression; higher values shrink after lower values without changing display order or accessibility |
 
 ```yaml
 x-trex-tui:
@@ -571,7 +603,7 @@ Aliases SHALL match `[a-z][a-z0-9-]*`. The generator SHALL reject a recognized f
 
 - GIVEN a collection operation declares a label, alias, identity property, default sort property, and ordered columns
 - WHEN the TUI descriptor is generated
-- THEN it SHALL preserve the declared column order and labels
+- THEN it SHALL preserve the declared column order and labels, except that a `name` column SHALL be moved leftmost
 - AND it SHALL use priority only to order compression as available width shrinks
 - AND every declared column SHALL remain reachable through horizontal scrolling
 - AND the extension SHALL NOT change the operation's route, relationship, capability, or security state
@@ -585,7 +617,7 @@ Aliases SHALL match `[a-z][a-z0-9-]*`. The generator SHALL reject a recognized f
 
 ### Requirement: Deterministic Presentation Defaults
 
-A collection view without `x-trex-tui` SHALL remain generatable. The projection SHALL derive a deterministic label from the canonical resource-view identity, SHALL assign no aliases, SHALL use a readable scalar `id` property as identity when present, and SHALL otherwise leave identity unset. It SHALL derive columns from readable scalar item properties in canonical deterministic order and SHALL choose the first displayed property as the default sort when no explicit sort is declared. A relationship that requires selected-row identity SHALL be non-navigable when no validated identity property exists.
+A collection view without `x-trex-tui` SHALL remain generatable. The projection SHALL derive a deterministic label from the canonical resource-view identity, SHALL assign no aliases, SHALL use a readable scalar `id` property as identity when present, and SHALL otherwise leave identity unset. It SHALL derive columns from readable scalar item properties in canonical deterministic order with a `name` property, when present, displayed first, and SHALL choose the first displayed property as the default sort when no explicit sort is declared. A relationship that requires selected-row identity SHALL be non-navigable when no validated identity property exists.
 
 #### Scenario: Metadata-free TRex resource
 

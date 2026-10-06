@@ -68,7 +68,7 @@ func TestRepositoryOpenAPIGeneratesIntegratedServiceCommand(t *testing.T) {
 	host := t.TempDir()
 	output := filepath.Join(host, "data", "generated", "tui")
 	if err := generate(generateOptions{
-		SpecPath: filepath.Join("..", "..", "openapi", "openapi.yaml"),
+		SpecPath: filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml"),
 		OutDir:   output,
 	}); err != nil {
 		t.Fatal(err)

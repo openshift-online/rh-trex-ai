@@ -461,3 +461,55 @@ func requiredProjectionInputs(operation tui.Operation) []string {
 	sort.Strings(result)
 	return result
 }
+
+func TestNamePropertyDisplayedFirst(t *testing.T) {
+	descriptor := loadProjectedFixture(t, "testdata/name-first.yaml")
+
+	// Test default column ordering - name should be first despite alphabetical default (id, name, status)
+	defaultView := viewWithOperation(t, descriptor, "listEntities")
+	if len(defaultView.Columns) != 3 {
+		t.Fatalf("default view: expected 3 columns, got %d", len(defaultView.Columns))
+	}
+	if defaultView.Columns[0].Property != "name" {
+		t.Fatalf("default view: expected 'name' as first column, got %q; columns: %#v",
+			defaultView.Columns[0].Property, columnSummary(defaultView.Columns))
+	}
+	// Verify that other columns maintain their relative alphabetical order
+	if defaultView.Columns[1].Property != "id" || defaultView.Columns[2].Property != "status" {
+		t.Fatalf("default view: unexpected column order: %#v", columnSummary(defaultView.Columns))
+	}
+
+	// Test explicit column ordering - name should move to first despite being declared last
+	explicitView := viewWithOperation(t, descriptor, "listEntitiesExplicit")
+	if len(explicitView.Columns) != 3 {
+		t.Fatalf("explicit view: expected 3 columns, got %d", len(explicitView.Columns))
+	}
+	if explicitView.Columns[0].Property != "name" {
+		t.Fatalf("explicit view: expected 'name' as first column, got %q; columns: %#v",
+			explicitView.Columns[0].Property, columnSummary(explicitView.Columns))
+	}
+	// Verify that other columns maintain their explicitly declared relative order (status, id)
+	if explicitView.Columns[1].Property != "status" || explicitView.Columns[2].Property != "id" {
+		t.Fatalf("explicit view: unexpected column order: %#v", columnSummary(explicitView.Columns))
+	}
+	// Verify priorities are preserved
+	if got := columnSummary(explicitView.Columns); !reflect.DeepEqual(got, []string{"name:NAME:80", "status:STATUS:100", "id:ID:90"}) {
+		t.Fatalf("explicit view: column summary = %#v", got)
+	}
+	// The first displayed column is the default sort when none is declared.
+	if defaultView.DefaultSort != "name" || explicitView.DefaultSort != "name" {
+		t.Fatalf("default sorts = %q and %q, want name", defaultView.DefaultSort, explicitView.DefaultSort)
+	}
+
+	// An explicit list that omits name must not gain one or be reordered.
+	omitted := viewWithOperation(t, descriptor, "listEntitiesWithoutNameColumn")
+	if got := columnSummary(omitted.Columns); !reflect.DeepEqual(got, []string{"status:STATUS:100", "id:ID:90"}) {
+		t.Fatalf("omitted-name view: column summary = %#v", got)
+	}
+
+	// A resource without a name property keeps its canonical order.
+	things := viewWithOperation(t, descriptor, "listThings")
+	if got := columnSummary(things.Columns); !reflect.DeepEqual(got, []string{"id:ID:0", "status:STATUS:0"}) {
+		t.Fatalf("no-name view: column summary = %#v", got)
+	}
+}

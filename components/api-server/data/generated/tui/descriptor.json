@@ -160,8 +160,14 @@
       "schemaRef": "#/schemas/Scientist",
       "label": "Scientist",
       "identityProperty": "id",
-      "defaultSort": "created_at",
+      "defaultSort": "name",
       "columns": [
+        {
+          "property": "name",
+          "label": "NAME",
+          "priority": 0,
+          "type": "string"
+        },
         {
           "property": "created_at",
           "label": "CREATED AT",
@@ -190,12 +196,6 @@
         {
           "property": "kind",
           "label": "KIND",
-          "priority": 0,
-          "type": "string"
-        },
-        {
-          "property": "name",
-          "label": "NAME",
           "priority": 0,
           "type": "string"
         },
@@ -363,8 +363,14 @@
       "schemaRef": "#/schemas/Scientist",
       "label": "Scientist",
       "identityProperty": "id",
-      "defaultSort": "created_at",
+      "defaultSort": "name",
       "columns": [
+        {
+          "property": "name",
+          "label": "NAME",
+          "priority": 0,
+          "type": "string"
+        },
         {
           "property": "created_at",
           "label": "CREATED AT",
@@ -393,12 +399,6 @@
         {
           "property": "kind",
           "label": "KIND",
-          "priority": 0,
-          "type": "string"
-        },
-        {
-          "property": "name",
-          "label": "NAME",
           "priority": 0,
           "type": "string"
         },

@@ -179,6 +179,8 @@ func (projector *projection) applyPresentation(view *tui.View, schema *ir.Schema
 			view.Columns = append(view.Columns, projector.presentationColumn(name, strings.ToUpper(strings.ReplaceAll(name, "_", " ")), 0, properties[name]))
 		}
 	}
+	// Move 'name' property to the leftmost position if present
+	ensureNameFirst(view)
 	if len(view.Columns) > 0 {
 		view.DefaultSort = view.Columns[0].Property
 	}
@@ -229,6 +231,8 @@ func (projector *projection) applyPresentation(view *tui.View, schema *ir.Schema
 			projector.fatal = append(projector.fatal, err)
 		} else {
 			view.Columns = columns
+			// Move 'name' property to the leftmost position if present
+			ensureNameFirst(view)
 		}
 	}
 	if raw, ok := metadata["default-sort"]; ok {
@@ -671,6 +675,30 @@ func (projector *projection) presentationColumn(property, label string, priority
 	}
 	column.Format = schema.Format
 	return column
+}
+
+// ensureNameFirst moves the 'name' property column to the leftmost position if present.
+// This preserves the relative order of all other columns.
+func ensureNameFirst(view *tui.View) {
+	if len(view.Columns) == 0 {
+		return
+	}
+	// Find the index of the 'name' column
+	nameIndex := -1
+	for i, col := range view.Columns {
+		if col.Property == "name" {
+			nameIndex = i
+			break
+		}
+	}
+	// If 'name' exists and is not already first, move it to the front
+	if nameIndex > 0 {
+		nameColumn := view.Columns[nameIndex]
+		// Remove from current position
+		view.Columns = append(view.Columns[:nameIndex], view.Columns[nameIndex+1:]...)
+		// Prepend to the beginning
+		view.Columns = append([]tui.Column{nameColumn}, view.Columns...)
+	}
 }
 
 func readableScalar(document *ir.Document, property *ir.Property) bool {
