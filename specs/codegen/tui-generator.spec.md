@@ -720,7 +720,7 @@ The generated client SHALL construct requests from descriptor operations, using 
 
 ### Requirement: Operation Security and Credential Safety
 
-The client SHALL preserve the distinction among inherited document security, explicit `security: []`, and non-empty operation overrides. It SHALL apply runtime-supplied credentials only through a supported declared security alternative, SHALL support the TRex HTTP bearer scheme, and SHALL fail generation with an actionable diagnostic when a required operation has no supported security alternative. The absence of a runtime-supplied credential SHALL NOT be treated as a local request-validation failure: the client SHALL send the request without an `Authorization` header and defer authentication enforcement to the configured server. This permits the documented local `run-no-auth` workflow while allowing an authentication-enabled server to return its normal `401` response through the shared API-error presentation. Credentials SHALL be bound to the user-configured API origin; the client SHALL refuse to attach them to a different operation-level server origin unless the user explicitly trusts that origin. Non-loopback plaintext HTTP SHALL require an explicit insecure runtime option. The client SHALL NOT embed credentials in generated source or descriptors, send credentials to an explicitly unauthenticated operation, or include credential values in rendered errors, logs, panic output, or test snapshots.
+The client SHALL preserve the distinction among inherited document security, explicit `security: []`, and non-empty operation overrides. A runtime MAY supply the credential through a token provider that the client SHALL consult for every authenticated request, so that a credential refreshed during a long-lived session is used without restarting the TUI; a static token SHALL remain supported and SHALL be used when no provider is configured. It SHALL apply runtime-supplied credentials only through a supported declared security alternative, SHALL support the TRex HTTP bearer scheme, and SHALL fail generation with an actionable diagnostic when a required operation has no supported security alternative. The absence of a runtime-supplied credential SHALL NOT be treated as a local request-validation failure: the client SHALL send the request without an `Authorization` header and defer authentication enforcement to the configured server. This permits the documented local `run-no-auth` workflow while allowing an authentication-enabled server to return its normal `401` response through the shared API-error presentation. Credentials SHALL be bound to the user-configured API origin; the client SHALL refuse to attach them to a different operation-level server origin unless the user explicitly trusts that origin. Non-loopback plaintext HTTP SHALL require an explicit insecure runtime option. The client SHALL NOT embed credentials in generated source or descriptors, send credentials to an explicitly unauthenticated operation, or include credential values in rendered errors, logs, panic output, or test snapshots.
 
 #### Scenario: Public and authenticated operations
 
@@ -729,6 +729,16 @@ The client SHALL preserve the distinction among inherited document security, exp
 - WHEN both operations are invoked with a configured token
 - THEN the inherited operation SHALL receive the bearer credential
 - AND the explicitly unauthenticated operation SHALL receive no credential
+
+#### Scenario: Refresh the credential during a long-lived session
+
+- GIVEN the runtime is configured with a token provider instead of, or in addition to, a static token
+- AND the provider returns a different token on a later call
+- WHEN two authenticated operations are invoked at different times
+- THEN each request SHALL carry the token the provider returned for that request
+- AND the provider SHALL NOT be called for an operation that declares `security: []`
+- AND a token the provider returned SHALL NOT appear in any rendered alert or error detail
+- AND a provider failure SHALL fail only that request with an error that does not include credential values
 
 #### Scenario: Use the documented no-auth local server
 

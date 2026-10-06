@@ -142,3 +142,30 @@ func TestTUICommandReturnsDescriptorFileModelAndProgramErrors(t *testing.T) {
 		})
 	}
 }
+
+type fixedTokenProvider struct{ token string }
+
+func (provider fixedTokenProvider) GetToken() (string, error) { return provider.token, nil }
+
+func TestTUICommandPassesTokenProviderToClientConfig(t *testing.T) {
+	descriptorJSON := []byte(`{"title":"Inventory API","servers":[{"url":"https://default.example.test"}],"views":[],"operations":[]}`)
+	var capturedConfig tui.ClientConfig
+	provider := fixedTokenProvider{token: "refreshed"}
+	command := newTUICommand(
+		func() ([]byte, error) { return descriptorJSON, nil },
+		func(_ tui.Descriptor, config tui.ClientConfig) (*tui.Model, error) {
+			capturedConfig = config
+			return &tui.Model{}, nil
+		},
+		func(*tui.Model) error { return nil },
+		func(string) ([]byte, error) { return nil, nil },
+		WithTokenProvider(provider),
+	)
+	command.SetArgs(nil)
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if capturedConfig.TokenProvider != provider {
+		t.Fatalf("token provider = %#v, want the configured provider", capturedConfig.TokenProvider)
+	}
+}

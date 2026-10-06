@@ -16,13 +16,31 @@ type tuiModelFactory func(tui.Descriptor, tui.ClientConfig) (*tui.Model, error)
 type tuiRunner func(*tui.Model) error
 type tuiFileReader func(string) ([]byte, error)
 
-// NewTUICommand creates the OpenAPI-derived terminal browser command compiled
-// directly into the service executable.
-func NewTUICommand(getDescriptor func() ([]byte, error)) *cobra.Command {
-	return newTUICommand(getDescriptor, tui.NewModel, runTUI, os.ReadFile)
+// TUIOption customizes the command created by NewTUICommand.
+type TUIOption func(*tuiOptions)
+
+type tuiOptions struct {
+	tokenProvider tui.TokenProvider
 }
 
-func newTUICommand(getDescriptor func() ([]byte, error), newModel tuiModelFactory, run tuiRunner, readFile tuiFileReader) *cobra.Command {
+// WithTokenProvider makes the TUI ask provider for the bearer token on every
+// authenticated request, so a credential refreshed during a long-lived session
+// is used without restarting. It takes precedence over --token-file.
+func WithTokenProvider(provider tui.TokenProvider) TUIOption {
+	return func(options *tuiOptions) { options.tokenProvider = provider }
+}
+
+// NewTUICommand creates the OpenAPI-derived terminal browser command compiled
+// directly into the service executable.
+func NewTUICommand(getDescriptor func() ([]byte, error), options ...TUIOption) *cobra.Command {
+	return newTUICommand(getDescriptor, tui.NewModel, runTUI, os.ReadFile, options...)
+}
+
+func newTUICommand(getDescriptor func() ([]byte, error), newModel tuiModelFactory, run tuiRunner, readFile tuiFileReader, options ...TUIOption) *cobra.Command {
+	var settings tuiOptions
+	for _, option := range options {
+		option(&settings)
+	}
 	var server string
 	var tokenFile string
 	var insecure bool
@@ -59,7 +77,7 @@ func newTUICommand(getDescriptor func() ([]byte, error), newModel tuiModelFactor
 				credential = strings.TrimSpace(string(token))
 			}
 			model, err := newModel(descriptor, tui.ClientConfig{
-				BaseURL: resolvedServer, Token: credential, Insecure: insecure,
+				BaseURL: resolvedServer, Token: credential, TokenProvider: settings.tokenProvider, Insecure: insecure,
 				TrustedOrigins: append([]string(nil), trustedOrigins...), RefreshInterval: refreshInterval,
 			})
 			if err != nil {

@@ -32,6 +32,9 @@ type AlertManager struct {
 	nextID  uint64
 	now     func() time.Time
 	secrets []string
+	// secretSource supplies credentials discovered after construction, such as
+	// tokens issued by a refreshing token provider.
+	secretSource func() []string
 }
 
 func NewAlertManager(secrets ...string) AlertManager {
@@ -111,7 +114,11 @@ func (manager *AlertManager) safe(value string) string {
 
 func (manager *AlertManager) safeDetails(value string) string {
 	value = Sanitize(value)
-	for _, secret := range manager.secrets {
+	secrets := manager.secrets
+	if manager.secretSource != nil {
+		secrets = append(append([]string(nil), secrets...), manager.secretSource()...)
+	}
+	for _, secret := range secrets {
 		if secret != "" {
 			value = strings.ReplaceAll(value, secret, "[REDACTED]")
 		}

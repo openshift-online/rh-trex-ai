@@ -160,7 +160,7 @@ func NewModel(descriptor Descriptor, config ClientConfig) (*Model, error) {
 		width: 100, height: 30,
 		frames:          []Frame{{ID: 1, Catalog: true, Label: resourceCatalogLabel, Bindings: map[string]any{}}},
 		mode:            modeCatalog,
-		shell:           NewShell(config.Token),
+		shell:           newClientShell(client, config.Token),
 		refreshInterval: config.RefreshInterval, nextFrameID: 1, now: time.Now,
 	}
 	if config.RefreshInterval > 0 {
@@ -1376,7 +1376,16 @@ func (model *Model) ensurePresentation() {
 	if model.client != nil {
 		token = model.client.config.Token
 	}
-	model.shell = NewShell(token)
+	model.shell = newClientShell(model.client, token)
+}
+
+// newClientShell builds a shell whose alerts also redact tokens the client issues later.
+func newClientShell(client *Client, token string) Shell {
+	shell := NewShell(token)
+	if client != nil {
+		shell.Alerts.secretSource = client.Secrets
+	}
+	return shell
 }
 
 func (model *Model) serverOrigin() string {
@@ -1390,7 +1399,7 @@ func (model *Model) serverOrigin() string {
 }
 
 func (model *Model) authenticated() bool {
-	return model.client != nil && model.client.config.Token != ""
+	return model.client != nil && model.client.Authenticated()
 }
 
 func presentationPulse() tea.Cmd {
