@@ -91,5 +91,18 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	LoadDiscoveredRoutes(apiV1Router, services, authMiddleware, authzMiddleware)
 
+	LoadDiscoveredPrefixedRoutes(apiRouter, services, authMiddleware, authzMiddleware,
+		func(r *mux.Router) {
+			r.Use(MetricsMiddleware)
+			if httpAuthMiddleware != nil {
+				r.Use(httpAuthMiddleware)
+			}
+			r.Use(func(next http.Handler) http.Handler {
+				return db.TransactionMiddleware(next, env.Database.SessionFactory)
+			})
+			r.Use(gorillahandlers.CompressHandler)
+		},
+	)
+
 	return mainRouter
 }
