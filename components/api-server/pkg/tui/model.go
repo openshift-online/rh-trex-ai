@@ -588,12 +588,12 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case model.shell.Keys.Matches(key, KeyFilter):
 		model.previousMode = model.mode
 		model.mode = modeFilter
-		return model, model.CommandBar.Begin(CommandFilter, model.filter)
+		return model, model.Begin(CommandFilter, model.filter)
 	case model.shell.Keys.Matches(key, KeyCommand):
 		model.previousMode = model.mode
 		model.mode = modeSwitch
-		command := model.CommandBar.Begin(CommandResource, "")
-		model.CommandBar.SetSuggestions(model.resourceCommandCandidates())
+		command := model.Begin(CommandResource, "")
+		model.SetSuggestions(model.resourceCommandCandidates())
 		return model, command
 	case model.shell.Keys.Matches(key, KeyCancel):
 		if model.filter != "" {
@@ -625,13 +625,13 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model.openActions()
 	case model.shell.Keys.Matches(key, KeySortNext):
 		if view := model.currentView(); view != nil {
-			model.ResourceTableComponent.CycleSort(*view)
+			model.CycleSort(*view)
 			model.configureTableColumns(*view)
 			model.applyFilter()
 		}
 		return model, nil
 	case model.shell.Keys.Matches(key, KeySortDirection):
-		model.ResourceTableComponent.ReverseSort()
+		model.ReverseSort()
 		if view := model.currentView(); view != nil {
 			model.configureTableColumns(*view)
 			model.applyFilter()
@@ -683,30 +683,30 @@ func (model *Model) closeRawResource() {
 func (model *Model) handleInputKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.shell.Keys.Matches(key, KeyCancel) {
 		model.mode = model.commandReturnMode()
-		model.CommandBar.Close()
+		model.Close()
 		return model, nil
 	}
 	if model.mode == modeFilter && model.shell.Keys.Matches(key, KeyHistoryPrevious) {
-		model.CommandBar.MoveHistory(-1)
+		model.MoveHistory(-1)
 		return model, nil
 	}
 	if model.mode == modeFilter && model.shell.Keys.Matches(key, KeyHistoryNext) {
-		model.CommandBar.MoveHistory(1)
+		model.MoveHistory(1)
 		return model, nil
 	}
 	if model.mode == modeSwitch && (model.shell.Keys.Matches(key, KeySuggestionNext) || model.shell.Keys.Matches(key, KeySuggestionPrev)) {
 		return model, model.CommandBar.Update(key)
 	}
 	if model.mode == modeSwitch && model.shell.Keys.Matches(key, KeyAcceptSuggestion) {
-		if model.CommandBar.AcceptSuggestion() {
+		if model.AcceptSuggestion() {
 			return model, nil
 		}
 		return model, model.CommandBar.Update(key)
 	}
 	if model.shell.Keys.Matches(key, KeySubmit) {
-		value := strings.TrimSpace(model.CommandBar.Value())
-		model.CommandBar.Remember(value)
-		model.CommandBar.Close()
+		value := strings.TrimSpace(model.Value())
+		model.Remember(value)
+		model.Close()
 		if model.mode == modeFilter {
 			model.filter = value
 			model.applyFilter()
@@ -724,7 +724,7 @@ func (model *Model) handleInputKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	command := model.CommandBar.Update(key)
 	if model.mode == modeFilter {
-		model.filter = model.CommandBar.Value()
+		model.filter = model.Value()
 		model.applyFilter()
 	}
 	return model, command
@@ -1103,7 +1103,7 @@ func waitStreamEvent(viewID string, frameID uint64, events <-chan streamEvent) t
 }
 
 func (model *Model) appendStreamEvent(value string) {
-	model.DetailStreamComponent.Append(value)
+	model.Append(value)
 }
 
 func (model *Model) handleResult(message operationResultMsg) (tea.Model, tea.Cmd) {
@@ -1209,10 +1209,10 @@ func (model *Model) rebuildTable(view View) {
 	offset := 0
 	if len(model.frames) > 0 {
 		offset = model.frames[len(model.frames)-1].ColumnOffset
-		model.frames[len(model.frames)-1].ColumnOffset = model.ResourceTableComponent.Reset(view, model.shell.Theme, contentWidth, contentHeight, offset)
+		model.frames[len(model.frames)-1].ColumnOffset = model.Reset(view, model.shell.Theme, contentWidth, contentHeight, offset)
 		return
 	}
-	model.ResourceTableComponent.Reset(view, model.shell.Theme, contentWidth, contentHeight, offset)
+	model.Reset(view, model.shell.Theme, contentWidth, contentHeight, offset)
 }
 
 func (model *Model) configureTableColumns(view View) {
@@ -1220,10 +1220,10 @@ func (model *Model) configureTableColumns(view View) {
 	offset := 0
 	if len(model.frames) > 0 {
 		offset = model.frames[len(model.frames)-1].ColumnOffset
-		model.frames[len(model.frames)-1].ColumnOffset = model.ResourceTableComponent.Configure(view, contentWidth, contentHeight, offset)
+		model.frames[len(model.frames)-1].ColumnOffset = model.Configure(view, contentWidth, contentHeight, offset)
 		return
 	}
-	model.ResourceTableComponent.Configure(view, contentWidth, contentHeight, offset)
+	model.Configure(view, contentWidth, contentHeight, offset)
 }
 
 func (model *Model) scrollColumns(direction int) {
@@ -1256,24 +1256,24 @@ func (model *Model) setRows(view View, items []map[string]any) {
 		model.frames[len(model.frames)-1].RefreshIdentity = ""
 		contentWidth, contentHeight := model.pageContentSize()
 		offset := model.frames[len(model.frames)-1].ColumnOffset
-		model.frames[len(model.frames)-1].ColumnOffset = model.ResourceTableComponent.SetRows(view, items, model.filter, restoreIdentity, contentWidth, contentHeight, offset)
+		model.frames[len(model.frames)-1].ColumnOffset = model.SetRows(view, items, model.filter, restoreIdentity, contentWidth, contentHeight, offset)
 		model.restoreIdentity = ""
 		return
 	}
 	contentWidth, contentHeight := model.pageContentSize()
-	model.ResourceTableComponent.SetRows(view, items, model.filter, restoreIdentity, contentWidth, contentHeight, 0)
+	model.SetRows(view, items, model.filter, restoreIdentity, contentWidth, contentHeight, 0)
 	model.restoreIdentity = ""
 }
 
 func (model *Model) applyFilter() {
-	model.ResourceTableComponent.ApplyFilter(model.filter)
+	model.ApplyFilter(model.filter)
 }
 
 func (model *Model) selectedRow() *Row {
 	if model.currentView() != nil && model.currentView().Kind == "item" {
 		return model.frames[len(model.frames)-1].Selected
 	}
-	return model.ResourceTableComponent.Selected()
+	return model.Selected()
 }
 
 func (model *Model) currentView() *View {
@@ -1353,7 +1353,7 @@ func (model *Model) resize() {
 		model.applyFilter()
 	}
 	contentWidth, contentHeight := model.pageContentSize()
-	model.DetailStreamComponent.Resize(contentWidth, contentHeight, model.shell.Theme)
+	model.Resize(contentWidth, contentHeight, model.shell.Theme)
 }
 
 func (model *Model) pageContentSize() (int, int) {
@@ -1459,7 +1459,7 @@ func (model *Model) clearFrameRequest(frameID uint64) {
 }
 
 func (model *Model) cancelStream() {
-	model.DetailStreamComponent.Cancel()
+	model.Cancel()
 }
 
 func hasCollectionView(descriptor Descriptor) bool {

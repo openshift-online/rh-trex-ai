@@ -10,7 +10,7 @@ import (
 func ValidateNotEmpty(i interface{}, fieldName string, field string) Validate {
 	return func() *errors.ServiceError {
 		value := reflect.ValueOf(i).Elem().FieldByName(fieldName)
-		if value.Kind() == reflect.Ptr {
+		if value.Kind() == reflect.Pointer {
 			if value.IsNil() {
 				return errors.Validation("%s is required", field)
 			}
@@ -26,7 +26,7 @@ func ValidateNotEmpty(i interface{}, fieldName string, field string) Validate {
 func ValidateEmpty(i interface{}, fieldName string, field string) Validate {
 	return func() *errors.ServiceError {
 		value := reflect.ValueOf(i).Elem().FieldByName(fieldName)
-		if value.Kind() == reflect.Ptr {
+		if value.Kind() == reflect.Pointer {
 			if value.IsNil() {
 				return nil
 			}
