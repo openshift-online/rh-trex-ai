@@ -80,7 +80,7 @@ func TestPriorityControlsCompressionWithoutRemovingColumns(t *testing.T) {
 	if !reflect.DeepEqual(layout.Visible, []int{0, 1, 2}) {
 		t.Fatalf("compressed columns = %v, want every declaration", layout.Visible)
 	}
-	if !(layout.Widths[0] < layout.Widths[2] && layout.Widths[2] < layout.Widths[1]) {
+	if layout.Widths[0] >= layout.Widths[2] || layout.Widths[2] >= layout.Widths[1] {
 		t.Fatalf("priority widths = %v, want low < medium < high", layout.Widths)
 	}
 }

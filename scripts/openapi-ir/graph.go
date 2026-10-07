@@ -44,7 +44,10 @@ func (normalizer *normalizer) buildSchemaUsesAndGraph() error {
 
 		schemaRef, isList := normalizer.representedSchema(operation, stream)
 		kind := resourceKind(operation.Path, isList)
-		operation.Capabilities = operationCapabilities(operation, kind, stream)
+		// A GET on a path without a trailing parameter that returns one object,
+		// not a list, is a singleton such as /metadata: it is read, not listed.
+		singleton := kind == ResourceCollection && schemaRef != "" && !isList
+		operation.Capabilities = operationCapabilities(operation, kind, stream, singleton)
 		if schemaRef == "" {
 			continue
 		}
@@ -60,7 +63,16 @@ func (normalizer *normalizer) buildSchemaUsesAndGraph() error {
 			views[key] = view
 			normalizer.document.ResourceViews = append(normalizer.document.ResourceViews, view)
 		} else if view.SchemaRef != schemaRef {
-			return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			switch {
+			case normalizer.composesSchema(view.SchemaRef, schemaRef):
+				// An earlier operation returned an extension of this schema;
+				// the shared base represents the resource.
+				view.SchemaRef = schemaRef
+			case normalizer.composesSchema(schemaRef, view.SchemaRef):
+				// This operation returns an extension of the view's schema.
+			default:
+				return newDiagnostic(operation.Source, "operation "+operation.ID, "resource view %q has conflicting represented schemas %q and %q", key, view.SchemaRef, schemaRef)
+			}
 		}
 		attachOperationToView(operation, view, operationViews)
 		if len(view.Extensions) == 0 && len(operation.Extensions) > 0 {
@@ -152,6 +164,29 @@ func (normalizer *normalizer) listItemReference(ref string, visiting map[string]
 		}
 	}
 	return ""
+}
+
+// composesSchema reports whether the schema at ref extends base through allOf,
+// directly or transitively.
+func (normalizer *normalizer) composesSchema(ref, base string) bool {
+	return normalizer.composesSchemaVisiting(ref, base, make(map[string]bool))
+}
+
+func (normalizer *normalizer) composesSchemaVisiting(ref, base string, visiting map[string]bool) bool {
+	if visiting[ref] {
+		return false
+	}
+	visiting[ref] = true
+	schema := normalizer.schemas[ref]
+	if schema == nil {
+		return false
+	}
+	for _, composed := range schema.AllOf {
+		if composed.Ref == base || normalizer.composesSchemaVisiting(composed.Ref, base, visiting) {
+			return true
+		}
+	}
+	return false
 }
 
 func (normalizer *normalizer) EffectiveProperties(ref string) map[string]*Property {
@@ -345,7 +380,7 @@ func (normalizer *normalizer) inferRelationships() {
 			if parent.Kind != ResourceItem || parent.ID == child.ID {
 				continue
 			}
-			if pathContainsPrefix(child.Path, parent.Path) {
+			if structuralPathPrefix(child.Path, parent.Path) {
 				candidates = append(candidates, parent)
 			}
 		}
@@ -361,7 +396,7 @@ func (normalizer *normalizer) inferRelationships() {
 		if explicitPairs[parent.ID+"\x00"+child.ID] {
 			continue
 		}
-		mappings, complete := structuralPathMappings(source, target)
+		mappings, complete := inferredPathMappings(parent.Path, child.Path, source, target)
 		if !complete {
 			continue
 		}
@@ -388,7 +423,43 @@ func (normalizer *normalizer) uniqueCapabilityOperation(view *ResourceView, capa
 	return result
 }
 
-func structuralPathMappings(source, target *Operation) ([]ParameterMapping, bool) {
+// structuralPathPrefix reports whether parent is a proper path prefix of child
+// when path parameter names are ignored, so /projects/{id} contains
+// /projects/{project_id}/members.
+func structuralPathPrefix(child, parent string) bool {
+	childSegments, parentSegments := pathSegments(child), pathSegments(parent)
+	if len(parentSegments) == 0 || len(childSegments) <= len(parentSegments) {
+		return false
+	}
+	for i, segment := range parentSegments {
+		if normalizedSegment(segment) != normalizedSegment(childSegments[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func pathSegments(path string) []string {
+	return strings.Split(strings.Trim(path, "/"), "/")
+}
+
+func normalizedSegment(segment string) string {
+	if strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") {
+		return "{}"
+	}
+	return segment
+}
+
+// inferredPathMappings maps target path parameters to same-named source path
+// parameters. The single child parameter aligned with the parent's own item
+// parameter may be named differently (for example {id} and {project_id}); it
+// is left unmapped so the projection binds it from the selected row identity.
+func inferredPathMappings(parentPath, childPath string, source, target *Operation) ([]ParameterMapping, bool) {
+	parentSegments, childSegments := pathSegments(parentPath), pathSegments(childPath)
+	itemParameter := ""
+	if last := parentSegments[len(parentSegments)-1]; normalizedSegment(last) == "{}" {
+		itemParameter = strings.Trim(childSegments[len(parentSegments)-1], "{}")
+	}
 	sourcePathParameters := make(map[string]*Parameter, len(source.PathParameters))
 	for _, parameter := range source.PathParameters {
 		sourcePathParameters[parameter.Name] = parameter
@@ -396,7 +467,13 @@ func structuralPathMappings(source, target *Operation) ([]ParameterMapping, bool
 	mappings := make([]ParameterMapping, 0, len(target.PathParameters))
 	for _, parameter := range target.PathParameters {
 		sourceParameter := sourcePathParameters[parameter.Name]
-		if sourceParameter == nil || sourceParameter.In != parameter.In {
+		if sourceParameter == nil {
+			if parameter.Name == itemParameter {
+				continue
+			}
+			return nil, false
+		}
+		if sourceParameter.In != parameter.In {
 			return nil, false
 		}
 		mappings = append(mappings, ParameterMapping{Target: parameter.Name, Expression: "$request.path." + sourceParameter.Name})
@@ -404,7 +481,7 @@ func structuralPathMappings(source, target *Operation) ([]ParameterMapping, bool
 	return mappings, true
 }
 
-func operationCapabilities(operation *Operation, kind ResourceViewKind, stream bool) Capabilities {
+func operationCapabilities(operation *Operation, kind ResourceViewKind, stream, singleton bool) Capabilities {
 	if stream {
 		return Capabilities{CapabilityStream}
 	}
@@ -415,7 +492,7 @@ func operationCapabilities(operation *Operation, kind ResourceViewKind, stream b
 	}
 	switch operation.Method {
 	case "GET":
-		if kind == ResourceCollection {
+		if kind == ResourceCollection && !singleton {
 			result = append(result, CapabilityList)
 		} else {
 			result = append(result, CapabilityGet)

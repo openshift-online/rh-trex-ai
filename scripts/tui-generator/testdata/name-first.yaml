@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info: {title: Name First Test, version: 1.0.0}
+servers: [{url: http://localhost:8000}]
+security: []
+paths:
+  /entities:
+    get:
+      operationId: listEntities
+      responses:
+        "200":
+          description: entities
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EntityList"}
+  /entities-explicit:
+    get:
+      operationId: listEntitiesExplicit
+      x-trex-tui:
+        label: Entities Explicit
+        columns:
+          - {property: status, label: STATUS, priority: 100}
+          - {property: id, label: ID, priority: 90}
+          - {property: name, label: NAME, priority: 80}
+      responses:
+        "200":
+          description: entities with explicit columns
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EntityList"}
+  /entities-without-name-column:
+    get:
+      operationId: listEntitiesWithoutNameColumn
+      x-trex-tui:
+        label: Entities Without Name Column
+        columns:
+          - {property: status, label: STATUS, priority: 100}
+          - {property: id, label: ID, priority: 90}
+      responses:
+        "200":
+          description: entities whose explicit columns omit name
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EntityList"}
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: things have no name property
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ThingList"}
+components:
+  schemas:
+    Thing:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string, readOnly: true}
+        status: {type: string}
+    ThingList:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Thing"}}
+    Entity:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: {type: string, readOnly: true}
+        name: {type: string}
+        status: {type: string}
+    EntityList:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Entity"}}

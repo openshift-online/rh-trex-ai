@@ -41,7 +41,7 @@ func disableRyukIfPodman(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	ver, err := cli.ServerVersion(ctx)
 	if err != nil {

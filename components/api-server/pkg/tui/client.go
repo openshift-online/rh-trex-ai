@@ -11,14 +11,27 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
 const maxResponseBytes = 8 << 20
 
+// TokenProvider supplies the bearer token for each authenticated request, which
+// lets a long-lived session use a credential that is refreshed after startup.
+type TokenProvider interface {
+	GetToken() (string, error)
+}
+
+// maxIssuedTokens bounds how many provider-issued tokens are remembered for redaction.
+const maxIssuedTokens = 16
+
 type ClientConfig struct {
-	BaseURL         string
-	Token           string
+	BaseURL string
+	Token   string
+	// TokenProvider, when set, is consulted for every authenticated request and
+	// takes precedence over Token.
+	TokenProvider   TokenProvider
 	Insecure        bool
 	TrustedOrigins  []string
 	HTTPClient      *http.Client
@@ -32,6 +45,9 @@ type Client struct {
 	streamClient     *http.Client
 	credentialOrigin string
 	trustedOrigins   map[string]bool
+
+	issuedMu sync.Mutex
+	issued   []string
 }
 
 type RequestInput struct {
@@ -196,15 +212,69 @@ func (client *Client) BuildRequest(ctx context.Context, operation Operation, inp
 				bearerSupported = true
 			}
 		}
-		if client.config.Token != "" && bearerSupported {
-			requestOrigin := origin(requestURL)
-			if requestOrigin != client.credentialOrigin && !client.trustedOrigins[requestOrigin] {
-				return nil, fmt.Errorf("operation %s uses untrusted credential origin %s", operation.ID, requestOrigin)
+		if bearerSupported {
+			token, err := client.credential()
+			if err != nil {
+				return nil, fmt.Errorf("operation %s: %w", operation.ID, err)
 			}
-			request.Header.Set("Authorization", "Bearer "+client.config.Token)
+			if token != "" {
+				requestOrigin := origin(requestURL)
+				if requestOrigin != client.credentialOrigin && !client.trustedOrigins[requestOrigin] {
+					return nil, fmt.Errorf("operation %s uses untrusted credential origin %s", operation.ID, requestOrigin)
+				}
+				request.Header.Set("Authorization", "Bearer "+token)
+			}
 		}
 	}
 	return request, nil
+}
+
+// credential returns the bearer token for one request: the provider's current
+// token when a provider is configured, otherwise the static token.
+func (client *Client) credential() (string, error) {
+	if client.config.TokenProvider == nil {
+		return client.config.Token, nil
+	}
+	token, err := client.config.TokenProvider.GetToken()
+	if err != nil {
+		return "", fmt.Errorf("obtain access token: %w", err)
+	}
+	client.remember(token)
+	return token, nil
+}
+
+func (client *Client) remember(token string) {
+	if token == "" {
+		return
+	}
+	client.issuedMu.Lock()
+	defer client.issuedMu.Unlock()
+	for _, existing := range client.issued {
+		if existing == token {
+			return
+		}
+	}
+	client.issued = append(client.issued, token)
+	if len(client.issued) > maxIssuedTokens {
+		client.issued = client.issued[len(client.issued)-maxIssuedTokens:]
+	}
+}
+
+// Secrets returns every credential value this client has used, so rendered
+// output can redact tokens issued after startup.
+func (client *Client) Secrets() []string {
+	client.issuedMu.Lock()
+	defer client.issuedMu.Unlock()
+	result := make([]string, 0, len(client.issued)+1)
+	if client.config.Token != "" {
+		result = append(result, client.config.Token)
+	}
+	return append(result, client.issued...)
+}
+
+// Authenticated reports whether the client has a credential or a way to obtain one.
+func (client *Client) Authenticated() bool {
+	return client.config.Token != "" || client.config.TokenProvider != nil
 }
 
 func validateRequestBody(operation Operation, body []byte) error {

@@ -407,3 +407,95 @@ func TestSameNamedParametersRemainLocationAware(t *testing.T) {
 		t.Fatalf("ambiguous bare value made request; requests = %d", requests)
 	}
 }
+
+type sequenceTokenProvider struct {
+	tokens []string
+	calls  int
+	err    error
+}
+
+func (provider *sequenceTokenProvider) GetToken() (string, error) {
+	if provider.err != nil {
+		return "", provider.err
+	}
+	token := provider.tokens[provider.calls%len(provider.tokens)]
+	provider.calls++
+	return token, nil
+}
+
+func TestTokenProviderRefreshesPerRequest(t *testing.T) {
+	var authorizations []string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authorizations = append(authorizations, request.Header.Get("Authorization"))
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(writer, `{}`)
+	}))
+	defer server.Close()
+	descriptor := Descriptor{Servers: []Server{{URL: server.URL}}, SecuritySchemes: []SecurityScheme{{Name: "Bearer", Type: "http", Scheme: "bearer"}}}
+	provider := &sequenceTokenProvider{tokens: []string{"first-token", "second-token"}}
+	client, err := NewClient(descriptor, ClientConfig{BaseURL: server.URL, Token: "static-token", TokenProvider: provider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	protected := Operation{
+		ID: "getThing", Method: http.MethodGet, PathParts: []PathPart{{Literal: "/things"}},
+		Response: ResponseShape{ContentType: "application/json"}, SuccessStatuses: []string{"200"},
+		Security: EffectiveSecurity{Requirements: []SecurityAlternative{{Schemes: []string{"Bearer"}}}},
+	}
+	public := protected
+	public.ID, public.Security = "getPublicThing", EffectiveSecurity{None: true}
+
+	for _, operation := range []Operation{protected, public, protected} {
+		if _, err := client.Execute(context.Background(), operation, RequestInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"Bearer first-token", "", "Bearer second-token"}
+	if strings.Join(authorizations, "|") != strings.Join(want, "|") {
+		t.Fatalf("authorizations = %q, want %q", authorizations, want)
+	}
+	if provider.calls != 2 {
+		t.Fatalf("provider calls = %d, want 2 (not consulted for the public operation)", provider.calls)
+	}
+	secrets := client.Secrets()
+	for _, token := range []string{"static-token", "first-token", "second-token"} {
+		found := false
+		for _, secret := range secrets {
+			found = found || secret == token
+		}
+		if !found {
+			t.Fatalf("secrets %q omit %q", secrets, token)
+		}
+	}
+	manager := NewAlertManager()
+	manager.secretSource = client.Secrets
+	alert := manager.Push("k", AlertError, "request failed with first-token and second-token")
+	if strings.Contains(alert.Summary, "first-token") || strings.Contains(alert.Summary, "second-token") {
+		t.Fatalf("issued token leaked into alert: %q", alert.Summary)
+	}
+}
+
+func TestTokenProviderFailureFailsOnlyThatRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		t.Error("server must not be reached when the provider fails")
+	}))
+	defer server.Close()
+	descriptor := Descriptor{Servers: []Server{{URL: server.URL}}, SecuritySchemes: []SecurityScheme{{Name: "Bearer", Type: "http", Scheme: "bearer"}}}
+	provider := &sequenceTokenProvider{err: io.ErrUnexpectedEOF}
+	client, err := NewClient(descriptor, ClientConfig{BaseURL: server.URL, TokenProvider: provider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation := Operation{
+		ID: "getThing", Method: http.MethodGet, PathParts: []PathPart{{Literal: "/things"}},
+		Response: ResponseShape{ContentType: "application/json"}, SuccessStatuses: []string{"200"},
+		Security: EffectiveSecurity{Requirements: []SecurityAlternative{{Schemes: []string{"Bearer"}}}},
+	}
+	_, err = client.Execute(context.Background(), operation, RequestInput{})
+	if err == nil || !strings.Contains(err.Error(), "obtain access token") {
+		t.Fatalf("error = %v, want an access-token failure", err)
+	}
+	if !client.Authenticated() {
+		t.Fatal("a configured provider must count as authenticated")
+	}
+}

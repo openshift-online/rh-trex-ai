@@ -12,21 +12,7 @@ import (
 	"testing"
 )
 
-// repoSpecPath is the canonical location of the repository's own OpenAPI spec.
-// It only exists in downstream projects; the bare framework repo is a template.
-const repoSpecPath = "../../components/api-server/openapi/openapi.yaml"
-
-// skipIfNoRepoSpec skips the test when the repository spec is absent, which is
-// expected when running tests inside the rh-trex-ai framework repo itself.
-func skipIfNoRepoSpec(t *testing.T) {
-	t.Helper()
-	if _, err := os.Stat(repoSpecPath); os.IsNotExist(err) {
-		t.Skip("components/api-server/openapi/openapi.yaml not present — this repo is a framework template; downstream projects that ship an OpenAPI spec will run this test")
-	}
-}
-
 func TestRepositoryCharacterization(t *testing.T) {
-	skipIfNoRepoSpec(t)
 	spec, err := parseSpec(filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml"), "/api/rh-trex-ai/v1")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +44,6 @@ func TestSharedFixtureConformance(t *testing.T) {
 }
 
 func TestGeneratedSDKAcceptanceAndDeterminism(t *testing.T) {
-	skipIfNoRepoSpec(t)
 	specPath := filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml")
 	spec, err := parseSpec(specPath, "/api/rh-trex-ai/v1")
 	if err != nil {
@@ -81,7 +66,6 @@ func TestGeneratedSDKAcceptanceAndDeterminism(t *testing.T) {
 }
 
 func TestGeneratedTypeScriptRuntimeAcceptance(t *testing.T) {
-	skipIfNoRepoSpec(t)
 	specPath := filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml")
 	spec, err := parseSpec(specPath, "/api/rh-trex-ai/v1")
 	if err != nil {

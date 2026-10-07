@@ -40,7 +40,7 @@ func (model *Model) catalogItems() []map[string]any {
 }
 
 func (model *Model) openCatalogSelection() (tea.Model, tea.Cmd) {
-	row := model.ResourceTableComponent.Selected()
+	row := model.Selected()
 	if row == nil {
 		model.alertWarning("catalog-selection", "No resource is selected")
 		return model, nil

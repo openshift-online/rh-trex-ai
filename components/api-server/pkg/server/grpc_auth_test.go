@@ -134,7 +134,7 @@ func testGRPCKeyProvider(t *testing.T, kid string) (*rsa.PrivateKey, *grpcutil.J
 		t.Fatalf("GenerateKey() unexpected error: %v", err)
 	}
 
-	n := base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes())
+	n := base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes())
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(privateKey.PublicKey.E)).Bytes())
 	jwks := fmt.Sprintf(`{"keys":[{"kid":%q,"kty":"RSA","alg":"RS256","use":"sig","n":%q,"e":%q}]}`, kid, n, e)
 	path := filepath.Join(t.TempDir(), "jwks.json")

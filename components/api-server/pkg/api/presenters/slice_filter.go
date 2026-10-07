@@ -165,7 +165,7 @@ func structToMap(item interface{}, in map[string]bool, prefix string) map[string
 	reflectValue := reflect.ValueOf(item)
 	reflectValue = reflect.Indirect(reflectValue)
 
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 

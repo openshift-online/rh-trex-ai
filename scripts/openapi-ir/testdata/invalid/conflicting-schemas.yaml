@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info: {title: conflicting schemas, version: 1.0.0}
+paths:
+  /things/{thing_id}:
+    get:
+      operationId: getThing
+      parameters:
+        - {name: thing_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: thing
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    put:
+      operationId: replaceThing
+      parameters:
+        - {name: thing_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: other
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Other"}
+components:
+  schemas:
+    Thing: {type: object, properties: {id: {type: string}}}
+    Other: {type: object, properties: {name: {type: string}}}
