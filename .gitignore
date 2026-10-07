@@ -55,6 +55,6 @@ __pycache__/
 .idea/
 
 # Don't push the testing password file
-secrets/db.password
+**/secrets/db.password
 
 .claude/settings.local.json

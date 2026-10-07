@@ -1299,32 +1299,32 @@ func TestResourcePromptCompletesOnlyCurrentlyAddressableViews(t *testing.T) {
 
 	for _, keyType := range []tea.KeyType{tea.KeyTab, tea.KeyRight, tea.KeyCtrlF} {
 		model.mode = modeSwitch
-		model.CommandBar.Begin(CommandResource, "")
-		model.CommandBar.SetSuggestions(candidates)
+		model.Begin(CommandResource, "")
+		model.SetSuggestions(candidates)
 		_, _ = model.handleInputKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-		if model.CommandBar.CurrentSuggestion() != "ac" {
-			t.Fatalf("initial inline suggestion for %v = %q", keyType, model.CommandBar.CurrentSuggestion())
+		if model.CurrentSuggestion() != "ac" {
+			t.Fatalf("initial inline suggestion for %v = %q", keyType, model.CurrentSuggestion())
 		}
 		if rendered := model.CommandBar.View(PlainTheme(), 40).Input; !strings.Contains(rendered, "ac") {
 			t.Fatalf("inline completion suffix absent for %v: %q", keyType, rendered)
 		}
 		_, _ = model.handleInputKey(tea.KeyMsg{Type: keyType})
-		if model.CommandBar.Value() != "ac" {
-			t.Fatalf("acceptance key %v completed %q", keyType, model.CommandBar.Value())
+		if model.Value() != "ac" {
+			t.Fatalf("acceptance key %v completed %q", keyType, model.Value())
 		}
 	}
 
 	model.mode = modeSwitch
-	model.CommandBar.Begin(CommandResource, "")
-	model.CommandBar.SetSuggestions(candidates)
+	model.Begin(CommandResource, "")
+	model.SetSuggestions(candidates)
 	_, _ = model.handleInputKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	_, _ = model.handleInputKey(tea.KeyMsg{Type: tea.KeyUp})
-	if model.CommandBar.CurrentSuggestion() != "Accounts" {
-		t.Fatalf("Up did not cycle to the next deterministic suggestion: %q", model.CommandBar.CurrentSuggestion())
+	if model.CurrentSuggestion() != "Accounts" {
+		t.Fatalf("Up did not cycle to the next deterministic suggestion: %q", model.CurrentSuggestion())
 	}
 	_, _ = model.handleInputKey(tea.KeyMsg{Type: tea.KeyDown})
-	if model.CommandBar.CurrentSuggestion() != "ac" {
-		t.Fatalf("Down did not cycle to the previous deterministic suggestion: %q", model.CommandBar.CurrentSuggestion())
+	if model.CurrentSuggestion() != "ac" {
+		t.Fatalf("Down did not cycle to the previous deterministic suggestion: %q", model.CurrentSuggestion())
 	}
 }
 

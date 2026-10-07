@@ -259,7 +259,7 @@ func (s *sqlGenericService) loadList(listCtx *listContext, d *dao.GenericDao) *e
 // Allocate a slice with size 'cap' of the type i
 func zeroSlice(i interface{}, cap int64) *errors.ServiceError {
 	v := reflect.ValueOf(i)
-	if v.Kind() != reflect.Ptr {
+	if v.Kind() != reflect.Pointer {
 		return errors.GeneralError("A non-pointer to a list of resources: %v", v.Type())
 	}
 	// get the value that the pointer v points to.

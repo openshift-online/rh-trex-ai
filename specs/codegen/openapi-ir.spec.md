@@ -129,11 +129,29 @@ The IR SHALL model every collection or item exposure as a distinct resource view
 - AND each view SHALL have a distinct stable identity
 - AND neither view SHALL overwrite the other
 
+### Requirement: Shared Base Schema Representation
+
+Operations that expose one resource view SHALL be represented by a single schema. When the response schemas of those operations are related through `allOf` (directly or transitively), the schema that the others extend SHALL represent the view, regardless of operation order. Each operation's own response schema SHALL remain recorded in the IR schema uses. Response schemas on one view that are not related through `allOf` SHALL produce a diagnostic identifying the view and both schemas.
+
+#### Scenario: Responses extend a shared base
+- GIVEN a list operation returns a collection of `Item`
+- AND a create operation on the same path returns `allOf: [Item, {secret}]`
+- AND a get operation on the item path returns `allOf: [Item, {extra}]`
+- WHEN normalization runs, in either operation order
+- THEN the IR SHALL contain one collection view and one item view
+- AND both views SHALL be represented by `Item`
+- AND the create and get operations SHALL retain their own response schemas as schema uses
+
+#### Scenario: Unrelated response schemas on one view
+- GIVEN two operations on one resource view return `Thing` and `Other`, neither extending the other through `allOf`
+- WHEN normalization runs
+- THEN normalization SHALL fail with a conflicting-represented-schemas diagnostic naming the view, `Thing`, and `Other`
+
 ### Requirement: Relationship Semantics
 
 The IR SHALL represent standard OpenAPI Link Objects as directed operation relationships, including stable source and target operation identities, stable source and target resource-view identities when the operations belong to views, and the target parameter mapping values and runtime expressions needed by a consumer to construct a binding plan. An explicit relationship SHALL retain the exact source response and target capability selected by the Link rather than substituting another operation over the same schema.
 
-The IR MAY infer a containment relationship from path structure only when exactly one parent item view and one child collection view are unambiguous. An inferred relationship SHALL identify the parent item-read operation and child collection-list operation that provide the navigable capabilities; it SHALL NOT select an update, delete, create, action, or streaming operation merely because that operation uses the same schema or path. Every inferred relationship SHALL record its inferred provenance and the structural parameter bindings or unsatisfied target parameters used to reach that conclusion.
+The IR MAY infer a containment relationship from path structure only when exactly one parent item view and one child collection view are unambiguous. An inferred relationship SHALL identify the parent item-read operation and child collection-list operation that provide the navigable capabilities; it SHALL NOT select an update, delete, create, action, or streaming operation merely because that operation uses the same schema or path. Every inferred relationship SHALL record its inferred provenance and the structural parameter bindings or unsatisfied target parameters used to reach that conclusion. Parent-prefix matching SHALL compare path structure with path parameter names ignored, so that the parameter naming of an item path (`{id}`) does not prevent containment of a collection scoped by a differently named parameter (`{project_id}`). The child parameter aligned with the parent's own trailing item parameter MAY have a different name and SHALL then remain an unsatisfied target parameter for the consumer to bind from the selected item's identity; every other child path parameter SHALL map to a same-named parent path parameter or the relationship SHALL NOT be inferred. Literal path segments SHALL still have to match exactly, and more than one structural parent candidate SHALL remain ambiguous.
 
 #### Scenario: Explicit relationship takes precedence
 - GIVEN a response Link Object targets `listAgentInbox` and maps `agent_id` from the source response
@@ -158,6 +176,14 @@ The IR MAY infer a containment relationship from path structure only when exactl
 - AND its target operation SHALL be the Inbox collection-list capability
 - AND normalization SHALL NOT depend on map iteration or operation declaration order
 
+#### Scenario: Inference ignores path parameter names
+- GIVEN a Project item at `/projects/{id}` and a Team item at `/teams/{id}`
+- AND a Member collection at `/projects/{project_id}/members`
+- WHEN normalization runs
+- THEN exactly one inferred relationship SHALL connect the Project item-read operation to the Member collection-list operation
+- AND the Team item SHALL NOT gain a relationship to that collection
+- AND `project_id` SHALL remain an unmapped target parameter for identity binding by the consumer
+
 ### Requirement: Operation-Derived Capabilities
 
 The IR SHALL derive capabilities from documented operations rather than assuming every resource supports CRUD. It SHALL represent non-CRUD actions, streaming responses, and multiple operations over the same schema without coercing them into CRUD methods.
@@ -168,6 +194,12 @@ The IR SHALL derive capabilities from documented operations rather than assuming
 - WHEN normalization runs
 - THEN the view SHALL advertise only its documented capabilities
 - AND interrupt SHALL remain a distinct action operation
+
+#### Scenario: Singleton endpoint
+- GIVEN a `GET` on a path without a trailing parameter, such as `/metadata`, whose response is one object and not a list
+- WHEN normalization runs
+- THEN the operation SHALL have the get capability and SHALL NOT have the list capability
+- AND projections that select resources by the list capability SHALL NOT present it as a listable resource
 
 ### Requirement: Extension Preservation
 

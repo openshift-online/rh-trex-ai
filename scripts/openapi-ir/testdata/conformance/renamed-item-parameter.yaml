@@ -1,0 +1,35 @@
+openapi: 3.0.3
+info: {title: renamed item parameter, version: 1.0.0}
+paths:
+  /projects/{id}:
+    get:
+      operationId: getProject
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: project, content: {application/json: {schema: {$ref: "#/components/schemas/Project"}}}}
+  /teams/{id}:
+    get:
+      operationId: getTeam
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: team, content: {application/json: {schema: {$ref: "#/components/schemas/Team"}}}}
+  /projects/{project_id}/members:
+    get:
+      operationId: listProjectMembers
+      parameters:
+        - {name: project_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: members, content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {$ref: "#/components/schemas/Member"}}}}}}}
+components:
+  schemas:
+    Project:
+      type: object
+      properties: {id: {type: string}, name: {type: string}}
+    Team:
+      type: object
+      properties: {id: {type: string}, name: {type: string}}
+    Member:
+      type: object
+      properties: {id: {type: string}, client_id: {type: string}}

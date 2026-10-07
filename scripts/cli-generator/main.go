@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -21,6 +23,8 @@ func main() {
 	projectName := flag.String("project", "", "project name (e.g. rh-trex-ai)")
 	apiPrefix := flag.String("api-prefix", "", "API path prefix (e.g. /api/rh-trex-ai/v1)")
 	cliModule := flag.String("module", "", "Go module path for the CLI (e.g. github.com/myorg/myproject-cli)")
+	configName := flag.String("config-name", "", "name used for the config file and its environment variable, e.g. hypershell gives ~/.hypershell.json and HYPERSHELL_CONFIG (default: the binary name)")
+	oidcClientID := flag.String("oidc-client-id", "", "default OpenID Connect client ID for 'login --issuer-url' (default: the binary name)")
 	flag.Parse()
 
 	if *specPath == "" || *outDir == "" {
@@ -66,6 +70,9 @@ func main() {
 		APIPrefix: *apiPrefix,
 		Module:    *cliModule,
 		Resources: resources,
+
+		OIDCClientID: *oidcClientID,
+		ConfigName:   *configName,
 	}
 
 	if err := generateCLI(data, *outDir); err != nil {
@@ -84,6 +91,14 @@ type cliResource struct {
 	DefaultColumns string
 	WritableFields []cliField
 	KindListName   string
+	// DeleteEnabled and UpdateEnabled are set only when the item view of the
+	// resource declares the corresponding operation in the OpenAPI document.
+	DeleteEnabled bool
+	UpdateEnabled bool
+	// UpdateMethod is PATCH when the item view declares it, otherwise PUT.
+	UpdateMethod string
+	// UpdateFields are the writable fields of the update request body.
+	UpdateFields []cliField
 }
 
 type cliField struct {
@@ -99,6 +114,56 @@ type cliData struct {
 	APIPrefix string
 	Module    string
 	Resources []cliResource
+	// OIDCClientID is the default for 'login --client-id'; empty means the binary name.
+	OIDCClientID string
+	// ConfigName names the config file and its environment variable; empty means the binary name.
+	ConfigName string
+}
+
+var configNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// ConfigFileName is the name the generated config file and directory use.
+func (data cliData) ConfigFileName() string {
+	if data.ConfigName != "" {
+		return data.ConfigName
+	}
+	return data.Binary
+}
+
+// ConfigEnvVar is the environment variable that overrides the config file
+// location: the config name upper-cased with '-' and '.' mapped to '_'.
+func (data cliData) ConfigEnvVar() string {
+	return strings.NewReplacer("-", "_", ".", "_").Replace(strings.ToUpper(data.ConfigFileName())) + "_CONFIG"
+}
+
+var oidcClientIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:@/-]+$`)
+
+// DefaultClientID is the default OpenID Connect client ID of the generated login.
+func (data cliData) DefaultClientID() string {
+	if data.OIDCClientID != "" {
+		return data.OIDCClientID
+	}
+	return data.Binary
+}
+
+// HasDelete reports whether any resource declares a delete operation.
+func (data cliData) HasDelete() bool {
+	for _, resource := range data.Resources {
+		if resource.DeleteEnabled {
+			return true
+		}
+	}
+	return false
+}
+
+// HasUpdate reports whether any resource declares an update operation.
+func (data cliData) HasUpdate() bool {
+	for _, resource := range data.Resources {
+		if resource.UpdateEnabled {
+			return true
+		}
+	}
+	return false
 }
 
 func parseResources(specPath, apiPrefix string) ([]cliResource, error) {
@@ -122,7 +187,7 @@ func parseResources(specPath, apiPrefix string) ([]cliResource, error) {
 		pluralName := pluralizeName(schema.Name)
 		pluralLower := toLowerFirst(pluralName)
 
-		resources = append(resources, cliResource{
+		resource := cliResource{
 			Name:           schema.Name,
 			NameLower:      nameLower,
 			Plural:         pluralName,
@@ -131,7 +196,9 @@ func parseResources(specPath, apiPrefix string) ([]cliResource, error) {
 			DefaultColumns: columns,
 			WritableFields: fields,
 			KindListName:   schema.Name + "List",
-		})
+		}
+		applyItemOperations(document, view, &resource)
+		resources = append(resources, resource)
 	}
 
 	sort.Slice(resources, func(i, j int) bool {
@@ -139,6 +206,60 @@ func parseResources(specPath, apiPrefix string) ([]cliResource, error) {
 	})
 
 	return resources, nil
+}
+
+// applyItemOperations enables delete and update for a resource when its item
+// view (the collection path plus one trailing path parameter) declares them.
+func applyItemOperations(document *ir.Document, collection *ir.ResourceView, resource *cliResource) {
+	prefix := strings.TrimSuffix(collection.Path, "/") + "/"
+	var deleteOperation, patchOperation, putOperation *ir.Operation
+	for _, view := range document.ResourceViews {
+		if view.Kind != ir.ResourceItem || view.SchemaRef != collection.SchemaRef || !strings.HasPrefix(view.Path, prefix) {
+			continue
+		}
+		identifier := strings.TrimPrefix(view.Path, prefix)
+		if !strings.HasPrefix(identifier, "{") || !strings.HasSuffix(identifier, "}") || strings.Contains(identifier, "/") {
+			continue
+		}
+		for _, operationID := range view.OperationIDs {
+			operation := document.Operation(operationID)
+			if operation == nil {
+				continue
+			}
+			switch {
+			case operation.Method == "DELETE" && operation.Capabilities.Has(ir.CapabilityDelete):
+				deleteOperation = operation
+			case operation.Method == "PATCH" && operation.Capabilities.Has(ir.CapabilityUpdate):
+				patchOperation = operation
+			case operation.Method == "PUT" && operation.Capabilities.Has(ir.CapabilityUpdate):
+				putOperation = operation
+			}
+		}
+	}
+	resource.DeleteEnabled = deleteOperation != nil
+	update := patchOperation
+	resource.UpdateMethod = "PATCH"
+	if update == nil && putOperation != nil {
+		update, resource.UpdateMethod = putOperation, "PUT"
+	}
+	if update == nil {
+		return
+	}
+	resource.UpdateEnabled = true
+	resource.UpdateFields = resource.WritableFields
+	if update.RequestBody != nil {
+		for _, content := range update.RequestBody.Content {
+			if content.Schema == nil {
+				continue
+			}
+			if body := document.Schema(content.Schema.Ref); body != nil {
+				if fields := extractWritableFields(document, body); len(fields) > 0 {
+					resource.UpdateFields = fields
+				}
+				break
+			}
+		}
+	}
 }
 
 func extractWritableFields(document *ir.Document, schema *ir.Schema) []cliField {
@@ -249,45 +370,93 @@ func cliLastSegment(path string) string {
 	return strings.Trim(path, "{}")
 }
 
+// warningOutput receives generator warnings; tests replace it.
+var warningOutput io.Writer = os.Stderr
+
+// warnIfMainSkipsGeneratedCommands reports a hand-maintained main.go that does
+// not call addGeneratedCommands: it is never overwritten, so without the call
+// newly generated commands would exist but stay unreachable.
+func warnIfMainSkipsGeneratedCommands(mainPath string) {
+	source, err := os.ReadFile(mainPath)
+	if err != nil || strings.Contains(string(source), "addGeneratedCommands(") {
+		return
+	}
+	_, _ = fmt.Fprintf(warningOutput, "warning: %s is hand-maintained and was not regenerated, and it does not call addGeneratedCommands(root), "+
+		"so newly generated commands are not registered. Replace its registrations of generated commands with a call to addGeneratedCommands(root).\n", mainPath)
+}
+
 func generateCLI(data cliData, outDir string) error {
+	if data.ConfigName != "" && (!configNamePattern.MatchString(data.ConfigName) || strings.Contains(data.ConfigName, "..")) {
+		return fmt.Errorf("invalid config name %q: use letters, digits and . _ - and start with a letter or digit", data.ConfigName)
+	}
+	if !oidcClientIDPattern.MatchString(data.DefaultClientID()) {
+		return fmt.Errorf("invalid OpenID Connect client ID %q: use letters, digits and . _ : @ / -", data.DefaultClientID())
+	}
 	tmplDir := filepath.Join(getTemplateDir())
 
 	type tmplMapping struct {
 		tmplPath string
 		outPath  string
+		resource *cliResource
+		// ifMissing leaves an existing file untouched so hand-maintained edits survive regeneration.
+		ifMissing bool
 	}
 
 	var mappings []tmplMapping
 
+	// Bootstrap-only files (written when absent, never overwritten):
+	//   cmd/<binary>/main.go - registers both generated and hand-authored commands
+	//   go.mod               - managed by go mod tidy; hand-authored cmds may add deps
 	mappings = append(mappings,
-		tmplMapping{"cmd/main.go.tmpl", filepath.Join("cmd", data.Binary, "main.go")},
-		tmplMapping{"cmd/login.go.tmpl", filepath.Join("cmd", data.Binary, "login", "cmd.go")},
-		tmplMapping{"cmd/logout.go.tmpl", filepath.Join("cmd", data.Binary, "logout", "cmd.go")},
-		tmplMapping{"cmd/version.go.tmpl", filepath.Join("cmd", data.Binary, "version", "cmd.go")},
-		tmplMapping{"cmd/completion.go.tmpl", filepath.Join("cmd", data.Binary, "completion", "cmd.go")},
-		tmplMapping{"cmd/config.go.tmpl", filepath.Join("cmd", data.Binary, "config", "cmd.go")},
-		tmplMapping{"cmd/list.go.tmpl", filepath.Join("cmd", data.Binary, "list", "cmd.go")},
-		tmplMapping{"cmd/get.go.tmpl", filepath.Join("cmd", data.Binary, "get", "cmd.go")},
-		tmplMapping{"cmd/create.go.tmpl", filepath.Join("cmd", data.Binary, "create", "cmd.go")},
-		tmplMapping{"pkg/config.go.tmpl", filepath.Join("pkg", "config", "config.go")},
-		tmplMapping{"pkg/token.go.tmpl", filepath.Join("pkg", "config", "token.go")},
-		tmplMapping{"pkg/connection.go.tmpl", filepath.Join("pkg", "connection", "connection.go")},
-		tmplMapping{"pkg/dump.go.tmpl", filepath.Join("pkg", "dump", "dump.go")},
-		tmplMapping{"pkg/printer.go.tmpl", filepath.Join("pkg", "output", "printer.go")},
-		tmplMapping{"pkg/table.go.tmpl", filepath.Join("pkg", "output", "table.go")},
-		tmplMapping{"pkg/terminal.go.tmpl", filepath.Join("pkg", "output", "terminal.go")},
-		tmplMapping{"pkg/arguments.go.tmpl", filepath.Join("pkg", "arguments", "arguments.go")},
-		tmplMapping{"pkg/urls.go.tmpl", filepath.Join("pkg", "urls", "urls.go")},
-		tmplMapping{"pkg/info.go.tmpl", filepath.Join("pkg", "info", "info.go")},
-		tmplMapping{"gomod.tmpl", "go.mod"},
+		tmplMapping{"cmd/main.go.tmpl", filepath.Join("cmd", data.Binary, "main.go"), nil, true},
+		tmplMapping{"gomod.tmpl", "go.mod", nil, true},
 	)
 
-	for _, r := range data.Resources {
+	mappings = append(mappings,
+		tmplMapping{"cmd/generated_commands.go.tmpl", filepath.Join("cmd", data.Binary, "generated_commands.go"), nil, false},
+		tmplMapping{"cmd/login.go.tmpl", filepath.Join("cmd", data.Binary, "login", "cmd.go"), nil, false},
+		tmplMapping{"cmd/logout.go.tmpl", filepath.Join("cmd", data.Binary, "logout", "cmd.go"), nil, false},
+		tmplMapping{"cmd/whoami.go.tmpl", filepath.Join("cmd", data.Binary, "whoami", "cmd.go"), nil, false},
+		tmplMapping{"cmd/version.go.tmpl", filepath.Join("cmd", data.Binary, "version", "cmd.go"), nil, false},
+		tmplMapping{"cmd/completion.go.tmpl", filepath.Join("cmd", data.Binary, "completion", "cmd.go"), nil, false},
+		tmplMapping{"cmd/config.go.tmpl", filepath.Join("cmd", data.Binary, "config", "cmd.go"), nil, false},
+		tmplMapping{"cmd/list.go.tmpl", filepath.Join("cmd", data.Binary, "list", "cmd.go"), nil, false},
+		tmplMapping{"cmd/get.go.tmpl", filepath.Join("cmd", data.Binary, "get", "cmd.go"), nil, false},
+		tmplMapping{"cmd/create.go.tmpl", filepath.Join("cmd", data.Binary, "create", "cmd.go"), nil, false},
+		tmplMapping{"pkg/config.go.tmpl", filepath.Join("pkg", "config", "config.go"), nil, false},
+		tmplMapping{"pkg/token.go.tmpl", filepath.Join("pkg", "config", "token.go"), nil, false},
+		tmplMapping{"pkg/connection.go.tmpl", filepath.Join("pkg", "connection", "connection.go"), nil, false},
+		tmplMapping{"pkg/oidc.go.tmpl", filepath.Join("pkg", "oidc", "oidc.go"), nil, false},
+		tmplMapping{"pkg/dump.go.tmpl", filepath.Join("pkg", "dump", "dump.go"), nil, false},
+		tmplMapping{"pkg/printer.go.tmpl", filepath.Join("pkg", "output", "printer.go"), nil, false},
+		tmplMapping{"pkg/table.go.tmpl", filepath.Join("pkg", "output", "table.go"), nil, false},
+		tmplMapping{"pkg/terminal.go.tmpl", filepath.Join("pkg", "output", "terminal.go"), nil, false},
+		tmplMapping{"pkg/arguments.go.tmpl", filepath.Join("pkg", "arguments", "arguments.go"), nil, false},
+		tmplMapping{"pkg/urls.go.tmpl", filepath.Join("pkg", "urls", "urls.go"), nil, false},
+		tmplMapping{"pkg/info.go.tmpl", filepath.Join("pkg", "info", "info.go"), nil, false},
+	)
+
+	if data.HasDelete() {
+		mappings = append(mappings, tmplMapping{"pkg/confirm.go.tmpl", filepath.Join("pkg", "confirm", "confirm.go"), nil, false})
+		mappings = append(mappings, tmplMapping{"cmd/delete.go.tmpl", filepath.Join("cmd", data.Binary, "delete", "cmd.go"), nil, false})
+	}
+	if data.HasUpdate() {
+		mappings = append(mappings, tmplMapping{"cmd/update.go.tmpl", filepath.Join("cmd", data.Binary, "update", "cmd.go"), nil, false})
+	}
+
+	for i := range data.Resources {
+		r := &data.Resources[i]
 		mappings = append(mappings,
-			tmplMapping{"cmd/list_resource.go.tmpl", filepath.Join("cmd", data.Binary, "list", r.PluralLower, "cmd.go")},
-			tmplMapping{"cmd/get_resource.go.tmpl", filepath.Join("cmd", data.Binary, "get", r.NameLower, "cmd.go")},
-			tmplMapping{"cmd/create_resource.go.tmpl", filepath.Join("cmd", data.Binary, "create", r.NameLower, "cmd.go")},
+			tmplMapping{"cmd/list_resource.go.tmpl", filepath.Join("cmd", data.Binary, "list", r.PluralLower, "cmd.go"), r, false},
+			tmplMapping{"cmd/get_resource.go.tmpl", filepath.Join("cmd", data.Binary, "get", r.NameLower, "cmd.go"), r, false},
+			tmplMapping{"cmd/create_resource.go.tmpl", filepath.Join("cmd", data.Binary, "create", r.NameLower, "cmd.go"), r, false},
 		)
+		if r.DeleteEnabled {
+			mappings = append(mappings, tmplMapping{"cmd/delete_resource.go.tmpl", filepath.Join("cmd", data.Binary, "delete", r.NameLower, "cmd.go"), r, false})
+		}
+		if r.UpdateEnabled {
+			mappings = append(mappings, tmplMapping{"cmd/update_resource.go.tmpl", filepath.Join("cmd", data.Binary, "update", r.NameLower, "cmd.go"), r, false})
+		}
 	}
 
 	for _, m := range mappings {
@@ -295,6 +464,15 @@ func generateCLI(data cliData, outDir string) error {
 		outPath, err := ir.SafeJoin(outDir, m.outPath)
 		if err != nil {
 			return fmt.Errorf("resolve output %s: %w", m.outPath, err)
+		}
+
+		if m.ifMissing {
+			if _, err := os.Stat(outPath); err == nil {
+				if m.tmplPath == "cmd/main.go.tmpl" {
+					warnIfMainSkipsGeneratedCommands(outPath)
+				}
+				continue
+			}
 		}
 
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
@@ -311,13 +489,8 @@ func generateCLI(data cliData, outDir string) error {
 			Resource cliResource
 		}{cliData: data}
 
-		if strings.Contains(m.tmplPath, "_resource") {
-			for _, r := range data.Resources {
-				if strings.Contains(m.outPath, r.PluralLower) || strings.Contains(m.outPath, r.NameLower) {
-					td.Resource = r
-					break
-				}
-			}
+		if m.resource != nil {
+			td.Resource = *m.resource
 		}
 
 		f, err := os.Create(outPath)

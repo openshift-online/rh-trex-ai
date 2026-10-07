@@ -1,0 +1,20 @@
+package update
+
+import (
+	"github.com/spf13/cobra"
+{{range .Resources}}{{if .UpdateEnabled}}
+	"{{$.Module}}/cmd/{{$.Binary}}/update/{{.NameLower}}"
+{{- end}}{{end}}
+)
+
+var Cmd = &cobra.Command{
+	Use:   "update RESOURCE ID",
+	Short: "Update a resource by ID",
+	Long:  "Update a resource by ID, sending only the fields that were set.",
+}
+
+func init() {
+{{- range .Resources}}{{if .UpdateEnabled}}
+	Cmd.AddCommand({{.NameLower}}.Cmd)
+{{- end}}{{end}}
+}

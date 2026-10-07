@@ -5,15 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"{{.Module}}/cmd/{{.Binary}}/completion"
-	"{{.Module}}/cmd/{{.Binary}}/config"
-	"{{.Module}}/cmd/{{.Binary}}/create"
-	"{{.Module}}/cmd/{{.Binary}}/get"
-	"{{.Module}}/cmd/{{.Binary}}/list"
-	"{{.Module}}/cmd/{{.Binary}}/login"
-	"{{.Module}}/cmd/{{.Binary}}/logout"
-	"{{.Module}}/cmd/{{.Binary}}/version"
 )
 
 var root = &cobra.Command{
@@ -25,14 +16,9 @@ var root = &cobra.Command{
 }
 
 func init() {
-	root.AddCommand(completion.Cmd)
-	root.AddCommand(config.Cmd)
-	root.AddCommand(create.Cmd)
-	root.AddCommand(get.Cmd)
-	root.AddCommand(list.Cmd)
-	root.AddCommand(login.Cmd)
-	root.AddCommand(logout.Cmd)
-	root.AddCommand(version.Cmd)
+	// The generated commands are registered by generated_commands.go, which is
+	// rewritten on every generation. Add, replace or remove commands after this call.
+	addGeneratedCommands(root)
 }
 
 func main() {

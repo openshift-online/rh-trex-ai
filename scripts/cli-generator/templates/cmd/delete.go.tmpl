@@ -1,0 +1,20 @@
+package delete
+
+import (
+	"github.com/spf13/cobra"
+{{range .Resources}}{{if .DeleteEnabled}}
+	"{{$.Module}}/cmd/{{$.Binary}}/delete/{{.NameLower}}"
+{{- end}}{{end}}
+)
+
+var Cmd = &cobra.Command{
+	Use:   "delete RESOURCE ID",
+	Short: "Delete a resource by ID",
+	Long:  "Delete a resource by ID after asking for confirmation. Pass --yes to skip the prompt.",
+}
+
+func init() {
+{{- range .Resources}}{{if .DeleteEnabled}}
+	Cmd.AddCommand({{.NameLower}}.Cmd)
+{{- end}}{{end}}
+}

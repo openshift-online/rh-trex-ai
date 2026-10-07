@@ -116,10 +116,7 @@ func TestUnresolvedOperationLinkDiagnostic(t *testing.T) {
 }
 
 func TestRepositoryOpenAPISmoke(t *testing.T) {
-	specPath := filepath.Join("..", "..", "openapi", "openapi.yaml")
-	if _, err := os.Stat(specPath); os.IsNotExist(err) {
-		t.Skip("openapi/openapi.yaml not present — this repo is a framework template; downstream projects that embed an OpenAPI spec will run this test")
-	}
+	specPath := filepath.Join("..", "..", "components", "api-server", "openapi", "openapi.yaml")
 	document, err := Load(specPath, LoadOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -222,4 +219,96 @@ func namedSchemaOrNil(document *Document, name string) *Schema {
 		}
 	}
 	return nil
+}
+
+func TestSharedAllOfBaseRepresentsResourceView(t *testing.T) {
+	for _, testCase := range []struct{ name, path string }{
+		{"list operation first", "testdata/conformance/shared-base-list-first.yaml"},
+		{"extension operation first", "testdata/conformance/shared-base-extension-first.yaml"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			document, err := Load(testCase.path, LoadOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			item := namedSchema(t, document, "Item")
+			if len(document.ResourceViews) != 2 {
+				t.Fatalf("resource views = %d, want 1 collection and 1 item: %#v", len(document.ResourceViews), document.ResourceViews)
+			}
+			counts := make(map[ResourceViewKind]int)
+			for _, view := range document.ResourceViews {
+				counts[view.Kind]++
+				if view.SchemaRef != item.Ref {
+					t.Fatalf("view %s SchemaRef = %q, want Item %q", view.ID, view.SchemaRef, item.Ref)
+				}
+			}
+			if counts[ResourceCollection] != 1 || counts[ResourceItem] != 1 {
+				t.Fatalf("view kinds = %v, want one collection and one item", counts)
+			}
+			// Schema uses keep each operation's own response schema.
+			uses := make(map[string]string)
+			for _, use := range document.SchemaUses {
+				if use.Role == SchemaRoleResponse && (use.OperationID == "createSecret" || use.OperationID == "getSecret") {
+					uses[use.OperationID] = use.SchemaRef
+				}
+			}
+			if len(uses) != 2 || uses["createSecret"] == item.Ref || uses["getSecret"] == item.Ref {
+				t.Fatalf("response uses = %v, want each operation's own extension schema", uses)
+			}
+		})
+	}
+}
+
+func TestUnrelatedSchemasOnOneViewConflict(t *testing.T) {
+	_, err := Load("testdata/invalid/conflicting-schemas.yaml", LoadOptions{})
+	if err == nil {
+		t.Fatal("unrelated schemas on one resource view unexpectedly normalized")
+	}
+	for _, expected := range []string{"has conflicting represented schemas", "Thing", "Other"} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("diagnostic = %v, want text %q", err, expected)
+		}
+	}
+}
+
+func TestInferredContainmentIgnoresPathParameterNames(t *testing.T) {
+	document, err := Load("testdata/conformance/renamed-item-parameter.yaml", LoadOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inferred []*Relationship
+	for _, relationship := range document.Relationships {
+		if relationship.Provenance == RelationshipInferred {
+			inferred = append(inferred, relationship)
+		}
+	}
+	if len(inferred) != 1 {
+		t.Fatalf("inferred relationships = %#v, want exactly one from the project item", inferred)
+	}
+	relationship := inferred[0]
+	if relationship.SourceOperationID != "getProject" || relationship.TargetOperationID != "listProjectMembers" {
+		t.Fatalf("inferred relationship = %#v, want getProject to listProjectMembers", relationship)
+	}
+	if len(relationship.ParameterMappings) != 0 {
+		t.Fatalf("renamed item parameter must stay unmapped for identity binding: %#v", relationship.ParameterMappings)
+	}
+}
+
+func TestSingletonGetIsNotAList(t *testing.T) {
+	document, err := Load("testdata/conformance/singleton.yaml", LoadOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := document.Operation("getMetadata")
+	if metadata == nil || metadata.Capabilities.Has(CapabilityList) || !metadata.Capabilities.Has(CapabilityGet) {
+		t.Fatalf("a GET returning one object on a path without a parameter must be get, not list: %#v", metadata)
+	}
+	if things := document.Operation("listThings"); things == nil || !things.Capabilities.Has(CapabilityList) {
+		t.Fatalf("a GET returning a list must stay list: %#v", things)
+	}
+	for _, view := range document.ResourceViews {
+		if view.Path == "/metadata" && view.Capabilities.Has(CapabilityList) {
+			t.Fatalf("the singleton view must not advertise list: %#v", view)
+		}
+	}
 }
