@@ -258,6 +258,8 @@ The shared resource-table component SHALL calculate column widths from sanitized
 
 One centralized sizing policy SHALL define and test semantic minimum widths, maximum widths, gutters, and expansion weights. Natural widths SHALL be clamped to those bounds. When bounded columns fit, unused space SHALL be distributed deterministically to eligible flexible text columns without needlessly expanding compact identifiers, statuses, booleans, or numbers. When they do not fit, lower-priority flexible columns SHALL shrink before higher-priority columns, but no declared column SHALL become inaccessible solely because of terminal width. Values wider than a column's maximum or current allocated width SHALL be truncated at a display-cell boundary with an ellipsis, while the complete sanitized value remains available in item detail.
 
+While a table has focus, the `w` shortcut from the keybinding registry SHALL toggle wide-column mode for every column at once. In wide-column mode each column's width SHALL be its complete natural display width, bounded only by the available width minus the gutter, without the semantic maximums, expansion, or priority compression. Columns that no longer fit SHALL be reached through the horizontal scrolling and overflow indicators defined below. Toggling SHALL reset the horizontal offset to the left edge, leave row selection, filter, and sort unchanged, persist across resource views for the session, and be absent from the palette when the active page is not a table.
+
 Any remaining overflow SHALL form one horizontal table canvas controlled by the keybinding registry. While the table has focus, Left and Right arrow keys SHALL move the viewport by one column boundary and SHALL NOT change row selection. Each navigation frame SHALL retain its horizontal offset across filtering, sorting, refresh, detail round trips, and back navigation; a newly opened resource view SHALL begin at its left edge, and resize SHALL clamp an invalid offset to the nearest valid boundary.
 
 The table chrome SHALL reserve non-data space for directional overflow indicators. A right indicator SHALL be visible whenever any column is fully or partially beyond the right edge, a left indicator SHALL be visible whenever content exists beyond the left edge, both SHALL be visible in the middle, and neither SHALL be visible when all columns fit. The indicators SHALL report the number of off-screen columns and SHALL be accompanied by a contextual `Left/Right: columns` hint from the shared keybinding registry. They SHALL NOT cover a header, cell value, scrollbar, breadcrumb, or alert.
@@ -269,6 +271,13 @@ The table chrome SHALL reserve non-data space for directional overflow indicator
 - THEN each width SHALL be based on sanitized terminal display cells across all loaded rows
 - AND compact scalar columns SHALL NOT receive the same width as the long flexible text column
 - AND row scrolling and filtering SHALL NOT cause column widths to jump
+
+#### Scenario: Toggle wide columns
+- GIVEN a table column holds values wider than its semantic maximum
+- WHEN the user presses `w`
+- THEN every column SHALL render its complete values up to the available width
+- AND columns beyond the available width SHALL remain reachable through horizontal scrolling
+- AND pressing `w` again SHALL restore the bounded layout
 
 #### Scenario: Reveal every overflowing column
 

@@ -31,7 +31,7 @@ func (component *ResourceTableComponent) Configure(view View, width, height, off
 	}
 	displayView := view
 	displayView.DefaultSort = component.sortProperty
-	layout := calculateColumnLayout(displayView, component.rows, max(1, width-2), offset)
+	layout := calculateColumnLayout(displayView, component.rows, max(1, width-2), offset, component.wideColumns)
 	component.displayColumns = layout.Visible
 	component.columnWidths = layout.Widths
 	component.leftOverflow = layout.LeftHidden
@@ -214,4 +214,10 @@ func rowFor(view View, item map[string]any) Row {
 		row.Cells = append(row.Cells, SanitizeCell(scalarString(value)))
 	}
 	return row
+}
+
+// ToggleWideColumns switches between bounded and full-content column widths.
+func (component *ResourceTableComponent) ToggleWideColumns() bool {
+	component.wideColumns = !component.wideColumns
+	return component.wideColumns
 }

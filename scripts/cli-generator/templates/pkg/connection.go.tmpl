@@ -92,7 +92,7 @@ func (c *Connection) Do(method, path string, query url.Values, body io.Reader) (
 
 	req, err := http.NewRequest(method, fullURL, body)
 	if err != nil {
-		return nil, fmt.Errorf("can't create request: %v", err)
+		return nil, fmt.Errorf("can't create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -120,7 +120,7 @@ func (c *Connection) DoContext(ctx context.Context, method, path string, query u
 
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return nil, fmt.Errorf("can't create request: %v", err)
+		return nil, fmt.Errorf("can't create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -195,7 +195,7 @@ func (c *Connection) List(path string, page, size int, search, orderBy string) (
 	var result ListResponse
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		return nil, fmt.Errorf("can't decode response: %v", err)
+		return nil, fmt.Errorf("can't decode response: %w", err)
 	}
 	return &result, nil
 }
