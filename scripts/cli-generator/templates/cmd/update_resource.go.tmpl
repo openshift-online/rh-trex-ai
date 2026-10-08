@@ -58,7 +58,7 @@ func run(cmd *cobra.Command, argv []string) error {
 	if args.bodyFile != "" {
 		body, err = os.ReadFile(args.bodyFile)
 		if err != nil {
-			return fmt.Errorf("can't read body file: %v", err)
+			return fmt.Errorf("can't read body file: %w", err)
 		}
 	} else {
 		request := map[string]interface{}{}
@@ -72,7 +72,7 @@ func run(cmd *cobra.Command, argv []string) error {
 		}
 		body, err = json.Marshal(request)
 		if err != nil {
-			return fmt.Errorf("can't marshal request: %v", err)
+			return fmt.Errorf("can't marshal request: %w", err)
 		}
 	}
 
@@ -93,13 +93,13 @@ func run(cmd *cobra.Command, argv []string) error {
 	resp, err := conn.Patch(urls.{{.Resource.Name}}Path(id), bytes.NewReader(body))
 {{- end}}
 	if err != nil {
-		return fmt.Errorf("can't update {{.Resource.NameLower}}: %v", err)
+		return fmt.Errorf("can't update {{.Resource.NameLower}}: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("can't read response: %v", err)
+		return fmt.Errorf("can't read response: %w", err)
 	}
 
 	switch resp.StatusCode {

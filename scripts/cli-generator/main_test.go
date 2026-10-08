@@ -651,3 +651,25 @@ func TestLocationUsesTheConfiguredName(t *testing.T) {
 	}
 }
 `
+
+// Generated CLIs must keep the error chain so consumers can use errors.Is/As.
+func TestTemplatesWrapErrorsWithW(t *testing.T) {
+	err := filepath.WalkDir("templates", func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return walkErr
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for number, line := range strings.Split(string(content), "\n") {
+			if strings.Contains(line, "fmt.Errorf(") && strings.Contains(line, "%v") && strings.Contains(line, ", err)") {
+				t.Errorf("%s:%d wraps an error with %%v, use %%w: %s", path, number+1, strings.TrimSpace(line))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

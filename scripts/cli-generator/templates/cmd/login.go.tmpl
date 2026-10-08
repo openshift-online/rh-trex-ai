@@ -76,7 +76,7 @@ func runToken() error {
 		} else {
 			file, err := os.Open(args.tokenFile)
 			if err != nil {
-				return fmt.Errorf("can't open token file '%s': %v", args.tokenFile, err)
+				return fmt.Errorf("can't open token file '%s': %w", args.tokenFile, err)
 			}
 			defer file.Close()
 			reader = file
@@ -84,7 +84,7 @@ func runToken() error {
 
 		tokenBytes, err := io.ReadAll(reader)
 		if err != nil {
-			return fmt.Errorf("can't read token: %v", err)
+			return fmt.Errorf("can't read token: %w", err)
 		}
 		token = strings.TrimSpace(string(tokenBytes))
 	} else if args.token != "" {
@@ -100,7 +100,7 @@ func runToken() error {
 
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("can't load config file: %v", err)
+		return fmt.Errorf("can't load config file: %w", err)
 	}
 	if cfg == nil {
 		cfg = new(config.Config)
@@ -114,7 +114,7 @@ func runToken() error {
 
 	err = config.Save(cfg)
 	if err != nil {
-		return fmt.Errorf("can't save config file: %v", err)
+		return fmt.Errorf("can't save config file: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "Login successful. Configuration saved.\n")
@@ -139,7 +139,7 @@ func runOIDC(cmd *cobra.Command) error {
 
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("can't load config file: %v", err)
+		return fmt.Errorf("can't load config file: %w", err)
 	}
 	if cfg == nil {
 		cfg = new(config.Config)
@@ -156,7 +156,7 @@ func runOIDC(cmd *cobra.Command) error {
 	}
 
 	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("can't save config file: %v", err)
+		return fmt.Errorf("can't save config file: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Login successful. Configuration saved.\n")
 	return nil
