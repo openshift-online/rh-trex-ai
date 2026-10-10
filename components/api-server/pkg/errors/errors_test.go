@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"net/http"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -22,4 +23,12 @@ func TestErrorFind(t *testing.T) {
 	exists, err = Find(ServiceErrorCode(91823719))
 	Expect(exists).To(Equal(false))
 	Expect(err).To(BeNil())
+}
+
+func TestUnprocessableEntity(t *testing.T) {
+	RegisterTestingT(t)
+	err := UnprocessableEntity("missing %s", "repository_id")
+	Expect(err.Code).To(Equal(ErrorUnprocessableEntity))
+	Expect(err.HttpCode).To(Equal(http.StatusUnprocessableEntity))
+	Expect(err.Reason).To(Equal("missing repository_id"))
 }
