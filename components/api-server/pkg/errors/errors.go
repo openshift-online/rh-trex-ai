@@ -60,6 +60,10 @@ const (
 
 	// DatabaseAdvisoryLock occurs whe the advisory lock is failed to get
 	ErrorDatabaseAdvisoryLock ServiceErrorCode = 26
+
+	// UnprocessableEntity occurs when a syntactically valid request is
+	// semantically invalid and cannot be processed (HTTP 422)
+	ErrorUnprocessableEntity ServiceErrorCode = 27
 )
 
 type ServiceErrorCode int
@@ -90,6 +94,7 @@ func Errors() ServiceErrors {
 		ServiceError{ErrorBadRequest, "Bad request", http.StatusBadRequest},
 		ServiceError{ErrorFailedToParseSearch, "Failed to parse search query", http.StatusBadRequest},
 		ServiceError{ErrorDatabaseAdvisoryLock, "Database advisory lock error", http.StatusInternalServerError},
+		ServiceError{ErrorUnprocessableEntity, "Unprocessable entity", http.StatusUnprocessableEntity},
 	}
 }
 
@@ -189,6 +194,10 @@ func Conflict(reason string, values ...interface{}) *ServiceError {
 
 func Validation(reason string, values ...interface{}) *ServiceError {
 	return New(ErrorValidation, reason, values...)
+}
+
+func UnprocessableEntity(reason string, values ...interface{}) *ServiceError {
+	return New(ErrorUnprocessableEntity, reason, values...)
 }
 
 func MalformedRequest(reason string, values ...interface{}) *ServiceError {
