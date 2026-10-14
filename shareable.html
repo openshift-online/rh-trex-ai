@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRex as a Versioned Parent Framework — Architecture Proposal</title>
+<style>
+  :root {
+    --ink: #1a2332; --muted: #5a6b7f; --line: #d8dee8; --bg: #ffffff;
+    --accent: #0f4c81; --accent-soft: #eef4fa;
+    --good: #1c6e3c; --good-soft: #e9f5ee;
+    --warn: #8a5a00; --warn-soft: #fdf3e0;
+    --bad: #a12622; --bad-soft: #fbeaea;
+    --code-bg: #f4f6f9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 "Georgia", "Times New Roman", serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 28px 96px; }
+  h1, h2, h3, h4 { font-family: "Helvetica Neue", Arial, sans-serif; line-height: 1.25; }
+  h1 { font-size: 34px; margin: 0 0 6px; color: var(--accent); }
+  h2 { font-size: 24px; margin-top: 56px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 18px; margin-top: 32px; }
+  h4 { font-size: 15px; margin: 20px 0 6px; font-family: "Helvetica Neue", Arial, sans-serif; }
+  p, li { font-size: 16px; }
+  .subtitle { color: var(--muted); font-style: italic; margin: 0 0 24px; font-size: 17px; }
+  .meta { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 14px 18px; margin: 24px 0; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px; }
+  .meta p { margin: 4px 0; font-size: 14px; }
+  code, pre { font-family: "SF Mono", Consolas, Menlo, monospace; font-size: 13.5px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); color: var(--ink); }
+  tr:nth-child(even) td { background: #fafbfd; }
+  .rid, .sid, .aid, .fid { font-family: "SF Mono", Consolas, monospace; font-weight: 700; white-space: nowrap; }
+  .chip { display: inline-block; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: .4px; padding: 2px 9px; border-radius: 10px; text-transform: uppercase; }
+  .chip.blocker { background: var(--bad-soft); color: var(--bad); }
+  .chip.major { background: var(--warn-soft); color: var(--warn); }
+  .chip.minor { background: var(--accent-soft); color: var(--accent); }
+  .chip.endorse { background: var(--good-soft); color: var(--good); }
+  .chip.validated { background: var(--good-soft); color: var(--good); }
+  .chip.rejected { background: var(--bad-soft); color: var(--bad); }
+  .chip.req { background: var(--accent-soft); color: var(--accent); }
+  blockquote { border-left: 4px solid var(--line); margin: 16px 0; padding: 4px 20px; color: var(--muted); font-style: italic; }
+  .review { border: 1px solid var(--line); border-radius: 10px; padding: 8px 26px 26px; margin-top: 40px; }
+  .review.architect { border-top: 6px solid var(--accent); background: #fcfdfe; }
+  .review.pragmatic { border-top: 6px solid var(--good); background: #fcfefc; }
+  .review h2 { border-bottom: none; margin-top: 24px; }
+  .verdict { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 15px; padding: 12px 16px; border-radius: 8px; margin: 16px 0; }
+  .verdict strong { display: block; margin-bottom: 4px; }
+  .toc { background: #fafbfd; border: 1px solid var(--line); border-radius: 8px; padding: 16px 24px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px; }
+  .toc ol { margin: 8px 0 4px; padding-left: 22px; }
+  .toc li { margin: 3px 0; font-size: 14px; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .fn { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13px; color: var(--muted); }
+  ul.tight li, ol.tight li { margin: 4px 0; }
+  .filepath { font-family: "SF Mono", Consolas, monospace; font-size: 13px; }
+  @media print { .wrap { max-width: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>TRex as a Versioned Parent Framework</h1>
+<p class="subtitle">A proposal for distributing, versioning, and upgrading the framework and its generative assets — grounded in how <strong>hypershell</strong> consumes TRex today.</p>
+
+<div class="meta">
+  <p><strong>Document:</strong> Architecture proposal · <strong>Status:</strong> Draft for review · <strong>Date:</strong> 2026-10-12</p>
+  <p><strong>Scope:</strong> TRex repo strategy only — no code changes proposed in this pass.</p>
+  <p><strong>Reference consumer:</strong> <span class="filepath">openshift-online/hypershell</span> (live). The previous consumer, <em>agent-control-plane</em>, is retired; it appears here only as a cautionary precedent of the copy-fork failure mode.</p>
+  <p><strong>Review process:</strong> This document carries two independent reviews. Review 1 is written in the persona of a strict Senior Distinguished Architect. Review 2 is written by a fresh reviewer, seeded with the School of the Pragmatic Programmer, who both re-reviews the solution and explicitly validates or rejects each finding of Review 1.</p>
+</div>
+
+<nav class="toc">
+<strong>Contents</strong>
+<ol>
+  <li><a href="#summary">Executive summary</a></li>
+  <li><a href="#evidence">Field evidence — how hypershell consumes TRex today</a></li>
+  <li><a href="#requirements">Requirements</a></li>
+  <li><a href="#solution">Preferred solution</a></li>
+  <li><a href="#alternatives">Alternatives considered</a></li>
+  <li><a href="#defense">Decision defense</a></li>
+  <li><a href="#migration">Migration path</a></li>
+  <li><a href="#review1">Review 1 — Senior Distinguished Architect</a></li>
+  <li><a href="#review2">Review 2 — The Pragmatic Programmer (fresh eyes)</a></li>
+</ol>
+</nav>
+
+<!-- ================================================================ -->
+<h2 id="summary">1 · Executive summary</h2>
+
+<p>TRex's stated intent is to be a <strong>versioned parent library and code generator</strong> that absorbs the accidental complexity of a modern Go REST/gRPC control plane, leaving child projects only their essential complexity. That intent is currently <strong>structurally blocked</strong>: the module refactor in PR #45 (2026-09-10) removed the root Go module, and no release since has been resolvable by any consumer through any path. The live child, hypershell, has responded by hand-building an entire distribution layer around the gap — commit-ref pin files, cached checkouts, vendored generator forks, drift-detection make targets, and a forked skills tree.</p>
+
+<p>This proposal's thesis is simple: <strong>everything hypershell built by hand is the requirements list.</strong> The right architecture productizes their workarounds into TRex itself, so the next child never rebuilds them:</p>
+
+<ol class="tight">
+  <li><strong>One versioned root module</strong> containing the framework <em>and</em> every generator, so a single tag resolves everything a child consumes (§4.1).</li>
+  <li><strong>A checkout-free generator CLI</strong>, <code>trex-gen</code>, installed at a pinned version with templates embedded (§4.2).</li>
+  <li><strong>A two-class ownership model for generated code</strong> — mechanical files that upgrade freely, scaffold-once files the child owns — enforced by a manifest and hash-based conflict detection, with a real <code>upgrade</code> command (§4.3).</li>
+  <li><strong>Defined customization seams</strong> and a recorded template-override protocol, so children extend rather than fork (§4.4).</li>
+  <li><strong>Versioned skill distribution</strong> with TRex-owned vs child-owned file markers (§4.6).</li>
+</ol>
+
+<p>Section 3 states twelve testable requirements; Section 4 details the solution; Sections 5–6 present and defend alternatives; Section 7 phases the migration so hypershell can adopt at leisure; Sections 8–9 subject the whole proposal to two adversarial reviews.</p>
+
+<!-- ================================================================ -->
+<h2 id="evidence">2 · Field evidence — how hypershell consumes TRex today</h2>
+
+<p>Hypershell is a multi-component monorepo (api-server, control-plane, cli, sdk-go, sdk-typescript, web-console, fleet-dashboard, agents) whose API server is built on TRex with 16 kind and cross-cutting plugins. Nothing below is hypothetical — every row was verified in the hypershell working tree.</p>
+
+<h3>2.1 What hypershell had to build because TRex does not provide it</h3>
+
+<table>
+  <tr><th style="width:26%">Capability a child needs</th><th style="width:44%">What hypershell hand-built</th><th>Where it lives</th></tr>
+  <tr>
+    <td>Pinned generator version</td>
+    <td><code>scripts/rh-trex-ai.ref</code> — a bare 40-char commit SHA pinning the CLI/TUI generators; <code>trex-checkout.sh</code> clones TRex at that SHA into <code>~/.cache/hypershell/rh-trex-ai</code> and <em>refuses a checkout whose files were modified</em>.</td>
+    <td class="filepath">scripts/lib/trex-checkout.sh, scripts/rh-trex-ai.ref</td>
+  </tr>
+  <tr>
+    <td>Pinned framework version</td>
+    <td>Commit <strong>pseudo-versions</strong> in two separate <code>go.mod</code> files (the path "publishes no tags" — their words), with <code>dependency-age-allowlist.json</code> recording why.</td>
+    <td class="filepath">components/api-server/go.mod, components/cli/go.mod</td>
+  </tr>
+  <tr>
+    <td>Drift detection</td>
+    <td><code>generate-cli.sh --check</code> / <code>generate-tui.sh --check</code> make targets that fail on stale generated output — <em>mandated by their own spec</em> (<code>hsctl-terminal-ui.spec.md</code>: "make check SHALL fail when the [output is stale]").</td>
+    <td class="filepath">Makefile (-check targets), specs/platform/</td>
+  </tr>
+  <tr>
+    <td>Generated vs hand-maintained split</td>
+    <td>A hand-maintained list of files and commands the generator must not touch, embedded in the generate script; <code>--check</code> also fails on resource commands the generator no longer emits.</td>
+    <td class="filepath">scripts/generate-cli.sh</td>
+  </tr>
+  <tr>
+    <td>Generator sources</td>
+    <td><strong>Vendored forks</strong> of TRex's <code>cli-generator</code>, <code>sdk-generator</code>, and <code>openapi-ir</code> modules, plus the cached-checkout mechanism for <code>tui-generator</code>. Their dependency-age policy reaches <em>into</em> these graphs via <code>--external-go-mod</code>.</td>
+    <td class="filepath">scripts/cli-generator/, scripts/sdk-generator/, scripts/openapi-ir/</td>
+  </tr>
+  <tr>
+    <td>Agent skills</td>
+    <td>A wholesale fork of TRex's <code>skills/</code> tree, extended with child-specific categories (<code>security/</code>, <code>web-console/</code>) and their own <code>RECONCILE.md</code>.</td>
+    <td class="filepath">skills/</td>
+  </tr>
+  <tr>
+    <td>Upstream contribution</td>
+    <td>A working manual loop, documented in their reconcile notes: hit missing 422 handling and a dropped route in #58 → opened TRex PRs #64 and #65 → got them merged and tagged → re-pinned via pseudo-version, deliberately leaving <code>rh-trex-ai.ref</code> at the older SHA after confirming "its generators are byte-identical in the new commit."</td>
+    <td class="filepath">skills/RECONCILE.md</td>
+  </tr>
+</table>
+
+<h3>2.2 Observed failure modes</h3>
+
+<ul class="tight">
+  <li><strong>Version skew inside one child.</strong> <code>components/api-server</code> pins pseudo-version <code>v0.0.0-20261010200958-071bd1d…</code> (current tip) while <code>components/cli</code> pins <code>v0.0.0-20261007150231-ff48c56…</code> (three days older) and <code>rh-trex-ai.ref</code> sits at <code>ff48c56</code>. Three pins, two versions, reconciled by hand.</li>
+  <li><strong>Unresolvable releases.</strong> TRex tags v0.0.32–v0.0.35 were cut after the module move; none carries a root <code>go.mod</code>, so the root path cannot resolve them, and none carries <code>components/api-server/vX.Y.Z</code> nested tags, so the nested path cannot either. The last tag resolvable by <em>any</em> path was v0.0.31 (2026-07-06) — on the now-dead root path.</li>
+  <li><strong>A broken scaffold.</strong> <code>templates/new-project/</code> requires the nonexistent root module, imports <code>rh-trex-ai/pkg/cmd</code> paths that resolve nowhere, and its README claims it "includes the TRex.AI Kind generator" while shipping no <code>scripts/</code> or <code>templates/</code> directory at all.</li>
+  <li><strong>The copy-fork precedent.</strong> The retired consumer (agent-control-plane) forked the generator, the templates, and the skills tree wholesale, then froze at v0.0.31 — the last tag its import path could resolve. That is where every copy-fork consumer ends.</li>
+</ul>
+
+<blockquote>Read together: hypershell has already paid the full price of TRex's missing distribution story, and paid it in bash. Their ref file is a manifest; their checkout cache is a package manager; their <code>--check</code> targets are <code>verify</code>; their hand-maintained lists are a file-class model; their PR loop is the contribution process. TRex should absorb each one.</blockquote>
+
+<!-- ================================================================ -->
+<h2 id="requirements">3 · Requirements</h2>
+
+<p>Each requirement is specific and carries an acceptance test. "Child" means any downstream consumer; "reference child" is hypershell.</p>
+
+<table>
+  <tr><th style="width:9%">ID</th><th style="width:47%">Requirement</th><th>Acceptance test</th></tr>
+  <tr>
+    <td class="rid">R1</td>
+    <td><strong>Single-version dependency.</strong> A child shall depend on exactly one TRex module path, and one version of it, for all framework packages and generators it consumes.</td>
+    <td><code>go list -m all</code> in a fresh child shows exactly one <code>rh-trex-ai</code> entry. Reference child's three pins (two go.mod pseudo-versions + ref file) collapse to one.</td>
+  </tr>
+  <tr>
+    <td class="rid">R2</td>
+    <td><strong>Resolvable releases.</strong> Every published TRex release shall be fetchable by tag from a clean environment with no sibling checkout.</td>
+    <td>CI job: in a scratch module, <code>go get github.com/openshift-online/rh-trex-ai@&lt;tag&gt;</code> then build; fails today for v0.0.32–v0.0.35.</td>
+  </tr>
+  <tr>
+    <td class="rid">R3</td>
+    <td><strong>Checkout-free tooling.</strong> All repo-coupled generation (scaffold, entity, add-field, remove, upgrade, verify) shall run in a child without cloning TRex.</td>
+    <td>Container with only Go + git: <code>go install …/cmd/trex-gen@vX</code>, then scaffold and generate a kind that compiles. No <code>~/.cache/…/rh-trex-ai</code>, no ref file.</td>
+  </tr>
+  <tr>
+    <td class="rid">R4</td>
+    <td><strong>Template atomicity.</strong> A generator version shall imply exactly one template set; no template files shall be required on disk to generate.</td>
+    <td>Templates are <code>go:embed</code>ed; installing the tool leaves no template files; two runs at one version render byte-identical output.</td>
+  </tr>
+  <tr>
+    <td class="rid">R5</td>
+    <td><strong>Correct scaffold.</strong> <code>trex-gen init</code> shall produce a project that builds and passes its own tests after only documented placeholder replacement.</td>
+    <td>CI runs <code>init</code> in a scratch dir and <code>make binary &amp;&amp; make test</code> succeeds. (Today's scaffold cannot resolve its imports at all.)</td>
+  </tr>
+  <tr>
+    <td class="rid">R6</td>
+    <td><strong>Non-destructive upgrade.</strong> <code>trex-gen upgrade</code> shall never silently modify a child-owned file; it shall regenerate mechanical files, and shall report — not overwrite — owned files and overrides whose upstream template changed. Dry-run shall be the default.</td>
+    <td>Golden-child fixture in CI: run upgrade across a minor version bump; assert owned files byte-identical, mechanical files updated, report lists every drift; no file changes under dry-run.</td>
+  </tr>
+  <tr>
+    <td class="rid">R7</td>
+    <td><strong>Provenance and drift detection.</strong> Every generated file shall carry machine-readable generator identity and class; a manifest shall record kinds, options, and per-file render hashes; <code>trex-gen verify --check</code> shall exit non-zero on drift.</td>
+    <td>CI gate replaces hypershell's hand-rolled <code>--check</code> targets: edit a mechanical file, <code>verify --check</code> fails; regenerate, it passes.</td>
+  </tr>
+  <tr>
+    <td class="rid">R8</td>
+    <td><strong>Customization without forking.</strong> Child customization shall be expressible only through (a) owned files at documented seams, or (b) per-file template overrides recorded in the manifest. Upgrade shall surface upstream changes to overridden templates.</td>
+    <td>Fixture child overrides one template and edits one owned seam file; upgrade reports the upstream template diff and leaves both intact.</td>
+  </tr>
+  <tr>
+    <td class="rid">R9</td>
+    <td><strong>Reusable codegen library.</strong> TRex shall export its codegen primitives — naming/pluralization, field model and type maps, template function library, output planning, OpenAPI wiring — as a public, tested package.</td>
+    <td>A fixture child-specific generator built purely on the public API renders a working kind; the reference child's vendored generator forks become deletable.</td>
+  </tr>
+  <tr>
+    <td class="rid">R10</td>
+    <td><strong>Versioned skill distribution.</strong> TRex skills shall be installable into a child at a pinned version and upgradable without clobbering child-added skills, through a mechanism that does not require the child to duplicate the tree.</td>
+    <td>Fresh child gains the TRex skill set; a skills sync updates TRex-owned files only; child-local categories (e.g. hypershell's <code>security/</code>, <code>web-console/</code>) are untouched and never conflict.</td>
+  </tr>
+  <tr>
+    <td class="rid">R11</td>
+    <td><strong>Grow-then-promote flow.</strong> A child improvement shall land locally via a seam or recorded override, then move upstream as one PR with fixture tests, then reach all children via a version bump — with each step documented.</td>
+    <td>The reference child's documented PR loop (RECONCILE.md: PRs #64/#65) is reproduced using only seams/overrides and <code>trex-gen</code>, with no manual re-pinning choreography.</td>
+  </tr>
+  <tr>
+    <td class="rid">R12</td>
+    <td><strong>Scope boundary.</strong> TRex specs and skills shall contain no child-specific names or logic.</td>
+    <td>CI lint greps the TRex tree for reference-child kind names (gateways, managedClusters, …) and fails on any hit outside fixtures.</td>
+  </tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="solution">4 · Preferred solution</h2>
+
+<h3 id="s1">4.1 · S1 — Restore one versioned root module</h3>
+
+<p>Return the repository to a single root Go module — <code>module github.com/openshift-online/rh-trex-ai</code> — containing the framework packages (<code>pkg/…</code>, <code>plugins/…</code>), the service entry points (<code>cmd/…</code>), and <strong>every generator</strong> (the entity generator, plus <code>cli-</code>, <code>sdk-</code>, <code>console-plugin-</code>, <code>tui-generator</code>, and <code>openapi-ir</code> as importable packages with thin <code>main</code> wrappers). Cut <code>v0.1.0</code> on that shape. The nested <code>components/control-plane</code> service may remain a nested module — it is a consumer of the framework, not part of its API.</p>
+
+<p><strong>Why this is the keystone:</strong> a single module gives every artifact a child touches — framework packages, entity templates, spec-consumer generators — one version, one tag, one <code>go get</code>. It directly collapses hypershell's three-pin skew (R1) and makes every release resolvable (R2). It also ends the vendored-fork failure mode: <code>go run github.com/openshift-online/rh-trex-ai/scripts/tui-generator@v0.1.0</code> works from any machine, no checkout, no cache, no ref file (R3).</p>
+
+<p><strong>Cost, paid once:</strong> hypershell re-paths its imports from <code>…/components/api-server/pkg/…</code> to <code>…/pkg/…</code> — a mechanical rewrite across one repo — and deletes its vendored generator forks and checkout cache. The retired consumer is unaffected (frozen at v0.0.31 on the old root path, which this change incidentally makes resolvable again, though nothing depends on that).</p>
+
+<p class="fn">The root module is a new lineage, not a continuation of v0.0.31: semver obligations restart at v0.1.0 and the release notes must say so plainly. Tags v0.0.32–v0.0.35 should be documented as unresolvable-by-design artifacts of the transition.</p>
+
+<h3 id="s2">4.2 · S2 — <code>trex-gen</code>: one checkout-free generator CLI</h3>
+
+<p>Move the entity generator out of <code>components/api-server/scripts/generator.go</code> into <code>cmd/trex-gen</code> as a proper CLI with subcommands mirroring the existing skill surface:</p>
+
+<pre><code>trex-gen init      [--repo] [--project] [dir]     # scaffold a new child (replaces templates/new-project + new-project skill copying)
+trex-gen entity    --kind K [--fields …] [--plural P]
+trex-gen add-field --kind K --field name:type[:required]
+trex-gen remove    --kind K
+trex-gen upgrade   [--dry-run] [--take-upstream F] [--keep F]
+trex-gen verify    [--check]
+trex-gen skills    sync | status</code></pre>
+
+<p>Design constraints: the tool stays dependency-light (stdlib + <code>pflag</code>) so installation is fast and its module graph stays inside TRex's dependency-age policy; entity templates are embedded with <code>go:embed</code> (R4); all flags the current script accepts (<code>--library</code>, <code>--repo</code>, <code>--project</code>, <code>--proto-package</code>) are preserved so generation semantics do not change — only acquisition does. The spec-consumer generators keep their existing entry points and remain directly runnable via module-aware <code>go run &lt;pkg&gt;@&lt;tag&gt;</code>; <code>trex-gen</code> does not wrap them, avoiding a second API for the same thing.</p>
+
+<h3 id="s3">4.3 · S3 — Two-class generated code, a manifest, and a real upgrade</h3>
+
+<p>Formalize the split hypershell already maintains by hand. Every file the entity generator writes is classed:</p>
+
+<table>
+  <tr><th style="width:18%">Class</th><th style="width:44%">Files</th><th>Upgrade behavior</th></tr>
+  <tr>
+    <td><strong>Mechanical</strong><br><span class="fn">regenerable, DO NOT EDIT</span></td>
+    <td><code>model.go</code>, <code>dao.go</code>, <code>mock_dao.go</code>, <code>presenter.go</code>, <code>handler.go</code>, <code>grpc_handler.go</code>, <code>grpc_presenter.go</code>, <code>migration.go</code>, <code>factory_test.go</code>, <code>testmain_test.go</code>, <code>openapi.{kinds}.yaml</code>, <code>{kinds}.proto</code></td>
+    <td>Deleted and re-rendered on upgrade <em>if and only if</em> the on-disk file still hashes to the manifest's recorded render hash. If the child edited it, the file is a <strong>conflict</strong>: reported, never silently overwritten, resolved per-file with <code>--take-upstream</code>/<code>--keep</code>.</td>
+  </tr>
+  <tr>
+    <td><strong>Scaffold-once</strong><br><span class="fn">child-owned</span></td>
+    <td><code>service.go</code>, <code>plugin.go</code>, <code>integration_test.go</code>, <code>grpc_integration_test.go</code></td>
+    <td>Created only when absent (the pattern TRex's own CLI generator already specifies for <code>main.go</code> in CG-002). When the upstream template changes after creation, upgrade prints the old→new template diff so the child can port deliberately.</td>
+  </tr>
+</table>
+
+<p>Headers make class and provenance machine-readable:</p>
+
+<pre><code>// Code generated by trex-gen v0.1.0 kind=Gateways class=mechanical hash=sha256:9f2c…  DO NOT EDIT.
+// Code generated by trex-gen v0.1.0 kind=Gateways class=scaffold  EDITABLE: created once; `trex-gen upgrade` reports template drift.</code></pre>
+
+<p>A <code>.trex.yaml</code> manifest at the child's api-server root replaces <code>rh-trex-ai.ref</code>, the hand-maintained file lists, and the drift targets. It records the trex-gen version, every kind with its fields and options, template overrides, and per-file render hashes:</p>
+
+<pre><code>version: v0.1.0
+kinds:
+  - kind: Gateways
+    fields: "name:string:required,endpoint:string"
+    files:
+      dao.go:      {class: mechanical, hash: sha256:…}
+      service.go:  {class: scaffold,   created: v0.1.0}
+overrides:
+  - template: generate-handler.txt</code></pre>
+
+<p><code>trex-gen upgrade</code> therefore does, in one supported command, what hypershell's <code>trex-checkout.sh</code> + <code>generate-*.sh --check</code> + <code>rh-trex-ai.ref</code> + manual pseudo-version bumps do today — and does it without a checkout and without trusting a cached tree ("refuses a checkout whose files were modified" becomes moot when there is no checkout).</p>
+
+<h3 id="s4">4.4 · S4 — Customization seams and template overrides</h3>
+
+<p><strong>Seams are where child code is allowed to live.</strong> The model is already proven in the field — hypershell's <code>components/api-server/plugins/otel</code> and <code>components/api-server/plugins/rbac</code> are cross-cutting plugins that register middleware and interceptors through the framework's <code>init()</code> registry without touching generated files. TRex should document and commit to the seam set:</p>
+
+<table>
+  <tr><th>Customization</th><th>Seam</th><th>Evidence it works</th></tr>
+  <tr><td>Business logic, event reactions, field validation</td><td><code>service.go</code> (scaffold-once): <code>OnUpsert</code>/<code>OnDelete</code>, a <code>Validate()</code> hook</td><td>Existing service event handlers; hypershell kinds carry custom logic here</td></tr>
+  <tr><td>Cross-cutting middleware, interceptors, telemetry</td><td>Own plugin package registering via <code>init()</code></td><td>hypershell <code>components/api-server/plugins/otel</code>, <code>components/api-server/plugins/rbac</code></td></tr>
+  <tr><td>Routes and alternate prefixes</td><td>Framework registration API</td><td><code>RegisterPrefixedRoutes</code> (restored by PR #65, driven by hypershell's need)</td></tr>
+  <tr><td>Generated-code shape</td><td>Per-file template override (below)</td><td>Replaces generator.go forks</td></tr>
+</table>
+
+<p>One deliberate seam change rides along: <strong>handler validation moves into the service</strong>. Today TRex's own add-field skill instructs children to edit the (mechanical) <code>handler.go</code> to add PATCH validation — which would make every validated kind a permanent upgrade conflict. Handlers must stay purely mechanical; validation belongs in the owned service layer. This is a template fix in TRex, not a child obligation.</p>
+
+<p><strong>Template overrides</strong> replace forking: <code>trex-gen entity --templates-dir my-templates/</code> shadows the embedded set per file — override <code>generate-handler.txt</code> only, inherit the rest. Overrides are recorded in the manifest, and on upgrade TRex reports the upstream diff of every overridden template (the same conffile courtesy Debian extends to administrators). Growing a local override and promoting it upstream (R11) is then a single move: delete the override, PR the template change with a fixture, release.</p>
+
+<h3 id="s5">4.5 · S5 — Export the codegen primitives (<code>pkg/codegen</code>)</h3>
+
+<p>Promote the generator's reusable internals to a public, tested package: pluralization and naming transforms, the field model and type maps (Go/DB/OpenAPI/proto), the template function library, output path planning, and OpenAPI auto-wiring. Children with their own entity flavors — the retired consumer forked the entire generator for this reason — compose <code>pkg/codegen</code> instead of copying <code>generator.go</code>. The entity templates themselves remain the one canonical set TRex ships; <code>pkg/codegen</code> is the escape hatch for shapes TRex deliberately does not own.</p>
+
+<h3 id="s6">4.6 · S6 — Versioned skill distribution</h3>
+
+<p>Skills are markdown directories, so distribution is a file-ownership problem, not a code problem. The mechanism mirrors the two-class model:</p>
+
+<ul class="tight">
+  <li><strong>TRex-owned skill files</strong> carry a version marker (front-matter <code>trex: v0.1.0</code>). <code>trex-gen skills sync</code> refreshes exactly those files, verifiable with <code>trex-gen skills status</code>. Harness-agnostic: works for Claude Code, and for any agent that reads a <code>skills/</code> or <code>AGENTS.md</code> tree — which matters, because hypershell runs multiple agent harnesses.</li>
+  <li><strong>Child-owned skills</strong> — hypershell's <code>security/</code>, <code>web-console/</code> — are never touched by sync. Conflicts (child edited a TRex-owned file) are reported, not overwritten.</li>
+  <li>For Claude Code specifically, the same tree additionally ships as a <strong>versioned plugin</strong>, so a child can consume skills without any local copy at all. The plugin is packaging of the same files, not a second source of truth.</li>
+  <li><strong>Contributing back</strong> is a PR against TRex's <code>skills/</code>, after which every child gets it on the next sync — deleting today's fork-and-drift pattern.</li>
+</ul>
+
+<h3 id="s7">4.7 · S7 — Governance, CI, and release discipline</h3>
+
+<ul class="tight">
+  <li><strong>Release checklist:</strong> tag on the root module; release notes must carry a <em>generated-code changelog</em> — which templates changed, which classes affected — because that is what <code>trex-gen upgrade</code> reports against. Move to <strong>v1.0.0 quickly</strong>: v0.x semver promises nothing, and children pinning a framework need the promise.</li>
+  <li><strong>CI gates implementing the requirements:</strong> R2 (scratch-module resolution), R5 (scaffold builds), R6 (golden-child upgrade fixture), R7 (drift check), R9 (public-API child generator fixture), R12 (scope lint). The golden-child fixture should be generated by <code>trex-gen init</code> itself, not hand-maintained.</li>
+  <li><strong>Spec alignment:</strong> CG-001 gains the file classes, headers, and manifest; the CG-002 "create only when absent" requirement is generalized into CG-001 for entity files; <code>components/api-server/scripts/generator.md</code>'s stale output table is corrected or deleted (it still documents the pre-plugin layout).</li>
+  <li><strong>Dependency-age and supply chain:</strong> <code>trex-gen</code>'s module graph is inside the root module, so the existing dependency-age policy governs it — and hypershell can drop the <code>--external-go-mod</code>/<code>--external-repo</code> machinery aimed into a cached checkout.</li>
+</ul>
+
+<h3 id="s8">4.8 · S8 — Immediate repairs (regardless of everything else)</h3>
+
+<ol class="tight">
+  <li>Restore the root module and cut a resolvable tag (S1) — nothing else is consumable until this lands.</li>
+  <li>Fix or regenerate <code>templates/new-project/</code>: correct module paths, honest README, generator delivered via <code>trex-gen init</code> rather than a claimed-but-absent <code>scripts/</code> directory.</li>
+  <li>Update the root <code>CLAUDE.md</code> cleanup instructions and <code>generator.md</code> output tables to the plugins-based layout.</li>
+  <li>Document the fate of tags v0.0.32–v0.0.35 so nobody "upgrades" into them.</li>
+</ol>
+
+<!-- ================================================================ -->
+<h2 id="alternatives">5 · Alternatives considered</h2>
+
+<table>
+  <tr><th style="width:8%">ID</th><th style="width:30%">Alternative</th><th>Assessment</th></tr>
+  <tr>
+    <td class="aid">A1</td>
+    <td><strong>Pure runtime framework — no codegen.</strong> Everything via registry, interfaces, generics; kinds declared in data, not generated.</td>
+    <td>Rejected as the primary model. Proto/gRPC stubs, OpenAPI documents, and SQL migrations are inherently declarative-to-code artifacts; TRex's own specs (CG-001…006) and both consumers' plugin trees are built around generated kinds. However, the principle is sound where it applies — the TUI runtime (CG-006) is already descriptor-driven generic code, and cross-cutting concerns already live in runtime plugins. The proposal keeps runtime the default and codegen the exception, shrinking the generated surface over time.</td>
+  </tr>
+  <tr>
+    <td class="aid">A2</td>
+    <td><strong>Template-sync tooling</strong> (git subtree, copier, yeoman): apply and re-apply a template repo over the child.</td>
+    <td>Rejected as the primary model: it has no library axis at all — the framework and its version would be indistinguishable from the scaffold — and re-application is merge-heuristic territory. Borrowed its one good idea: an answers/state file (copier's <code>.copier-answers.yml</code>) becomes the <code>.trex.yaml</code> manifest.</td>
+  </tr>
+  <tr>
+    <td class="aid">A3</td>
+    <td><strong>Status quo multi-module + pseudo-versions.</strong> Keep <code>components/api-server</code> as the module; children pin pseudo-versions; generators run from checkouts.</td>
+    <td>Rejected on evidence: this is precisely today's state, and its observed output is a frozen retired consumer, a live consumer maintaining three pins with drift, four unresolvable tags, vendored generator forks, and a cached-clone bash layer. Nothing here needs hypothesizing.</td>
+  </tr>
+  <tr>
+    <td class="aid">A4</td>
+    <td><strong>Keep the nested path, add nested tags.</strong> Zero import churn for hypershell; tag every release <code>components/api-server/vX.Y.Z</code>.</td>
+    <td>The strongest counter-proposal, and the honest runner-up. It fixes resolvability (R2) without touching the live child. It loses on the longer horizon: the <code>…/components/api-server/…</code> prefix becomes the framework's permanent public identity — long imports, a "component of TRex" framing that contradicts "TRex <em>is</em> the parent product," a per-release nested-tag tax with the v0.0.32–35 failure mode one distraction away from repeating, and no natural home for the generators (nested tags × five generator modules). The one-time mechanical re-path of a single live consumer is cheaper than a forever tax. See the defense matrix.</td>
+  </tr>
+  <tr>
+    <td class="aid">A5</td>
+    <td><strong>Protected-region markers</strong> inside single files (<code>// trex:begin:custom</code> … <code>// trex:end</code>).</td>
+    <td>Rejected in favor of the file-split: markers merge badly, are invisible to tooling that greps files, and invite drift when children edit around them. TRex already rejected this shape once — CG-002 specifies create-if-absent plus a regenerated registration file instead — and the file-split is the same decision applied to entities.</td>
+  </tr>
+  <tr>
+    <td class="aid">A6</td>
+    <td><strong>Generate at build time, never check in generated code.</strong></td>
+    <td>Rejected for developer experience: generated files must be readable, greppable, reviewable, and IDE-indexed; both consumers check in their plugin trees. Determinism plus a CI drift gate (<code>trex-gen verify --check</code>) delivers the same integrity without hiding the code.</td>
+  </tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="defense">6 · Decision defense</h2>
+
+<table>
+  <tr><th>Decision</th><th>Chosen over</th><th>Deciding argument</th><th>Principal risk → mitigation</th></tr>
+  <tr>
+    <td>Root module with framework + all generators (S1)</td>
+    <td>A3 status quo; A4 nested tags</td>
+    <td>One tag resolves everything a child consumes; kills the three-pin skew and the checkout/ref/cache machinery at its root. Hypershell's own docs state the pain: "the framework publishes no tags for that path."</td>
+    <td>One-time re-path churn for the live child → mechanical sed + <code>gofmt -r</code>, landed by the same people who own both repos; new module lineage documented at v0.1.0.</td>
+  </tr>
+  <tr>
+    <td><code>trex-gen</code> CLI with embedded templates (S2)</td>
+    <td>Checkout + <code>go run ./scripts/generator.go</code>; wrapper subcommands for spec-consumer generators</td>
+    <td>Acquisition becomes a version, not a directory. Embedding (R4) makes template/generator skew structurally impossible — the exact skew the ref-file mechanism exists to prevent.</td>
+    <td>Tool drift from the script's current flags → all flags preserved; golden-fixture CI compares old-script and new-tool output on real kinds.</td>
+  </tr>
+  <tr>
+    <td>Two-class files + manifest + hash-gated upgrade (S3)</td>
+    <td>A5 markers; copy-and-own everything; A6 never check in</td>
+    <td>Hash-gated regeneration is the only mechanism that distinguishes "child edited this mechanical file" from "file is stale" without merge heuristics. It is the productization of the hand-maintained lists hypershell maintains today.</td>
+    <td>Class boundary is porous in practice (validation in handlers) → the Validate seam moves to services in the same change; conflicts are reported, never guessed.</td>
+  </tr>
+  <tr>
+    <td>Seams + recorded template overrides (S4)</td>
+    <td>Fork-the-templates (the retired consumer's path)</td>
+    <td>Overrides + upgrade-time upstream diffs give local flexibility with a promotion path (R11), instead of a fork that can never take an upgrade.</td>
+    <td>Override sprawl hides upstream improvements → manifest listing, <code>trex-gen verify</code> reporting, and review guidance to prefer seams over overrides.</td>
+  </tr>
+  <tr>
+    <td>Skills as versioned file sync + plugin packaging (S6)</td>
+    <td>Forked skills trees (today); plugin-only distribution</td>
+    <td>The sync mechanism is harness-agnostic (children run multiple agent harnesses) and enforces TRex-owned vs child-owned file classes; the plugin is packaging of the same source of truth, not a second one.</td>
+    <td>Skills are prose — "versioning" is only as good as the changelog → release checklist requires a per-template/per-skill changelog entry; skills ride the module version.</td>
+  </tr>
+  <tr>
+    <td>v1.0.0 early (S7)</td>
+    <td>Long v0.x</td>
+    <td>v0.x semver explicitly disclaims compatibility; a parent framework whose children pin it needs the compatibility promise to make upgrades routine rather than events.</td>
+    <td>Promising stability before the API settles → scope the v1 contract to the packages children import (hypershell imports ~21 of them today; the draft's count of twelve was corrected by Review 2, PP9), not everything.</td>
+  </tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="migration">7 · Migration path</h2>
+
+<table>
+  <tr><th style="width:10%">Phase</th><th style="width:38%">Work</th><th>Exit criteria</th></tr>
+  <tr>
+    <td><strong>P0</strong><br><span class="fn">specs &amp; docs</span></td>
+    <td>Update CG-001 (classes, headers, manifest, upgrade semantics); generalize CG-002's create-if-absent; fix or delete <code>generator.md</code>'s stale tables; repair root <code>CLAUDE.md</code> instructions; document the v0.0.32–35 tag situation.</td>
+    <td>Reconcile passes with no open gaps on the amended specs; no doc references the pre-plugin layout.</td>
+  </tr>
+  <tr>
+    <td><strong>P1</strong><br><span class="fn">module restore</span></td>
+    <td>Move framework + generators to the root module; <code>trex-gen init</code> scaffold; cut <strong>v0.1.0</strong>; CI gates for R2/R5.</td>
+    <td><code>go get …@v0.1.0</code> resolves in a scratch module; scaffold builds green; hypershell can pin the tag.</td>
+  </tr>
+  <tr>
+    <td><strong>P2</strong><br><span class="fn">tooling</span></td>
+    <td><code>trex-gen</code> entity/add-field/remove/verify/upgrade with embedded templates, manifest, hash gating; golden-child upgrade fixture in CI; Validate seam in templates.</td>
+    <td>R3/R4/R6/R7 gates green; fixture upgrade across a synthetic minor bump preserves owned files exactly.</td>
+  </tr>
+  <tr>
+    <td><strong>P3</strong><br><span class="fn">sharing</span></td>
+    <td><code>pkg/codegen</code> export; skills sync/status + plugin packaging; scope lint (R12).</td>
+    <td>R9/R10 fixtures green; a scratch child gains skills at a version and keeps its local additions.</td>
+  </tr>
+  <tr>
+    <td><strong>P4</strong><br><span class="fn">child adoption</span></td>
+    <td>Hypershell re-paths imports, pins the tag, adopts the manifest, deletes <code>rh-trex-ai.ref</code>, <code>trex-checkout.sh</code>, the cached-clone machinery, and the vendored generator forks.</td>
+    <td>One TRex pin in all of hypershell; <code>make check</code> green using <code>trex-gen verify --check</code> instead of hand-rolled targets.</td>
+  </tr>
+</table>
+
+<p class="fn">Sequencing note: each phase is independently valuable and leaves CI green; hypershell can adopt at P1 (tag pin) and take the manifest/tooling whenever ready. Nothing in P1–P3 requires the child to move first.</p>
+
+<!-- ================================================================ -->
+<div class="review architect" id="review1">
+<h2>8 · Review 1 — Senior Distinguished Architect</h2>
+
+<p><em>Persona: a strict, seasoned reviewer — twenty-five years of platform libraries, generator frameworks, and the scars of three corporate scaffolding initiatives that died in production. Thorough but fair. Critical lens: ease-of-use and usability for the consuming engineer.</em></p>
+
+<div class="verdict" style="background:var(--warn-soft)">
+<strong>Overall assessment — CONDITIONAL APPROVAL.</strong>
+The diagnosis is exemplary and the direction is correct: the document does what too few architecture proposals do — it derives requirements from observed consumer behavior rather than imagination, and its central move (productize the child's hand-built workarounds) is exactly right. I endorse S1, S2, and the hash-gated upgrade model. However, I raise two blockers, three majors, and four minors. The blockers are not objections to the architecture; they are places where the proposal understates difficulty it has already discovered evidence for. Fix them before implementation begins.
+</div>
+
+<h3>Findings</h3>
+
+<h4><span class="fid">F1</span> <span class="chip blocker">Blocker</span> — The class boundary is aspirational precisely where the proposal needs it to be load-bearing</h4>
+<p>The two-class model (§4.3) is presented as settled, and the document itself supplies the refutation: TRex's own <code>add-field</code> skill instructs children to edit <code>handler.go</code> — a mechanical file — to add PATCH validation. The proposal notices this and prescribes moving validation into the service seam (§4.4). Good. But it treats that as a template tweak. It is a migration problem: <em>every kind the live child has already generated</em> may carry child edits inside files the new model declares mechanical, and the hash-gating that would detect this starts recording only at first <code>trex-gen</code> adoption. The proposal must specify the adoption baseline honestly: on first run against an existing child, the manifest records current files as-rendered <em>at adoption time</em>, meaning pre-existing child edits inside mechanical files are invisible until the next template change collides with them. State this, and provide <code>trex-gen verify --diff-against-template</code> so a child can audit its mechanical files for local edits before opting into hash gating. Usability means the tool tells me what I do not know about my own codebase.</p>
+
+<h4><span class="fid">F2</span> <span class="chip blocker">Blocker</span> — The version-skew evidence indicts more than the module layout</h4>
+<p>Hypershell's three pins at two versions (§2.2) is cited as justification for the single root module. Correct — but note the skew persisted <em>even though one team owns both repos</em>. That tells you the cost of manual pin reconciliation is high enough to defer even when the deferrer is the author. The single module fixes the <em>structure</em>, but the proposal should verify the failure cannot re-emerge through its own back door: the spec-consumer generators remain separately runnable via <code>go run &lt;pkg&gt;@&lt;tag&gt;</code> (§4.2), which reintroduces per-invocation version choice. Require that the child's manifest be the single source for those invocations too — a <code>trex-gen run &lt;generator&gt;</code> shim or a documented Makefile pattern that reads the manifest — or in eighteen months there will be five pins again, three of them accidental.</p>
+
+<h4><span class="fid">F3</span> <span class="chip major">Major</span> — Scaffold-once test files will rot, and the proposal under-answers</h4>
+<p>Classifying <code>integration_test.go</code> as child-owned (§4.3) is right for ownership and wrong for freshness: when the mechanical handler surface changes (new field, new error contract), the child's owned tests silently decay from "tests" into "historical documents." The template-changelog release requirement (§4.7) helps upstream, but the child engineer's question at upgrade time is "which of <em>my</em> files are affected?" Upgrade must map template changes onto the child's manifest: "you own <code>integration_test.go</code> created at v0.1.0; templates for it changed in v0.2.0; here is the diff and the kinds affected." Without that mapping, the changelog is a document nobody reads. Additionally, <code>testmain_test.go</code> and <code>factory_test.go</code> being mechanical while their sibling integration tests are owned will split test infrastructure across classes — justify that split explicitly or unify the test file treatment.</p>
+
+<h4><span class="fid">F4</span> <span class="chip major">Major</span> — Skills distribution is underspecified where it is hardest</h4>
+<p>§4.6 is the weakest section relative to its difficulty. Three specifics. First, "version marker in front-matter" — define conflict semantics precisely: a TRex-owned file the child edited is a conflict like any other; sync must never overwrite it, and <code>status</code> must list it. Second, the plugin is described as "packaging of the same files, not a second source of truth," but nothing enforces that; require CI to generate the plugin from the tree so drift is impossible rather than discouraged. Third, skills ride the module version — but skill fixes (a wrong command in a procedure) will then be gated on the release train. Specify whether skills may ship in patch releases independently, or accept that a typo in a procedure waits for a tag. Choose deliberately; do not discover the answer in an incident.</p>
+
+<h4><span class="fid">F5</span> <span class="chip major">Major</span> — Missing non-functional requirements</h4>
+<p>The requirements table (§3) is functional. Absent: <strong>supply chain</strong> — <code>go install</code> at a version implies trust in the module proxy and the tag; the dependency-age policy already governs the module graph, but state that <code>trex-gen</code> inherits it and that tags are ideally signed or at least immutably documented; <strong>offline/air-gapped builds</strong> — hypershell-style platform teams build in restricted networks; <code>go:embed</code> plus a single module is actually excellent for this, but say so as a requirement, and verify <code>go run &lt;pkg&gt;@tag</code> has a vendorable equivalent; <strong>determinism across platforms</strong> — the current generator shells out to <code>make proto</code> and <code>gofmt</code>; specify toolchain expectations (buf, protoc) as part of R3's acceptance test rather than leaving the child to discover them at runtime. And note that determinism requirements already exist in CG-005/CG-006 — reference, don't restate (DRY applies to specs too).</p>
+
+<h4><span class="fid">F6</span> <span class="chip minor">Minor</span> — The v0.1.0 → v1.0.0 recommendation is right but the scoping hint is buried</h4>
+<p>§4.7 says move to v1.0.0 quickly and, in the defense matrix, scopes the v1 contract to the twelve packages hypershell consumes. Promote that scoping into the release plan proper: publish the v1 package list in the release notes of v0.1.0 so consumers can see the shape of the promise from day one.</p>
+
+<h4><span class="fid">F7</span> <span class="chip minor">Minor</span> — Concept budget</h4>
+<p>The proposal introduces, in order: root module, <code>trex-gen</code>, two file classes, manifest, render hashes, seams, template overrides, skills sync, plugin packaging. Five of those are load-bearing for the happy path. The quickstart implied by §4.2 must be an explicit, documented, four-command happy path — <code>init</code>, <code>entity</code>, <code>db</code>, <code>run</code> — with every other concept introduced only at the moment it is needed (upgrade when first upgrading, overrides when first overriding). The measure of this architecture is not the reviewer's comprehension; it is the child engineer who never reads this document and still never forks a template.</p>
+
+<h4><span class="fid">F8</span> <span class="chip minor">Minor</span> — Golden-fixture maintenance</h4>
+<p>R6's acceptance rests on a golden child in CI. Specify its lifecycle: it should be regenerated by <code>trex-gen init</code> at each release and versioned alongside, so template changes update it mechanically rather than by hand-tending. Otherwise the fixture becomes the first thing skipped in a rush and the upgrade guarantee silently expires.</p>
+
+<h4><span class="fid">F9</span> <span class="chip minor">Minor</span> — Control-plane placement needs one paragraph of justification</h4>
+<p>§4.1 waves control-plane into a nested module in a clause. It is the right call (it is a service, not API), but state the rule — "framework API lives at the root; deployable services built on the framework are nested modules" — so the next component added lands in the right place by rule rather than by memory.</p>
+
+<h4><span class="fid">F10</span> <span class="chip endorse">Endorse</span> — The evidence method is the document's greatest strength; make it permanent</h4>
+<p>Deriving requirements from the reference child's actual workarounds (§2) is what gives this proposal its authority. Make that a standing gate, not a one-time method: hypershell (or its successor) should appear in TRex CI as the conformance child — the golden fixture of P2 should, at minimum, be generated by the same <code>trex-gen</code> that the live child runs, in the same release. Dogfooding is the only durable defense against the scaffold-rot this repository has already demonstrated.</p>
+
+<div class="verdict" style="background:var(--accent-soft)">
+<strong>Disposition.</strong> Resolve F1 and F2 (both are specification gaps, not design changes), tighten F3–F5 in the spec phase (P0), and proceed. The architecture itself — one module, one tool, hash-gated ownership, documented seams — I would defend in any forum. The job now is to make the specification as honest as the evidence behind it.
+</div>
+</div>
+
+<!-- ================================================================ -->
+<div class="review pragmatic" id="review2">
+<h2>9 · Review 2 — The Pragmatic Programmer (fresh eyes)</h2>
+
+<p><em>Seeded persona: a reviewer from the School of the Pragmatic Programmer — DRY, orthogonality, tracer bullets, broken windows, "don't live with software you wouldn't be proud of," a deep suspicion of wizard code nobody understands, and a strong preference for reversible decisions. This reviewer received the document cold, with no authoring context, and was asked to review the solution and to validate or reject each finding of Review 1.</em></p>
+
+<div class="verdict" style="background:var(--warn-soft)">
+<strong>Overall assessment — APPROVED, NARROWER THAN WRITTEN.</strong>
+I came in cold and fact-checked Section 2 against both working trees before reading the solution: the ref file (<code>ff48c56…</code>, as claimed), the <code>HAND_MAINTAINED</code> skip list and <code>--check</code> mode in <code>scripts/generate-cli.sh</code>, two pseudo-version pins at two commits, the vendored generator forks, the #64/#65 loop in hypershell's <code>skills/RECONCILE.md</code>, four tags with no root <code>go.mod</code>, a scaffold importing <code>rh-trex-ai/pkg/cmd</code> from a module that does not exist, and <code>generator.md</code> documenting the pre-plugin layout while <code>generator.go</code> writes <code>plugins/{kinds}/</code>. All real. A requirements list that is a live customer's workaround inventory is not guessing — it is productizing, and that earns the direction. But the proposal spends that credibility twice: a third of the machine (template overrides, the codegen library, the skills sync) serves elegance or a retired consumer, not the live one. Ship the keystone, cut the wings, widen on evidence.
+</div>
+
+<h3>Findings on the proposal</h3>
+
+<h4><span class="fid">PP1</span> <span class="chip endorse">Endorse</span> — The evidence method is the spine, and it survives adversarial checking</h4>
+<p>Every row of §2.1 I tested resolved to a real artifact. Hypershell really maintains three pins at two versions; its reconcile notes really record "its generators are byte-identical in the new commit" as the reason the ref file stayed behind; sixteen plugins really sit under <code>components/api-server/plugins/</code>, including the <code>otel</code> and <code>rbac</code> cross-cutters cited as seam evidence. Requirements derived from what a customer actually built is the difference between architecture and art criticism, and it is why this document deserves a serious review rather than a polite one.</p>
+
+<h4><span class="fid">PP2</span> <span class="chip endorse">Endorse</span> — S1 is right, and it is a reversibility argument, not an aesthetic one</h4>
+<p>Import paths are the one decision here that is genuinely expensive to reverse; everything else — CLI shape, manifest format, class names — is cheap to change later. Pay now on the irreversible thing; stay minimal everywhere else. A4 (nested tags) is the cheap-now option that taxes forever: <code>…/components/api-server/…</code> as permanent public identity, nested-tag discipline with the v0.0.32–35 failure mode one distraction from repeating, and no natural home for five generator modules. I verified the rot S1 fixes: v0.0.31 carries a root <code>go.mod</code>; v0.0.32–v0.0.35 carry none; no nested tags exist.</p>
+
+<h4><span class="fid">PP3</span> <span class="chip major">Major</span> — Template overrides have no demonstrated consumer; defer them and R8</h4>
+<p>Neither consumer ever overrode a single template. The retired consumer forked the whole generator; the live one extended a vendored fork — both are acquisition failures that importable packages (S1) fix directly, and behavior changes already travel upstream well: #64 went from noticed to merged and tagged in days. The override machinery — shadow directories, manifest recording, upgrade-time diffs, a promotion protocol — is a fork with better manners, and the proposal names its own disease: "override sprawl hides upstream improvements." Defer §4.4's override half and R8; build the mechanism when a real override exists to migrate.</p>
+
+<h4><span class="fid">PP4</span> <span class="chip major">Major</span> — Skills: two distribution mechanisms proposed; ship one</h4>
+<p>S6 ships a version-marked file-sync (<code>skills sync</code>/<code>status</code>, conflict semantics, release-train questions) <em>and</em> a versioned plugin, described as "packaging of the same files." Two mechanisms for distributing markdown is one too many. The plugin alone covers the named harness; sync exists for "multiple agent harnesses," a future need. Cut the sync, keep the plugin generated from the tree in CI, and R10 halves. If a harness without plugin support appears, sync is a weekend build against the same source of truth.</p>
+
+<h4><span class="fid">PP5</span> <span class="chip major">Major</span> — <code>pkg/codegen</code> is designed for a retired customer; demote R9</h4>
+<p>R9's justification is "the retired consumer forked the entire generator for this reason." Building a public, tested primitives API — naming, field model, type maps, template functions, output planning — for a dead consumer is spec-driven speculation. The live child's vendored forks exist because the modules were not importable; S1 deletes them without <code>pkg/codegen</code>. Keep the generator packages importable in the root module; promote specific primitives when a child composes them in anger. The escape hatch is the import, not a framework.</p>
+
+<h4><span class="fid">PP6</span> <span class="chip major">Major</span> — The Validate-seam move is a child port mislabeled "not a child obligation"</h4>
+<p>§4.4 is right that handlers must stay mechanical — I verified the rot it fixes: <code>skills/build/add-field/SKILL.md</code>, step 5, instructs children to edit <code>plugins/{kindLowerPlural}/handler.go</code> and "add validation if the field is required." But the fix becomes a child obligation the moment the child upgrades: every kind whose handler carries validation edits becomes an upgrade conflict at once — and per F1, pre-adoption edits may not even be flagged. Sequence it: adoption first, with F1's audit; the Validate change in a later minor; upgrade printing the template diff beside the file's local diff so the port is mechanical.</p>
+
+<h4><span class="fid">PP7</span> <span class="chip minor">Minor</span> — Don't gate the keystone on documentation work</h4>
+<p>S8 declares the repairs immediate "regardless of everything else," yet the phase table puts spec-and-doc reconciliation (P0) ahead of the module restore (P1). The restore is days of mechanical work and unblocks everything; the doc repairs can ride the same PR train. Tracer-bullet ordering: cut the resolvable tag first, prove it from a scratch module in CI, reconcile the paper while it runs. A phase zero made of prose is where urgency goes to die.</p>
+
+<h4><span class="fid">PP8</span> <span class="chip minor">Minor</span> — R11 is process wearing a requirement's badge</h4>
+<p>The grow-then-promote loop already works end to end — hypershell proved it: missing 422 → PR #64 → tagged; dropped route → PR #65 → tagged; re-pin; ref file deliberately left behind after verifying byte-identical generators. What made it costly was the unresolvable tag, which S1 fixes. After S1, R11 is satisfied for free; keep it as documentation of the loop, not as a fixture-tested requirement that generates ceremony for every two-line template fix.</p>
+
+<h4><span class="fid">PP9</span> <span class="chip minor">Minor</span> — v1.0.0 "quickly" promises stability during the storm, and the scoping number is wrong</h4>
+<p>v0.x is the cheap state — you are allowed to break things. The proposal schedules its largest churn (re-templating, the Validate port) inside v0.x and then wants the compatibility promise early. Also: the defense matrix scopes the v1 contract to "the twelve hypershell consumes" — hypershell actually imports about twenty-one distinct framework packages, a surface two-thirds larger than the doc believes. Publish the candidate list at v0.1.0 (accurately counted), run one real minor-to-minor upgrade of the live child, and cut v1.0.0 on that evidence.</p>
+
+<h4><span class="fid">PP10</span> <span class="chip endorse">Endorse</span> — The manifest and hash-gated upgrade is the DRIEST thing here, and it serves the resident engineer</h4>
+<p>Today "what the generator did" lives in four places — ref file, two pseudo-version pins, the <code>HAND_MAINTAINED</code> list, the <code>--check</code> targets. The manifest plus <code>go.mod</code> collapses that to two, split along the one axis that is genuinely orthogonal: library version is Go's business, generation state is the tool's. The two-class model is kind to the engineer who lives inside it: class and provenance travel in a grep-able header (the <code>DO NOT EDIT</code> convention every Go hand knows from protobuf), conflicts resolve per-file with explicit flags instead of merge heuristics, and scaffold-once files are honestly labeled.</p>
+
+<h3>Verdict on Review 1</h3>
+
+<h4><span class="fid">F1</span> <span class="chip validated">Validated</span></h4>
+<p>That the unspecified adoption baseline lets pre-existing child edits inside mechanical files be absorbed, then clobbered.</p>
+<p>The blocker stands. The document never says what first-run adoption records, and R6's acceptance test — a golden child upgraded across a minor — never exercises adoption-of-an-existing-child, the only live customer's actual first experience. Record-on-disk-as-baseline means the first post-adoption template change silently overwrites pre-adoption edits, violating "never silently modify a child-owned file" in every sense that matters. The prescribed <code>verify --diff-against-template</code> audit is cheap and right: make adoption the audit. That is the difference between R6 being a guarantee and being marketing.</p>
+
+<h4><span class="fid">F2</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That separately runnable <code>go run &lt;pkg&gt;@&lt;tag&gt;</code> generators reintroduce per-invocation version choice.</p>
+<p>The back door is real: a tag typed into a Makefile is a pin outside the manifest, and this team's demonstrated behavior is letting pins drift even while owning both repos. But this is a convention plus a gate, not an architecture change — downgrade to major. Take F2's weaker prescription, the documented Makefile pattern reading the manifest, and make <code>verify --check</code> fail on tool-versus-manifest version mismatch. I reject the <code>trex-gen run</code> shim: §4.2 was right to refuse a second API for the same thing, and the shim recreates it.</p>
+
+<h4><span class="fid">F3</span> <span class="chip validated">Validated</span></h4>
+<p>That owned test files rot into historical documents, and the test-class split needs justification.</p>
+<p>Right on both halves. The release-notes changelog is upstream-centric; the child's question is "which of <em>my</em> files," and the manifest already records kinds and creation versions, so mapping template changes onto affected kinds is nearly free — do it. On the split: <code>factory_test.go</code> mechanical and <code>integration_test.go</code> owned is defensible (boilerplate versus the child's assertions), but an engineer seeing two sibling test files treated differently will invent a wrong reason unless CG-001 states the real one.</p>
+
+<h4><span class="fid">F4</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That skills distribution is underspecified on conflicts, plugin drift, and release gating.</p>
+<p>The gaps are real where the mechanism exists — but my revision is bigger than the finding: cut the sync mechanism (PP4) and keep the plugin. Conflict semantics then vanish, release-train gating becomes a plugin-release question answered once, and the one requirement that fully survives is the best one: generate the plugin from the tree in CI so drift is impossible rather than discouraged. F4's lasting point: never leave a "same source of truth" claim to discipline when a make target can enforce it.</p>
+
+<h4><span class="fid">F5</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That supply-chain, air-gapped, and toolchain-determinism requirements are missing.</p>
+<p>The toolchain clause is load-bearing and I would raise it: R3's acceptance test says "container with only Go + git… generate a kind that compiles," but the repo's own instructions require <code>make proto</code> (protoc and plugins) before anything compiles. As written, R3's test cannot pass. Name the tools in the acceptance test. The DRY point — reference CG-005/CG-006, don't restate — is sound. Air-gapped deserves one sentence in R3 (<code>GOFLAGS=-mod=vendor</code>). I reject the signed-tags clause: no demonstrated verifier exists; that is ceremony, not supply chain.</p>
+
+<h4><span class="fid">F6</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That the v1 scoping hint should be promoted into the release plan.</p>
+<p>Publishing the v1 package list at v0.1.0: yes, cheap, do it — but count it first (PP9: ~21 packages, not twelve). Where I part ways is F6's premise that moving to v1.0.0 quickly is "right": a compatibility promise made before the first real upgrade cycle is a guess. Publish the candidate contract at v0.1.0; cut v1.0.0 after the reference child completes one live minor-to-minor upgrade. One clean upgrade is worth more than any scoping document.</p>
+
+<h4><span class="fid">F7</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That the concept budget is high and the happy path must be explicit.</p>
+<p>The concern is my school's own rule, so yes. But the prescription — document a four-command happy path, introduce concepts just-in-time — treats the symptom. The right fix is fewer concepts: cut overrides (PP3) and skills sync (PP4) and the count drops from nine to six, four of which carry the happy path. Documentation cannot save a design that fronts its rarely-used machinery; the child engineer who never reads this document is the only acceptance test that matters.</p>
+
+<h4><span class="fid">F8</span> <span class="chip validated">Validated</span></h4>
+<p>That the golden fixture needs a lifecycle: regenerated at each release, versioned alongside.</p>
+<p>Valid, with a caveat about novelty: §4.7 already says the fixture is generated by <code>trex-gen init</code>, not hand-maintained — F8's real increment is the timing and versioning. That increment is load-bearing, because R6's acceptance test ("upgrade across a minor version bump") requires two versions of the fixture to exist. Without the lifecycle, the guarantee's proof expires with the first rushed release.</p>
+
+<h4><span class="fid">F9</span> <span class="chip validated">Validated</span></h4>
+<p>That control-plane's placement deserves a stated rule, not a clause.</p>
+<p>Cheapest finding in the set, and correct. The rule — framework API at the root, deployable services as nested modules — matches how the repo already works (<code>components/control-plane</code> is a nested module today, correctly, because it is a consumer). Rules beat memory for the next component someone adds at 5pm on a Friday. One paragraph; write it.</p>
+
+<h4><span class="fid">F10</span> <span class="chip major">Validated w/ revision</span></h4>
+<p>That the reference child should be a standing conformance gate in TRex CI.</p>
+<p>The dogfooding principle is right — this repository already demonstrated the alternative: a scaffold whose README claims a generator it does not ship (verified in <code>templates/new-project/</code>). But hard-wiring a live product repo into TRex's blocking CI couples two release trains; the child's churn would block the parent. Take the scheduled version: conformance runs against live hypershell at each release, blocking gate on the generated golden child, produced by the same trex-gen the live child runs. Endorse the principle, revise the mechanism.</p>
+
+<div class="verdict" style="background:var(--good-soft)">
+<strong>Disposition — BUILD THE KEYSTONE, CUT THE WINGS.</strong>
+Before implementation: specify the adoption baseline and its audit (F1 — the difference between R6 being a guarantee and a hope); define the manifest-driven invocation pattern for spec-consumer generators and fail <code>verify --check</code> on version mismatch (F2, as convention, not a shim); put toolchain expectations into R3's acceptance test (F5); sequence the Validate-seam port after adoption with a per-kind impact map (PP6, F3); state the module-placement rule (F9). Cut outright: template overrides and R8, the skills sync mechanism (keep the CI-generated plugin), and <code>pkg/codegen</code> as a designed public API — restore any of them the day a real consumer asks. Keep: S1, S2, S3's manifest and hash gating, S4's seams and the Validate fix itself, S8's repairs, the A4 defense, the evidence method. Net on Review 1: strong work — 4 of 10 findings stand as filed (F1, F3, F8, F9), 6 stand with revised prescriptions or downgraded severities (F2, F4, F5, F6, F7, F10), none rejected outright, though I reject two clauses inside them (the <code>trex-gen run</code> shim in F2, signed tags in F5) and cut one blocker to major. Review 1 diagnoses the document's honesty gaps better than it prescribes fixes, which lean toward process. The proposal's center of gravity — one module, one tool, hash-gated ownership, real seams — I would ship tomorrow. The ornamentation I would not ship at all.
+</div>
+</div>
+
+<p class="fn" style="margin-top:48px">Methodology note: Review 1 was written in-persona by the proposal's author. Review 2 is produced by a separate reviewer process given only this document — the closest available approximation of "clear your context and look again."</p>
+
+</div>
+</body>
+</html>
