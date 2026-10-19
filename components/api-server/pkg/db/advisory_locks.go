@@ -166,13 +166,20 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 // UUID is a way to own the lock. Only the very first
 // service call that owns the lock will have the correct UUID. This is necessary
 // to allow functions to call other service functions as part of the same lock (id, lockType).
+//
+// When ctx holds a request transaction, the lock is taken inside that transaction
+// instead. It is then released when the request commits or rolls back, so it
+// covers the request's writes until they are visible to other sessions.
 type AdvisoryLock struct {
-	g2        *gorm.DB
-	txid      int64
-	uuid      *string
-	id        *string
-	lockType  *LockType
-	startTime time.Time
+	g2 *gorm.DB
+	// inRequestTx is true when g2 is the request transaction, which this lock
+	// must not end.
+	inRequestTx bool
+	txid        int64
+	uuid        *string
+	id          *string
+	lockType    *LockType
+	startTime   time.Time
 }
 
 // newAdvisoryLock constructs a new AdvisoryLock object.
@@ -180,10 +187,14 @@ func newAdvisoryLock(ctx context.Context, connection SessionFactory) (*AdvisoryL
 	// it requires a new DB session to start the advisory lock.
 	g2 := connection.New(ctx)
 
-	// start a Tx to ensure gorm will obtain/release the lock using a same connection.
-	tx := g2.Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+	inRequestTx := HasTransaction(ctx)
+	tx := g2
+	if !inRequestTx {
+		// start a Tx to ensure gorm will obtain/release the lock using a same connection.
+		tx = g2.Begin()
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
 	}
 
 	// current transaction ID set by postgres.  these are *not* distinct across time
@@ -192,9 +203,10 @@ func newAdvisoryLock(ctx context.Context, connection SessionFactory) (*AdvisoryL
 	tx.Raw("select txid_current() as id").Scan(&txid)
 
 	return &AdvisoryLock{
-		txid:      txid.ID,
-		g2:        tx,
-		startTime: time.Now(),
+		txid:        txid.ID,
+		g2:          tx,
+		inRequestTx: inRequestTx,
+		startTime:   time.Now(),
 	}, nil
 }
 
@@ -253,7 +265,11 @@ func (l *AdvisoryLock) unlock() error {
 	}
 
 	// it ends the Tx and implicitly releases the lock.
-	err := l.g2.Commit().Error
+	// A lock taken in the request transaction is released when db.Resolve ends it.
+	var err error
+	if !l.inRequestTx {
+		err = l.g2.Commit().Error
+	}
 	l.g2 = nil
 	l.uuid = nil
 	l.id = nil

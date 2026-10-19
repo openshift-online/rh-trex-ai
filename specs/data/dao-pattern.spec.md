@@ -38,6 +38,17 @@ All DAO methods SHALL obtain a GORM session via `(*sessionFactory).New(ctx)` to 
 - THEN the returned `*gorm.DB` SHALL use the existing transaction
 - AND if no transaction exists in context, a new session SHALL be created
 
+#### Scenario: Request rollback undoes all DAO writes
+- GIVEN a request that made several DAO writes through `(*sessionFactory).New(ctx)`
+- WHEN `db.MarkForRollback(ctx, err)` is called and the request resolves
+- THEN none of those writes SHALL be persisted
+
+#### Scenario: Advisory lock inside a request transaction
+- GIVEN a request context containing a transaction
+- WHEN a service takes an advisory lock with that context
+- THEN the lock SHALL be taken inside the request transaction
+- AND it SHALL stay held until the request transaction commits or rolls back
+
 ### Requirement: Generic DAO for Search
 
 The `GenericDao` SHALL provide composable query building for list/search operations.

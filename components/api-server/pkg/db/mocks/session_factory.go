@@ -56,7 +56,7 @@ func (m *MockSessionFactory) DirectDB() *sql.DB {
 }
 
 func (m *MockSessionFactory) New(ctx context.Context) *gorm.DB {
-	return m.gormDB.WithContext(ctx)
+	return db.BindTransaction(ctx, m.gormDB.WithContext(ctx))
 }
 
 func (m *MockSessionFactory) CheckConnection() error {

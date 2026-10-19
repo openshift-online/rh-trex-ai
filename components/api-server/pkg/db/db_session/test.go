@@ -203,6 +203,7 @@ func (f *Test) New(ctx context.Context) *gorm.DB {
 		Context: ctx,
 		Logger:  f.g2.Logger.LogMode(logger.Silent),
 	})
+	conn = db.BindTransaction(ctx, conn)
 	if f.config.Debug {
 		conn = conn.Debug()
 	}
