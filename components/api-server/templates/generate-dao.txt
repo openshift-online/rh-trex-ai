@@ -11,6 +11,7 @@ import (
 
 type {{.Kind}}Dao interface {
 	Get(ctx context.Context, id string) (*{{.Kind}}, error)
+	GetForUpdate(ctx context.Context, id string) (*{{.Kind}}, error)
 	Create(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, error)
 	Replace(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, error)
 	Delete(ctx context.Context, id string) error
@@ -32,6 +33,17 @@ func (d *sql{{.Kind}}Dao) Get(ctx context.Context, id string) (*{{.Kind}}, error
 	g2 := (*d.sessionFactory).New(ctx)
 	var {{.KindLowerSingular}} {{.Kind}}
 	if err := g2.Take(&{{.KindLowerSingular}}, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &{{.KindLowerSingular}}, nil
+}
+
+// GetForUpdate reads a {{.KindLowerSingular}} and row-locks it (SELECT ... FOR UPDATE) until the
+// request transaction ends, so a read-modify-write cannot lose a concurrent update.
+func (d *sql{{.Kind}}Dao) GetForUpdate(ctx context.Context, id string) (*{{.Kind}}, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var {{.KindLowerSingular}} {{.Kind}}
+	if err := g2.Clauses(clause.Locking{Strength: "UPDATE"}).Take(&{{.KindLowerSingular}}, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &{{.KindLowerSingular}}, nil

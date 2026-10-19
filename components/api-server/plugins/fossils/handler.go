@@ -15,14 +15,12 @@ import (
 var _ handlers.RestHandler = fossilHandler{}
 
 type fossilHandler struct {
-	fossil  FossilService
-	generic services.GenericService
+	fossil FossilService
 }
 
-func NewFossilHandler(fossil FossilService, generic services.GenericService) *fossilHandler {
+func NewFossilHandler(fossil FossilService) *fossilHandler {
 	return &fossilHandler{
-		fossil:  fossil,
-		generic: generic,
+		fossil: fossil,
 	}
 }
 
@@ -57,26 +55,7 @@ func (h fossilHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			found, err := h.fossil.Get(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-
-			if patch.DiscoveryLocation != nil {
-				found.DiscoveryLocation = *patch.DiscoveryLocation
-			}
-			if patch.EstimatedAge != nil {
-				estimatedAgeVal := int(*patch.EstimatedAge)
-				found.EstimatedAge = &estimatedAgeVal
-			}
-			if patch.FossilType != nil {
-				found.FossilType = patch.FossilType
-			}
-			if patch.ExcavatorName != nil {
-				found.ExcavatorName = patch.ExcavatorName
-			}
-
-			fossilModel, err := h.fossil.Replace(ctx, found)
+			fossilModel, err := h.fossil.Patch(ctx, id, ConvertFossilPatch(patch))
 			if err != nil {
 				return nil, err
 			}
@@ -94,8 +73,7 @@ func (h fossilHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var fossils []Fossil
-			paging, err := h.generic.List(ctx, "id", listArgs, &fossils)
+			fossils, paging, err := h.fossil.List(ctx, listArgs)
 			if err != nil {
 				return nil, err
 			}

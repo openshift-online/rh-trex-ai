@@ -27,6 +27,7 @@ func NewServiceLocator(env *environments.Env) ServiceLocator {
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			NewScientistDao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
+			generic.Service(&env.Services),
 		)
 	}
 }
@@ -49,7 +50,7 @@ func init() {
 
 	pkgserver.RegisterRoutes("scientists", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		scientistHandler := NewScientistHandler(Service(envServices), generic.Service(envServices))
+		scientistHandler := NewScientistHandler(Service(envServices))
 
 		scientistsRouter := apiV1Router.PathPrefix("/scientists").Subrouter()
 		scientistsRouter.HandleFunc("", scientistHandler.List).Methods(http.MethodGet)
@@ -77,14 +78,13 @@ func init() {
 	pkgserver.RegisterGRPCService("scientists", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		scientistService := Service(envServices)
-		genericService := generic.Service(envServices)
 		brokerFunc := func() *pkgserver.EventBroker {
 			if obj := envServices.GetService("EventBroker"); obj != nil {
 				return obj.(*pkgserver.EventBroker)
 			}
 			return nil
 		}
-		pb.RegisterScientistServiceServer(grpcServer, NewScientistGRPCHandler(scientistService, genericService, brokerFunc))
+		pb.RegisterScientistServiceServer(grpcServer, NewScientistGRPCHandler(scientistService, brokerFunc))
 	})
 
 	presenters.RegisterPath(Scientist{}, "scientists")

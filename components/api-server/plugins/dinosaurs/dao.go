@@ -11,6 +11,7 @@ import (
 
 type DinosaurDao interface {
 	Get(ctx context.Context, id string) (*Dinosaur, error)
+	GetForUpdate(ctx context.Context, id string) (*Dinosaur, error)
 	Create(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, error)
 	Replace(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, error)
 	Delete(ctx context.Context, id string) error
@@ -32,6 +33,17 @@ func (d *sqlDinosaurDao) Get(ctx context.Context, id string) (*Dinosaur, error) 
 	g2 := (*d.sessionFactory).New(ctx)
 	var dinosaur Dinosaur
 	if err := g2.Take(&dinosaur, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &dinosaur, nil
+}
+
+// GetForUpdate reads a dinosaur and row-locks it (SELECT ... FOR UPDATE) until the
+// request transaction ends, so a read-modify-write cannot lose a concurrent update.
+func (d *sqlDinosaurDao) GetForUpdate(ctx context.Context, id string) (*Dinosaur, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var dinosaur Dinosaur
+	if err := g2.Clauses(clause.Locking{Strength: "UPDATE"}).Take(&dinosaur, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &dinosaur, nil

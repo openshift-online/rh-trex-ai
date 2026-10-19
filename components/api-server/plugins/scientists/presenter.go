@@ -36,3 +36,11 @@ func PresentScientist(scientist *Scientist) openapi.Scientist {
 		Field:     scientist.Field,
 	}
 }
+
+// ConvertScientistPatch turns a REST patch body into the model patch the service applies.
+func ConvertScientistPatch(patch openapi.ScientistPatchRequest) *ScientistPatchRequest {
+	c := &ScientistPatchRequest{}
+	c.Name = patch.Name
+	c.Field = patch.Field
+	return c
+}

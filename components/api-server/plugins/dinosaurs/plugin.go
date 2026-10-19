@@ -27,6 +27,7 @@ func NewServiceLocator(env *environments.Env) ServiceLocator {
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			NewDinosaurDao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
+			generic.Service(&env.Services),
 		)
 	}
 }
@@ -49,7 +50,7 @@ func init() {
 
 	pkgserver.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		dinosaurHandler := NewDinosaurHandler(Service(envServices), generic.Service(envServices))
+		dinosaurHandler := NewDinosaurHandler(Service(envServices))
 
 		dinosaursRouter := apiV1Router.PathPrefix("/dinosaurs").Subrouter()
 		dinosaursRouter.HandleFunc("", dinosaurHandler.List).Methods(http.MethodGet)
@@ -77,14 +78,13 @@ func init() {
 	pkgserver.RegisterGRPCService("dinosaurs", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		dinosaurService := Service(envServices)
-		genericService := generic.Service(envServices)
 		brokerFunc := func() *pkgserver.EventBroker {
 			if obj := envServices.GetService("EventBroker"); obj != nil {
 				return obj.(*pkgserver.EventBroker)
 			}
 			return nil
 		}
-		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinosaurService, genericService, brokerFunc))
+		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinosaurService, brokerFunc))
 	})
 
 	presenters.RegisterPath(Dinosaur{}, "dinosaurs")

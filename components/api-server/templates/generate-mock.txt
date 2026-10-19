@@ -27,6 +27,10 @@ func (d *{{.KindLowerSingular}}DaoMock) Get(ctx context.Context, id string) (*{{
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (d *{{.KindLowerSingular}}DaoMock) GetForUpdate(ctx context.Context, id string) (*{{.Kind}}, error) {
+	return d.Get(ctx, id)
+}
+
 func (d *{{.KindLowerSingular}}DaoMock) Create(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, error) {
 	d.{{.KindLowerPlural}} = append(d.{{.KindLowerPlural}}, {{.KindLowerSingular}})
 	return {{.KindLowerSingular}}, nil

@@ -47,3 +47,15 @@ func PresentFossil(fossil *Fossil) openapi.Fossil {
 		ExcavatorName: fossil.ExcavatorName,
 	}
 }
+
+// ConvertFossilPatch turns a REST patch body into the model patch the service applies.
+func ConvertFossilPatch(patch openapi.FossilPatchRequest) *FossilPatchRequest {
+	c := &FossilPatchRequest{}
+	c.DiscoveryLocation = patch.DiscoveryLocation
+	if patch.EstimatedAge != nil {
+		c.EstimatedAge = openapi.PtrInt(int(*patch.EstimatedAge))
+	}
+	c.FossilType = patch.FossilType
+	c.ExcavatorName = patch.ExcavatorName
+	return c
+}

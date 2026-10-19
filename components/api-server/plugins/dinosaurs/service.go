@@ -12,12 +12,17 @@ import (
 
 const dinosaursLockType db.LockType = "dinosaurs"
 
+// DinosaurEventSource is the Source of every event about a dinosaur.
+const DinosaurEventSource = "Dinosaurs"
+
 type DinosaurService interface {
 	Get(ctx context.Context, id string) (*Dinosaur, *errors.ServiceError)
 	Create(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, *errors.ServiceError)
 	Replace(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, *errors.ServiceError)
+	Patch(ctx context.Context, id string, patch *DinosaurPatchRequest) (*Dinosaur, *errors.ServiceError)
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (DinosaurList, *errors.ServiceError)
+	List(ctx context.Context, args *services.ListArguments) ([]Dinosaur, *api.PagingMeta, *errors.ServiceError)
 
 	FindByIDs(ctx context.Context, ids []string) (DinosaurList, *errors.ServiceError)
 
@@ -25,11 +30,12 @@ type DinosaurService interface {
 	OnDelete(ctx context.Context, id string) error
 }
 
-func NewDinosaurService(lockFactory db.LockFactory, dinosaurDao DinosaurDao, events services.EventService) DinosaurService {
+func NewDinosaurService(lockFactory db.LockFactory, dinosaurDao DinosaurDao, events services.EventService, generic services.GenericService) DinosaurService {
 	return &sqlDinosaurService{
 		lockFactory: lockFactory,
 		dinosaurDao: dinosaurDao,
 		events:      events,
+		generic:     generic,
 	}
 }
 
@@ -39,6 +45,23 @@ type sqlDinosaurService struct {
 	lockFactory db.LockFactory
 	dinosaurDao DinosaurDao
 	events      services.EventService
+	generic     services.GenericService
+}
+
+// validateDinosaur checks the rules every stored dinosaur must satisfy.
+// Create, Replace and Patch all call it, so REST and gRPC enforce the same rules.
+func validateDinosaur(dinosaur *Dinosaur) *errors.ServiceError {
+	if err := services.ValidateRequiredString("species", dinosaur.Species); err != nil {
+		return err
+	}
+	return nil
+}
+
+// applyDinosaurPatch copies every field set in patch onto dinosaur.
+func applyDinosaurPatch(dinosaur *Dinosaur, patch *DinosaurPatchRequest) {
+	if patch.Species != nil {
+		dinosaur.Species = *patch.Species
+	}
 }
 
 func (s *sqlDinosaurService) OnUpsert(ctx context.Context, id string) error {
@@ -69,13 +92,17 @@ func (s *sqlDinosaurService) Get(ctx context.Context, id string) (*Dinosaur, *er
 }
 
 func (s *sqlDinosaurService) Create(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, *errors.ServiceError) {
+	if svcErr := validateDinosaur(dinosaur); svcErr != nil {
+		return nil, svcErr
+	}
+
 	dinosaur, err := s.dinosaurDao.Create(ctx, dinosaur)
 	if err != nil {
 		return nil, services.HandleCreateError("Dinosaur", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Dinosaurs",
+		Source:    DinosaurEventSource,
 		SourceID:  dinosaur.ID,
 		EventType: api.CreateEventType,
 	})
@@ -93,13 +120,42 @@ func (s *sqlDinosaurService) Replace(ctx context.Context, dinosaur *Dinosaur) (*
 	}
 	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 
-	dinosaur, err = s.dinosaurDao.Replace(ctx, dinosaur)
+	return s.update(ctx, dinosaur)
+}
+
+// Patch applies a partial update. The read, merge and write all happen under a
+// row lock held until the request transaction commits, so concurrent patches to
+// the same dinosaur cannot overwrite each other.
+func (s *sqlDinosaurService) Patch(ctx context.Context, id string, patch *DinosaurPatchRequest) (*Dinosaur, *errors.ServiceError) {
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, dinosaursLockType)
+	if err != nil {
+		return nil, errors.DatabaseAdvisoryLock(err)
+	}
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+
+	dinosaur, err := s.dinosaurDao.GetForUpdate(ctx, id)
+	if err != nil {
+		return nil, services.HandleGetError("Dinosaur", "id", id, err)
+	}
+
+	applyDinosaurPatch(dinosaur, patch)
+	return s.update(ctx, dinosaur)
+}
+
+// update validates and saves dinosaur, then records an update event.
+// Callers must hold the dinosaur's lock.
+func (s *sqlDinosaurService) update(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, *errors.ServiceError) {
+	if svcErr := validateDinosaur(dinosaur); svcErr != nil {
+		return nil, svcErr
+	}
+
+	dinosaur, err := s.dinosaurDao.Replace(ctx, dinosaur)
 	if err != nil {
 		return nil, services.HandleUpdateError("Dinosaur", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Dinosaurs",
+		Source:    DinosaurEventSource,
 		SourceID:  dinosaur.ID,
 		EventType: api.UpdateEventType,
 	})
@@ -116,7 +172,7 @@ func (s *sqlDinosaurService) Delete(ctx context.Context, id string) *errors.Serv
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Dinosaurs",
+		Source:    DinosaurEventSource,
 		SourceID:  id,
 		EventType: api.DeleteEventType,
 	})
@@ -141,4 +197,13 @@ func (s *sqlDinosaurService) All(ctx context.Context) (DinosaurList, *errors.Ser
 		return nil, errors.GeneralError("Unable to get all dinosaurs: %s", err)
 	}
 	return dinosaurs, nil
+}
+
+func (s *sqlDinosaurService) List(ctx context.Context, args *services.ListArguments) ([]Dinosaur, *api.PagingMeta, *errors.ServiceError) {
+	var dinosaurs []Dinosaur
+	paging, err := s.generic.List(ctx, "id", args, &dinosaurs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return dinosaurs, paging, nil
 }

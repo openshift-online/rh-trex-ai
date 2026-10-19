@@ -34,3 +34,10 @@ func PresentDinosaur(dinosaur *Dinosaur) openapi.Dinosaur {
 		Species:   dinosaur.Species,
 	}
 }
+
+// ConvertDinosaurPatch turns a REST patch body into the model patch the service applies.
+func ConvertDinosaurPatch(patch openapi.DinosaurPatchRequest) *DinosaurPatchRequest {
+	c := &DinosaurPatchRequest{}
+	c.Species = patch.Species
+	return c
+}

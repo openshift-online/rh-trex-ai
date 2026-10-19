@@ -16,13 +16,11 @@ var _ handlers.RestHandler = {{.KindLowerSingular}}Handler{}
 
 type {{.KindLowerSingular}}Handler struct {
 	{{.KindLowerSingular}} {{.Kind}}Service
-	generic  services.GenericService
 }
 
-func New{{.Kind}}Handler({{.KindLowerSingular}} {{.Kind}}Service, generic services.GenericService) *{{.KindLowerSingular}}Handler {
+func New{{.Kind}}Handler({{.KindLowerSingular}} {{.Kind}}Service) *{{.KindLowerSingular}}Handler {
 	return &{{.KindLowerSingular}}Handler{
 		{{.KindLowerSingular}}: {{.KindLowerSingular}},
-		generic:  generic,
 	}
 }
 
@@ -57,25 +55,7 @@ func (h {{.KindLowerSingular}}Handler) Patch(w http.ResponseWriter, r *http.Requ
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			found, err := h.{{.KindLowerSingular}}.Get(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-
-{{range .Fields}}			if patch.{{.Name}} != nil {
-{{- if and .NeedsIntConversion .Required}}
-				found.{{.Name}} = int(*patch.{{.Name}})
-{{- else if and .NeedsIntConversion .Nullable}}
-				{{.NameCamelCase}}Val := int(*patch.{{.Name}})
-				found.{{.Name}} = &{{.NameCamelCase}}Val
-{{- else if .Required}}
-				found.{{.Name}} = *patch.{{.Name}}
-{{- else}}
-				found.{{.Name}} = patch.{{.Name}}
-{{- end}}
-			}
-{{end}}
-			{{.KindLowerSingular}}Model, err := h.{{.KindLowerSingular}}.Replace(ctx, found)
+			{{.KindLowerSingular}}Model, err := h.{{.KindLowerSingular}}.Patch(ctx, id, Convert{{.Kind}}Patch(patch))
 			if err != nil {
 				return nil, err
 			}
@@ -93,8 +73,7 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var {{.KindLowerPlural}} []{{.Kind}}
-			paging, err := h.generic.List(ctx, "id", listArgs, &{{.KindLowerPlural}})
+			{{.KindLowerPlural}}, paging, err := h.{{.KindLowerSingular}}.List(ctx, listArgs)
 			if err != nil {
 				return nil, err
 			}

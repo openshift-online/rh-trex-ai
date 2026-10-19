@@ -27,6 +27,7 @@ func NewServiceLocator(env *environments.Env) ServiceLocator {
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			NewFossilDao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
+			generic.Service(&env.Services),
 		)
 	}
 }
@@ -49,7 +50,7 @@ func init() {
 
 	pkgserver.RegisterRoutes("fossils", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		fossilHandler := NewFossilHandler(Service(envServices), generic.Service(envServices))
+		fossilHandler := NewFossilHandler(Service(envServices))
 
 		fossilsRouter := apiV1Router.PathPrefix("/fossils").Subrouter()
 		fossilsRouter.HandleFunc("", fossilHandler.List).Methods(http.MethodGet)
@@ -77,14 +78,13 @@ func init() {
 	pkgserver.RegisterGRPCService("fossils", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		fossilService := Service(envServices)
-		genericService := generic.Service(envServices)
 		brokerFunc := func() *pkgserver.EventBroker {
 			if obj := envServices.GetService("EventBroker"); obj != nil {
 				return obj.(*pkgserver.EventBroker)
 			}
 			return nil
 		}
-		pb.RegisterFossilServiceServer(grpcServer, NewFossilGRPCHandler(fossilService, genericService, brokerFunc))
+		pb.RegisterFossilServiceServer(grpcServer, NewFossilGRPCHandler(fossilService, brokerFunc))
 	})
 
 	presenters.RegisterPath(Fossil{}, "fossils")

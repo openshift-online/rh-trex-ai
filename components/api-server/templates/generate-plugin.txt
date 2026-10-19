@@ -27,6 +27,7 @@ func NewServiceLocator(env *environments.Env) ServiceLocator {
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			New{{.Kind}}Dao(&env.Database.SessionFactory),
 			events.Service(&env.Services),
+			generic.Service(&env.Services),
 		)
 	}
 }
@@ -49,7 +50,7 @@ func init() {
 
 	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
 		envServices := services.(*environments.Services)
-		{{.KindLowerSingular}}Handler := New{{.Kind}}Handler(Service(envServices), generic.Service(envServices))
+		{{.KindLowerSingular}}Handler := New{{.Kind}}Handler(Service(envServices))
 
 		{{.KindLowerPlural}}Router := apiV1Router.PathPrefix("/{{.KindSnakeCasePlural}}").Subrouter()
 		{{.KindLowerPlural}}Router.HandleFunc("", {{.KindLowerSingular}}Handler.List).Methods(http.MethodGet)
@@ -77,14 +78,13 @@ func init() {
 	pkgserver.RegisterGRPCService("{{.KindLowerPlural}}", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		{{.KindLowerSingular}}Service := Service(envServices)
-		genericService := generic.Service(envServices)
 		brokerFunc := func() *pkgserver.EventBroker {
 			if obj := envServices.GetService("EventBroker"); obj != nil {
 				return obj.(*pkgserver.EventBroker)
 			}
 			return nil
 		}
-		pb.Register{{.Kind}}ServiceServer(grpcServer, New{{.Kind}}GRPCHandler({{.KindLowerSingular}}Service, genericService, brokerFunc))
+		pb.Register{{.Kind}}ServiceServer(grpcServer, New{{.Kind}}GRPCHandler({{.KindLowerSingular}}Service, brokerFunc))
 	})
 
 	presenters.RegisterPath({{.Kind}}{}, "{{.KindSnakeCasePlural}}")

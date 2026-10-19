@@ -27,6 +27,10 @@ func (d *scientistDaoMock) Get(ctx context.Context, id string) (*Scientist, erro
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (d *scientistDaoMock) GetForUpdate(ctx context.Context, id string) (*Scientist, error) {
+	return d.Get(ctx, id)
+}
+
 func (d *scientistDaoMock) Create(ctx context.Context, scientist *Scientist) (*Scientist, error) {
 	d.scientists = append(d.scientists, scientist)
 	return scientist, nil

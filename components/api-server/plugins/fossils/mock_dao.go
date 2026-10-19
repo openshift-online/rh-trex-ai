@@ -27,6 +27,10 @@ func (d *fossilDaoMock) Get(ctx context.Context, id string) (*Fossil, error) {
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (d *fossilDaoMock) GetForUpdate(ctx context.Context, id string) (*Fossil, error) {
+	return d.Get(ctx, id)
+}
+
 func (d *fossilDaoMock) Create(ctx context.Context, fossil *Fossil) (*Fossil, error) {
 	d.fossils = append(d.fossils, fossil)
 	return fossil, nil

@@ -3,10 +3,12 @@ package grpcutil
 import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/services"
 )
 
 const (
-	MaxStringFieldLength = 255
+	MaxStringFieldLength = services.MaxStringFieldLength
 	MaxPageSize          = 500
 	DefaultPageSize      = 20
 	DefaultPage          = 1

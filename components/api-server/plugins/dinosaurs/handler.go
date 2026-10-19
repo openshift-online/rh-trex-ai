@@ -16,13 +16,11 @@ var _ handlers.RestHandler = dinosaurHandler{}
 
 type dinosaurHandler struct {
 	dinosaur DinosaurService
-	generic  services.GenericService
 }
 
-func NewDinosaurHandler(dinosaur DinosaurService, generic services.GenericService) *dinosaurHandler {
+func NewDinosaurHandler(dinosaur DinosaurService) *dinosaurHandler {
 	return &dinosaurHandler{
 		dinosaur: dinosaur,
-		generic:  generic,
 	}
 }
 
@@ -57,16 +55,7 @@ func (h dinosaurHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			found, err := h.dinosaur.Get(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-
-			if patch.Species != nil {
-				found.Species = *patch.Species
-			}
-
-			dinosaurModel, err := h.dinosaur.Replace(ctx, found)
+			dinosaurModel, err := h.dinosaur.Patch(ctx, id, ConvertDinosaurPatch(patch))
 			if err != nil {
 				return nil, err
 			}
@@ -84,8 +73,7 @@ func (h dinosaurHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var dinosaurs []Dinosaur
-			paging, err := h.generic.List(ctx, "id", listArgs, &dinosaurs)
+			dinosaurs, paging, err := h.dinosaur.List(ctx, listArgs)
 			if err != nil {
 				return nil, err
 			}

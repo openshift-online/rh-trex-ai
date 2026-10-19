@@ -16,13 +16,11 @@ var _ handlers.RestHandler = scientistHandler{}
 
 type scientistHandler struct {
 	scientist ScientistService
-	generic   services.GenericService
 }
 
-func NewScientistHandler(scientist ScientistService, generic services.GenericService) *scientistHandler {
+func NewScientistHandler(scientist ScientistService) *scientistHandler {
 	return &scientistHandler{
 		scientist: scientist,
-		generic:   generic,
 	}
 }
 
@@ -57,19 +55,7 @@ func (h scientistHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			found, err := h.scientist.Get(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-
-			if patch.Name != nil {
-				found.Name = *patch.Name
-			}
-			if patch.Field != nil {
-				found.Field = *patch.Field
-			}
-
-			scientistModel, err := h.scientist.Replace(ctx, found)
+			scientistModel, err := h.scientist.Patch(ctx, id, ConvertScientistPatch(patch))
 			if err != nil {
 				return nil, err
 			}
@@ -87,8 +73,7 @@ func (h scientistHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var scientists []Scientist
-			paging, err := h.generic.List(ctx, "id", listArgs, &scientists)
+			scientists, paging, err := h.scientist.List(ctx, listArgs)
 			if err != nil {
 				return nil, err
 			}

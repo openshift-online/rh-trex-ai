@@ -852,7 +852,7 @@ func NormalizePagination(page, size int32) (int32, int32) {
 }
 ```
 
-Every handler calls validation before the service layer. See handler code in 3.3.
+`ValidateRequiredID` and `NormalizePagination` are transport checks and stay in the handler. Entity rules (required fields, the 255-character limit) live in the service (`validateDinosaur`, built on `services.ValidateRequiredString` / `services.ValidateOptionalString`), so REST and gRPC enforce the same rules. `ValidateStringField` remains available for gRPC-only request fields.
 
 #### 3.3 gRPC Handler in Plugin
 
@@ -868,6 +868,7 @@ import (
 
     pb "github.com/openshift-online/rh-trex-ai/pkg/api/grpc/rh_trex/v1"
     "github.com/openshift-online/rh-trex-ai/pkg/server/grpcutil"
+    "github.com/openshift-online/rh-trex-ai/pkg/services"
 )
 
 type dinosaurGRPCHandler struct {
@@ -892,14 +893,11 @@ func (h *dinosaurGRPCHandler) GetDinosaur(ctx context.Context, req *pb.GetDinosa
 }
 
 func (h *dinosaurGRPCHandler) CreateDinosaur(ctx context.Context, req *pb.CreateDinosaurRequest) (*pb.Dinosaur, error) {
-    if err := grpcutil.ValidateStringField("species", req.Species, true); err != nil {
-        return nil, err
-    }
-
+    // No field checks here: DinosaurService.Create validates the entity.
     dino := &Dinosaur{Species: req.Species}
     result, svcErr := h.service.Create(ctx, dino)
     if svcErr != nil {
-        return nil, serviceErrorToGRPC(svcErr)
+        return nil, grpcutil.ServiceErrorToGRPC(svcErr)
     }
     return dinosaurToProto(result), nil
 }
@@ -908,22 +906,12 @@ func (h *dinosaurGRPCHandler) UpdateDinosaur(ctx context.Context, req *pb.Update
     if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
         return nil, err
     }
-    if req.Species != nil {
-        if err := grpcutil.ValidateStringField("species", *req.Species, false); err != nil {
-            return nil, err
-        }
-    }
 
-    dino, svcErr := h.service.Get(ctx, req.Id)
+    // Patch reads the row with SELECT ... FOR UPDATE, applies the set fields,
+    // validates and saves, so concurrent updates cannot overwrite each other.
+    result, svcErr := h.service.Patch(ctx, req.Id, dinosaurPatchFromProto(req))
     if svcErr != nil {
-        return nil, serviceErrorToGRPC(svcErr)
-    }
-    if req.Species != nil {
-        dino.Species = *req.Species
-    }
-    result, svcErr := h.service.Replace(ctx, dino)
-    if svcErr != nil {
-        return nil, serviceErrorToGRPC(svcErr)
+        return nil, grpcutil.ServiceErrorToGRPC(svcErr)
     }
     return dinosaurToProto(result), nil
 }
@@ -943,41 +931,25 @@ func (h *dinosaurGRPCHandler) DeleteDinosaur(ctx context.Context, req *pb.Delete
 func (h *dinosaurGRPCHandler) ListDinosaurs(ctx context.Context, req *pb.ListDinosaursRequest) (*pb.ListDinosaursResponse, error) {
     page, size := grpcutil.NormalizePagination(req.Page, req.Size)
 
-    // TODO: The current DinosaurService.All() does not support pagination.
-    // When pagination is added to the service layer (returning PagingMeta),
-    // pass page/size through. For now, fetch all and paginate in-memory.
-    allDinos, svcErr := h.service.All(ctx)
+    listArgs := &services.ListArguments{Page: int(page), Size: int64(size)}
+    dinosaurs, paging, svcErr := h.service.List(ctx, listArgs)
     if svcErr != nil {
-        return nil, serviceErrorToGRPC(svcErr)
+        return nil, grpcutil.ServiceErrorToGRPC(svcErr)
     }
 
-    total := int32(len(allDinos))
-    start := (page - 1) * size
-    if start >= total {
-        return &pb.ListDinosaursResponse{
-            Items:    []*pb.Dinosaur{},
-            Metadata: &pb.ListMeta{Page: page, Size: size, Total: total},
-        }, nil
-    }
-    end := start + size
-    if end > total {
-        end = total
-    }
-    pageItems := allDinos[start:end]
-
-    items := make([]*pb.Dinosaur, len(pageItems))
-    for i, d := range pageItems {
-        items[i] = dinosaurToProto(d)
+    items := make([]*pb.Dinosaur, len(dinosaurs))
+    for i, d := range dinosaurs {
+        items[i] = dinosaurToProto(&d)
     }
 
     return &pb.ListDinosaursResponse{
         Items:    items,
-        Metadata: &pb.ListMeta{Page: page, Size: size, Total: total},
+        Metadata: &pb.ListMeta{Page: page, Size: size, Total: int32(paging.Total)},
     }, nil
 }
 ```
 
-**Pagination note:** The current `DinosaurService.All()` returns everything — it has no pagination support. The REST side has the same limitation. The gRPC handler does in-memory pagination as a stopgap. The correct fix is adding `List(ctx, page, size int) (DinosaurList, PagingMeta, *errors.ServiceError)` to the service interface, which benefits both REST and gRPC. This is tracked as a follow-up.
+**Pagination note:** `DinosaurService.List` pages through `GenericService.List`, so REST and gRPC share one database-side pagination path.
 
 #### 3.4 Proto ↔ Domain Converters and Error Mapping
 

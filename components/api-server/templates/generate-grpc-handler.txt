@@ -18,12 +18,11 @@ import (
 type {{.KindLowerSingular}}GRPCHandler struct {
 	pb.Unimplemented{{.Kind}}ServiceServer
 	service    {{.Kind}}Service
-	generic    services.GenericService
 	brokerFunc func() *pkgserver.EventBroker
 }
 
-func New{{.Kind}}GRPCHandler(svc {{.Kind}}Service, generic services.GenericService, brokerFunc func() *pkgserver.EventBroker) pb.{{.Kind}}ServiceServer {
-	return &{{.KindLowerSingular}}GRPCHandler{service: svc, generic: generic, brokerFunc: brokerFunc}
+func New{{.Kind}}GRPCHandler(svc {{.Kind}}Service, brokerFunc func() *pkgserver.EventBroker) pb.{{.Kind}}ServiceServer {
+	return &{{.KindLowerSingular}}GRPCHandler{service: svc, brokerFunc: brokerFunc}
 }
 
 func (h *{{.KindLowerSingular}}GRPCHandler) Get{{.Kind}}(ctx context.Context, req *pb.Get{{.Kind}}Request) (*pb.{{.Kind}}, error) {
@@ -39,14 +38,6 @@ func (h *{{.KindLowerSingular}}GRPCHandler) Get{{.Kind}}(ctx context.Context, re
 }
 
 func (h *{{.KindLowerSingular}}GRPCHandler) Create{{.Kind}}(ctx context.Context, req *pb.Create{{.Kind}}Request) (*pb.{{.Kind}}, error) {
-	{{- range .Fields}}
-	{{- if and .Required (eq .Type "string")}}
-	if err := grpcutil.ValidateStringField("{{.NameSnakeCase}}", req.{{.Name}}, true); err != nil {
-		return nil, err
-	}
-	{{- end}}
-	{{- end}}
-
 	{{.KindLowerSingular}} := &{{.Kind}}{
 		{{- range .Fields}}
 		{{- if .Required}}
@@ -83,39 +74,8 @@ func (h *{{.KindLowerSingular}}GRPCHandler) Update{{.Kind}}(ctx context.Context,
 	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
 		return nil, err
 	}
-	{{- range .Fields}}
-	{{- if eq .Type "string"}}
-	if req.{{.Name}} != nil {
-		if err := grpcutil.ValidateStringField("{{.NameSnakeCase}}", *req.{{.Name}}, false); err != nil {
-			return nil, err
-		}
-	}
-	{{- end}}
-	{{- end}}
 
-	{{.KindLowerSingular}}, svcErr := h.service.Get(ctx, req.Id)
-	if svcErr != nil {
-		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
-	}
-	{{- $kindLowerSingular := .KindLowerSingular}}
-	{{- range .Fields}}
-	if req.{{.Name}} != nil {
-		{{- if .Nullable}}
-		{{- if eq .Type "int"}}
-		{{$kindLowerSingular}}.{{.Name}} = func() *int { v := int(*req.{{.Name}}); return &v }()
-		{{- else}}
-		{{$kindLowerSingular}}.{{.Name}} = req.{{.Name}}
-		{{- end}}
-		{{- else}}
-		{{- if eq .Type "int"}}
-		{{$kindLowerSingular}}.{{.Name}} = int(*req.{{.Name}})
-		{{- else}}
-		{{$kindLowerSingular}}.{{.Name}} = *req.{{.Name}}
-		{{- end}}
-		{{- end}}
-	}
-	{{- end}}
-	result, svcErr := h.service.Replace(ctx, {{.KindLowerSingular}})
+	result, svcErr := h.service.Patch(ctx, req.Id, {{.KindLowerSingular}}PatchFromProto(req))
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -142,8 +102,7 @@ func (h *{{.KindLowerSingular}}GRPCHandler) List{{.KindPlural}}(ctx context.Cont
 		Size: int64(size),
 	}
 
-	var {{.KindLowerPlural}} []{{.Kind}}
-	paging, svcErr := h.generic.List(ctx, "id", listArgs, &{{.KindLowerPlural}})
+	{{.KindLowerPlural}}, paging, svcErr := h.service.List(ctx, listArgs)
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -182,7 +141,7 @@ func (h *{{.KindLowerSingular}}GRPCHandler) Watch{{.KindPlural}}(req *pb.Watch{{
 				return nil
 			}
 
-			if evt.Source != "{{.KindPlural}}" {
+			if evt.Source != {{.Kind}}EventSource {
 				continue
 			}
 

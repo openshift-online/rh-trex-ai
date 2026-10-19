@@ -18,12 +18,11 @@ import (
 type fossilGRPCHandler struct {
 	pb.UnimplementedFossilServiceServer
 	service    FossilService
-	generic    services.GenericService
 	brokerFunc func() *pkgserver.EventBroker
 }
 
-func NewFossilGRPCHandler(svc FossilService, generic services.GenericService, brokerFunc func() *pkgserver.EventBroker) pb.FossilServiceServer {
-	return &fossilGRPCHandler{service: svc, generic: generic, brokerFunc: brokerFunc}
+func NewFossilGRPCHandler(svc FossilService, brokerFunc func() *pkgserver.EventBroker) pb.FossilServiceServer {
+	return &fossilGRPCHandler{service: svc, brokerFunc: brokerFunc}
 }
 
 func (h *fossilGRPCHandler) GetFossil(ctx context.Context, req *pb.GetFossilRequest) (*pb.Fossil, error) {
@@ -39,10 +38,6 @@ func (h *fossilGRPCHandler) GetFossil(ctx context.Context, req *pb.GetFossilRequ
 }
 
 func (h *fossilGRPCHandler) CreateFossil(ctx context.Context, req *pb.CreateFossilRequest) (*pb.Fossil, error) {
-	if err := grpcutil.ValidateStringField("discovery_location", req.DiscoveryLocation, true); err != nil {
-		return nil, err
-	}
-
 	fossil := &Fossil{
 		DiscoveryLocation: req.DiscoveryLocation,
 		EstimatedAge: func() *int {
@@ -66,39 +61,8 @@ func (h *fossilGRPCHandler) UpdateFossil(ctx context.Context, req *pb.UpdateFoss
 	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
 		return nil, err
 	}
-	if req.DiscoveryLocation != nil {
-		if err := grpcutil.ValidateStringField("discovery_location", *req.DiscoveryLocation, false); err != nil {
-			return nil, err
-		}
-	}
-	if req.FossilType != nil {
-		if err := grpcutil.ValidateStringField("fossil_type", *req.FossilType, false); err != nil {
-			return nil, err
-		}
-	}
-	if req.ExcavatorName != nil {
-		if err := grpcutil.ValidateStringField("excavator_name", *req.ExcavatorName, false); err != nil {
-			return nil, err
-		}
-	}
 
-	fossil, svcErr := h.service.Get(ctx, req.Id)
-	if svcErr != nil {
-		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
-	}
-	if req.DiscoveryLocation != nil {
-		fossil.DiscoveryLocation = *req.DiscoveryLocation
-	}
-	if req.EstimatedAge != nil {
-		fossil.EstimatedAge = func() *int { v := int(*req.EstimatedAge); return &v }()
-	}
-	if req.FossilType != nil {
-		fossil.FossilType = req.FossilType
-	}
-	if req.ExcavatorName != nil {
-		fossil.ExcavatorName = req.ExcavatorName
-	}
-	result, svcErr := h.service.Replace(ctx, fossil)
+	result, svcErr := h.service.Patch(ctx, req.Id, fossilPatchFromProto(req))
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -125,8 +89,7 @@ func (h *fossilGRPCHandler) ListFossils(ctx context.Context, req *pb.ListFossils
 		Size: int64(size),
 	}
 
-	var fossils []Fossil
-	paging, svcErr := h.generic.List(ctx, "id", listArgs, &fossils)
+	fossils, paging, svcErr := h.service.List(ctx, listArgs)
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -165,7 +128,7 @@ func (h *fossilGRPCHandler) WatchFossils(req *pb.WatchFossilsRequest, stream grp
 				return nil
 			}
 
-			if evt.Source != "Fossils" {
+			if evt.Source != FossilEventSource {
 				continue
 			}
 

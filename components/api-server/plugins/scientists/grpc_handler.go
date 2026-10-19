@@ -18,12 +18,11 @@ import (
 type scientistGRPCHandler struct {
 	pb.UnimplementedScientistServiceServer
 	service    ScientistService
-	generic    services.GenericService
 	brokerFunc func() *pkgserver.EventBroker
 }
 
-func NewScientistGRPCHandler(svc ScientistService, generic services.GenericService, brokerFunc func() *pkgserver.EventBroker) pb.ScientistServiceServer {
-	return &scientistGRPCHandler{service: svc, generic: generic, brokerFunc: brokerFunc}
+func NewScientistGRPCHandler(svc ScientistService, brokerFunc func() *pkgserver.EventBroker) pb.ScientistServiceServer {
+	return &scientistGRPCHandler{service: svc, brokerFunc: brokerFunc}
 }
 
 func (h *scientistGRPCHandler) GetScientist(ctx context.Context, req *pb.GetScientistRequest) (*pb.Scientist, error) {
@@ -39,13 +38,6 @@ func (h *scientistGRPCHandler) GetScientist(ctx context.Context, req *pb.GetScie
 }
 
 func (h *scientistGRPCHandler) CreateScientist(ctx context.Context, req *pb.CreateScientistRequest) (*pb.Scientist, error) {
-	if err := grpcutil.ValidateStringField("name", req.Name, true); err != nil {
-		return nil, err
-	}
-	if err := grpcutil.ValidateStringField("field", req.Field, true); err != nil {
-		return nil, err
-	}
-
 	scientist := &Scientist{
 		Name:  req.Name,
 		Field: req.Field,
@@ -61,28 +53,8 @@ func (h *scientistGRPCHandler) UpdateScientist(ctx context.Context, req *pb.Upda
 	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
 		return nil, err
 	}
-	if req.Name != nil {
-		if err := grpcutil.ValidateStringField("name", *req.Name, false); err != nil {
-			return nil, err
-		}
-	}
-	if req.Field != nil {
-		if err := grpcutil.ValidateStringField("field", *req.Field, false); err != nil {
-			return nil, err
-		}
-	}
 
-	scientist, svcErr := h.service.Get(ctx, req.Id)
-	if svcErr != nil {
-		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
-	}
-	if req.Name != nil {
-		scientist.Name = *req.Name
-	}
-	if req.Field != nil {
-		scientist.Field = *req.Field
-	}
-	result, svcErr := h.service.Replace(ctx, scientist)
+	result, svcErr := h.service.Patch(ctx, req.Id, scientistPatchFromProto(req))
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -109,8 +81,7 @@ func (h *scientistGRPCHandler) ListScientists(ctx context.Context, req *pb.ListS
 		Size: int64(size),
 	}
 
-	var scientists []Scientist
-	paging, svcErr := h.generic.List(ctx, "id", listArgs, &scientists)
+	scientists, paging, svcErr := h.service.List(ctx, listArgs)
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -149,7 +120,7 @@ func (h *scientistGRPCHandler) WatchScientists(req *pb.WatchScientistsRequest, s
 				return nil
 			}
 
-			if evt.Source != "Scientists" {
+			if evt.Source != ScientistEventSource {
 				continue
 			}
 

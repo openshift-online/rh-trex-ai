@@ -11,6 +11,7 @@ import (
 
 type ScientistDao interface {
 	Get(ctx context.Context, id string) (*Scientist, error)
+	GetForUpdate(ctx context.Context, id string) (*Scientist, error)
 	Create(ctx context.Context, scientist *Scientist) (*Scientist, error)
 	Replace(ctx context.Context, scientist *Scientist) (*Scientist, error)
 	Delete(ctx context.Context, id string) error
@@ -32,6 +33,17 @@ func (d *sqlScientistDao) Get(ctx context.Context, id string) (*Scientist, error
 	g2 := (*d.sessionFactory).New(ctx)
 	var scientist Scientist
 	if err := g2.Take(&scientist, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &scientist, nil
+}
+
+// GetForUpdate reads a scientist and row-locks it (SELECT ... FOR UPDATE) until the
+// request transaction ends, so a read-modify-write cannot lose a concurrent update.
+func (d *sqlScientistDao) GetForUpdate(ctx context.Context, id string) (*Scientist, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var scientist Scientist
+	if err := g2.Clauses(clause.Locking{Strength: "UPDATE"}).Take(&scientist, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &scientist, nil

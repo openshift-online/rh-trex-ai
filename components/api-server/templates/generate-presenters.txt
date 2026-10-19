@@ -90,3 +90,18 @@ func Present{{.Kind}}({{.KindLowerSingular}} *{{.Kind}}) openapi.{{.Kind}} {
 {{- end}}
 	}
 }
+
+// Convert{{.Kind}}Patch turns a REST patch body into the model patch the service applies.
+func Convert{{.Kind}}Patch(patch openapi.{{.Kind}}PatchRequest) *{{.Kind}}PatchRequest {
+	c := &{{.Kind}}PatchRequest{}
+{{- range .Fields}}
+{{- if eq .Type "int"}}
+	if patch.{{.Name}} != nil {
+		c.{{.Name}} = openapi.PtrInt(int(*patch.{{.Name}}))
+	}
+{{- else}}
+	c.{{.Name}} = patch.{{.Name}}
+{{- end}}
+{{- end}}
+	return c
+}

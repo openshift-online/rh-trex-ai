@@ -37,3 +37,24 @@ func {{.KindLowerSingular}}ToProto(d *{{.Kind}}) *pb.{{.Kind}} {
 		{{- end}}
 	}
 }
+
+// {{.KindLowerSingular}}PatchFromProto turns a gRPC update request into the model patch the service applies.
+func {{.KindLowerSingular}}PatchFromProto(req *pb.Update{{.Kind}}Request) *{{.Kind}}PatchRequest {
+	patch := &{{.Kind}}PatchRequest{}
+	{{- range .Fields}}
+	{{- if eq .Type "int"}}
+	if req.{{.Name}} != nil {
+		v := int(*req.{{.Name}})
+		patch.{{.Name}} = &v
+	}
+	{{- else if eq .Type "time"}}
+	if req.{{.Name}} != nil {
+		v := req.{{.Name}}.AsTime()
+		patch.{{.Name}} = &v
+	}
+	{{- else}}
+	patch.{{.Name}} = req.{{.Name}}
+	{{- end}}
+	{{- end}}
+	return patch
+}

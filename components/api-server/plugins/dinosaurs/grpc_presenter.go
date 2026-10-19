@@ -17,3 +17,10 @@ func dinosaurToProto(d *Dinosaur) *pb.Dinosaur {
 		Species: d.Species,
 	}
 }
+
+// dinosaurPatchFromProto turns a gRPC update request into the model patch the service applies.
+func dinosaurPatchFromProto(req *pb.UpdateDinosaurRequest) *DinosaurPatchRequest {
+	patch := &DinosaurPatchRequest{}
+	patch.Species = req.Species
+	return patch
+}

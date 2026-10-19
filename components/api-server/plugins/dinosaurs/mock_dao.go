@@ -27,6 +27,10 @@ func (d *dinosaurDaoMock) Get(ctx context.Context, id string) (*Dinosaur, error)
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (d *dinosaurDaoMock) GetForUpdate(ctx context.Context, id string) (*Dinosaur, error) {
+	return d.Get(ctx, id)
+}
+
 func (d *dinosaurDaoMock) Create(ctx context.Context, dinosaur *Dinosaur) (*Dinosaur, error) {
 	d.dinosaurs = append(d.dinosaurs, dinosaur)
 	return dinosaur, nil

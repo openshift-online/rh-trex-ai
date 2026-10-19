@@ -18,3 +18,11 @@ func scientistToProto(d *Scientist) *pb.Scientist {
 		Field: d.Field,
 	}
 }
+
+// scientistPatchFromProto turns a gRPC update request into the model patch the service applies.
+func scientistPatchFromProto(req *pb.UpdateScientistRequest) *ScientistPatchRequest {
+	patch := &ScientistPatchRequest{}
+	patch.Name = req.Name
+	patch.Field = req.Field
+	return patch
+}

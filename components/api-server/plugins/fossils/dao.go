@@ -11,6 +11,7 @@ import (
 
 type FossilDao interface {
 	Get(ctx context.Context, id string) (*Fossil, error)
+	GetForUpdate(ctx context.Context, id string) (*Fossil, error)
 	Create(ctx context.Context, fossil *Fossil) (*Fossil, error)
 	Replace(ctx context.Context, fossil *Fossil) (*Fossil, error)
 	Delete(ctx context.Context, id string) error
@@ -32,6 +33,17 @@ func (d *sqlFossilDao) Get(ctx context.Context, id string) (*Fossil, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var fossil Fossil
 	if err := g2.Take(&fossil, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &fossil, nil
+}
+
+// GetForUpdate reads a fossil and row-locks it (SELECT ... FOR UPDATE) until the
+// request transaction ends, so a read-modify-write cannot lose a concurrent update.
+func (d *sqlFossilDao) GetForUpdate(ctx context.Context, id string) (*Fossil, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var fossil Fossil
+	if err := g2.Clauses(clause.Locking{Strength: "UPDATE"}).Take(&fossil, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &fossil, nil

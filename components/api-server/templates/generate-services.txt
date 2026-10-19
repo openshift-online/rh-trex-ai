@@ -12,12 +12,17 @@ import (
 
 const {{.KindLowerPlural}}LockType db.LockType = "{{.KindSnakeCasePlural}}"
 
+// {{.Kind}}EventSource is the Source of every event about a {{.KindLowerSingular}}.
+const {{.Kind}}EventSource = "{{.KindPlural}}"
+
 type {{.Kind}}Service interface {
 	Get(ctx context.Context, id string) (*{{.Kind}}, *errors.ServiceError)
 	Create(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, *errors.ServiceError)
 	Replace(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, *errors.ServiceError)
+	Patch(ctx context.Context, id string, patch *{{.Kind}}PatchRequest) (*{{.Kind}}, *errors.ServiceError)
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) ({{.Kind}}List, *errors.ServiceError)
+	List(ctx context.Context, args *services.ListArguments) ([]{{.Kind}}, *api.PagingMeta, *errors.ServiceError)
 
 	FindByIDs(ctx context.Context, ids []string) ({{.Kind}}List, *errors.ServiceError)
 
@@ -25,11 +30,12 @@ type {{.Kind}}Service interface {
 	OnDelete(ctx context.Context, id string) error
 }
 
-func New{{.Kind}}Service(lockFactory db.LockFactory, {{.KindLowerSingular}}Dao {{.Kind}}Dao, events services.EventService) {{.Kind}}Service {
+func New{{.Kind}}Service(lockFactory db.LockFactory, {{.KindLowerSingular}}Dao {{.Kind}}Dao, events services.EventService, generic services.GenericService) {{.Kind}}Service {
 	return &sql{{.Kind}}Service{
 		lockFactory: lockFactory,
 		{{.KindLowerSingular}}Dao: {{.KindLowerSingular}}Dao,
 		events:      events,
+		generic:     generic,
 	}
 }
 
@@ -39,6 +45,39 @@ type sql{{.Kind}}Service struct {
 	lockFactory db.LockFactory
 	{{.KindLowerSingular}}Dao {{.Kind}}Dao
 	events      services.EventService
+	generic     services.GenericService
+}
+
+// validate{{.Kind}} checks the rules every stored {{.KindLowerSingular}} must satisfy.
+// Create, Replace and Patch all call it, so REST and gRPC enforce the same rules.
+func validate{{.Kind}}({{.KindLowerSingular}} *{{.Kind}}) *errors.ServiceError {
+{{- range .Fields}}
+{{- if eq .Type "string"}}
+{{- if .Required}}
+	if err := services.ValidateRequiredString("{{.NameSnakeCase}}", {{$.KindLowerSingular}}.{{.Name}}); err != nil {
+		return err
+	}
+{{- else}}
+	if err := services.ValidateOptionalString("{{.NameSnakeCase}}", {{$.KindLowerSingular}}.{{.Name}}); err != nil {
+		return err
+	}
+{{- end}}
+{{- end}}
+{{- end}}
+	return nil
+}
+
+// apply{{.Kind}}Patch copies every field set in patch onto {{.KindLowerSingular}}.
+func apply{{.Kind}}Patch({{.KindLowerSingular}} *{{.Kind}}, patch *{{.Kind}}PatchRequest) {
+{{- range .Fields}}
+	if patch.{{.Name}} != nil {
+{{- if .Required}}
+		{{$.KindLowerSingular}}.{{.Name}} = *patch.{{.Name}}
+{{- else}}
+		{{$.KindLowerSingular}}.{{.Name}} = patch.{{.Name}}
+{{- end}}
+	}
+{{- end}}
 }
 
 func (s *sql{{.Kind}}Service) OnUpsert(ctx context.Context, id string) error {
@@ -69,13 +108,17 @@ func (s *sql{{.Kind}}Service) Get(ctx context.Context, id string) (*{{.Kind}}, *
 }
 
 func (s *sql{{.Kind}}Service) Create(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, *errors.ServiceError) {
+	if svcErr := validate{{.Kind}}({{.KindLowerSingular}}); svcErr != nil {
+		return nil, svcErr
+	}
+
 	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.Create(ctx, {{.KindLowerSingular}})
 	if err != nil {
 		return nil, services.HandleCreateError("{{.Kind}}", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "{{.KindPlural}}",
+		Source:    {{.Kind}}EventSource,
 		SourceID:  {{.KindLowerSingular}}.ID,
 		EventType: api.CreateEventType,
 	})
@@ -93,13 +136,42 @@ func (s *sql{{.Kind}}Service) Replace(ctx context.Context, {{.KindLowerSingular}
 	}
 	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 
-	{{.KindLowerSingular}}, err = s.{{.KindLowerSingular}}Dao.Replace(ctx, {{.KindLowerSingular}})
+	return s.update(ctx, {{.KindLowerSingular}})
+}
+
+// Patch applies a partial update. The read, merge and write all happen under a
+// row lock held until the request transaction commits, so concurrent patches to
+// the same {{.KindLowerSingular}} cannot overwrite each other.
+func (s *sql{{.Kind}}Service) Patch(ctx context.Context, id string, patch *{{.Kind}}PatchRequest) (*{{.Kind}}, *errors.ServiceError) {
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, {{.KindLowerPlural}}LockType)
+	if err != nil {
+		return nil, errors.DatabaseAdvisoryLock(err)
+	}
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+
+	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.GetForUpdate(ctx, id)
+	if err != nil {
+		return nil, services.HandleGetError("{{.Kind}}", "id", id, err)
+	}
+
+	apply{{.Kind}}Patch({{.KindLowerSingular}}, patch)
+	return s.update(ctx, {{.KindLowerSingular}})
+}
+
+// update validates and saves {{.KindLowerSingular}}, then records an update event.
+// Callers must hold the {{.KindLowerSingular}}'s lock.
+func (s *sql{{.Kind}}Service) update(ctx context.Context, {{.KindLowerSingular}} *{{.Kind}}) (*{{.Kind}}, *errors.ServiceError) {
+	if svcErr := validate{{.Kind}}({{.KindLowerSingular}}); svcErr != nil {
+		return nil, svcErr
+	}
+
+	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.Replace(ctx, {{.KindLowerSingular}})
 	if err != nil {
 		return nil, services.HandleUpdateError("{{.Kind}}", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "{{.KindPlural}}",
+		Source:    {{.Kind}}EventSource,
 		SourceID:  {{.KindLowerSingular}}.ID,
 		EventType: api.UpdateEventType,
 	})
@@ -116,7 +188,7 @@ func (s *sql{{.Kind}}Service) Delete(ctx context.Context, id string) *errors.Ser
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "{{.KindPlural}}",
+		Source:    {{.Kind}}EventSource,
 		SourceID:  id,
 		EventType: api.DeleteEventType,
 	})
@@ -141,4 +213,13 @@ func (s *sql{{.Kind}}Service) All(ctx context.Context) ({{.Kind}}List, *errors.S
 		return nil, errors.GeneralError("Unable to get all {{.KindLowerPlural}}: %s", err)
 	}
 	return {{.KindLowerPlural}}, nil
+}
+
+func (s *sql{{.Kind}}Service) List(ctx context.Context, args *services.ListArguments) ([]{{.Kind}}, *api.PagingMeta, *errors.ServiceError) {
+	var {{.KindLowerPlural}} []{{.Kind}}
+	paging, err := s.generic.List(ctx, "id", args, &{{.KindLowerPlural}})
+	if err != nil {
+		return nil, nil, err
+	}
+	return {{.KindLowerPlural}}, paging, nil
 }

@@ -18,12 +18,11 @@ import (
 type dinosaurGRPCHandler struct {
 	pb.UnimplementedDinosaurServiceServer
 	service    DinosaurService
-	generic    services.GenericService
 	brokerFunc func() *pkgserver.EventBroker
 }
 
-func NewDinosaurGRPCHandler(svc DinosaurService, generic services.GenericService, brokerFunc func() *pkgserver.EventBroker) pb.DinosaurServiceServer {
-	return &dinosaurGRPCHandler{service: svc, generic: generic, brokerFunc: brokerFunc}
+func NewDinosaurGRPCHandler(svc DinosaurService, brokerFunc func() *pkgserver.EventBroker) pb.DinosaurServiceServer {
+	return &dinosaurGRPCHandler{service: svc, brokerFunc: brokerFunc}
 }
 
 func (h *dinosaurGRPCHandler) GetDinosaur(ctx context.Context, req *pb.GetDinosaurRequest) (*pb.Dinosaur, error) {
@@ -39,10 +38,6 @@ func (h *dinosaurGRPCHandler) GetDinosaur(ctx context.Context, req *pb.GetDinosa
 }
 
 func (h *dinosaurGRPCHandler) CreateDinosaur(ctx context.Context, req *pb.CreateDinosaurRequest) (*pb.Dinosaur, error) {
-	if err := grpcutil.ValidateStringField("species", req.Species, true); err != nil {
-		return nil, err
-	}
-
 	dinosaur := &Dinosaur{
 		Species: req.Species,
 	}
@@ -57,20 +52,8 @@ func (h *dinosaurGRPCHandler) UpdateDinosaur(ctx context.Context, req *pb.Update
 	if err := grpcutil.ValidateRequiredID(req.Id); err != nil {
 		return nil, err
 	}
-	if req.Species != nil {
-		if err := grpcutil.ValidateStringField("species", *req.Species, false); err != nil {
-			return nil, err
-		}
-	}
 
-	dinosaur, svcErr := h.service.Get(ctx, req.Id)
-	if svcErr != nil {
-		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
-	}
-	if req.Species != nil {
-		dinosaur.Species = *req.Species
-	}
-	result, svcErr := h.service.Replace(ctx, dinosaur)
+	result, svcErr := h.service.Patch(ctx, req.Id, dinosaurPatchFromProto(req))
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -97,8 +80,7 @@ func (h *dinosaurGRPCHandler) ListDinosaurs(ctx context.Context, req *pb.ListDin
 		Size: int64(size),
 	}
 
-	var dinosaurs []Dinosaur
-	paging, svcErr := h.generic.List(ctx, "id", listArgs, &dinosaurs)
+	dinosaurs, paging, svcErr := h.service.List(ctx, listArgs)
 	if svcErr != nil {
 		return nil, grpcutil.ServiceErrorToGRPC(svcErr)
 	}
@@ -137,7 +119,7 @@ func (h *dinosaurGRPCHandler) WatchDinosaurs(req *pb.WatchDinosaursRequest, stre
 				return nil
 			}
 
-			if evt.Source != "Dinosaurs" {
+			if evt.Source != DinosaurEventSource {
 				continue
 			}
 

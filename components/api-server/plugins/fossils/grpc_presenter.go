@@ -26,3 +26,16 @@ func fossilToProto(d *Fossil) *pb.Fossil {
 		ExcavatorName: d.ExcavatorName,
 	}
 }
+
+// fossilPatchFromProto turns a gRPC update request into the model patch the service applies.
+func fossilPatchFromProto(req *pb.UpdateFossilRequest) *FossilPatchRequest {
+	patch := &FossilPatchRequest{}
+	patch.DiscoveryLocation = req.DiscoveryLocation
+	if req.EstimatedAge != nil {
+		v := int(*req.EstimatedAge)
+		patch.EstimatedAge = &v
+	}
+	patch.FossilType = req.FossilType
+	patch.ExcavatorName = req.ExcavatorName
+	return patch
+}

@@ -12,12 +12,17 @@ import (
 
 const scientistsLockType db.LockType = "scientists"
 
+// ScientistEventSource is the Source of every event about a scientist.
+const ScientistEventSource = "Scientists"
+
 type ScientistService interface {
 	Get(ctx context.Context, id string) (*Scientist, *errors.ServiceError)
 	Create(ctx context.Context, scientist *Scientist) (*Scientist, *errors.ServiceError)
 	Replace(ctx context.Context, scientist *Scientist) (*Scientist, *errors.ServiceError)
+	Patch(ctx context.Context, id string, patch *ScientistPatchRequest) (*Scientist, *errors.ServiceError)
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (ScientistList, *errors.ServiceError)
+	List(ctx context.Context, args *services.ListArguments) ([]Scientist, *api.PagingMeta, *errors.ServiceError)
 
 	FindByIDs(ctx context.Context, ids []string) (ScientistList, *errors.ServiceError)
 
@@ -25,11 +30,12 @@ type ScientistService interface {
 	OnDelete(ctx context.Context, id string) error
 }
 
-func NewScientistService(lockFactory db.LockFactory, scientistDao ScientistDao, events services.EventService) ScientistService {
+func NewScientistService(lockFactory db.LockFactory, scientistDao ScientistDao, events services.EventService, generic services.GenericService) ScientistService {
 	return &sqlScientistService{
 		lockFactory:  lockFactory,
 		scientistDao: scientistDao,
 		events:       events,
+		generic:      generic,
 	}
 }
 
@@ -39,6 +45,29 @@ type sqlScientistService struct {
 	lockFactory  db.LockFactory
 	scientistDao ScientistDao
 	events       services.EventService
+	generic      services.GenericService
+}
+
+// validateScientist checks the rules every stored scientist must satisfy.
+// Create, Replace and Patch all call it, so REST and gRPC enforce the same rules.
+func validateScientist(scientist *Scientist) *errors.ServiceError {
+	if err := services.ValidateRequiredString("name", scientist.Name); err != nil {
+		return err
+	}
+	if err := services.ValidateRequiredString("field", scientist.Field); err != nil {
+		return err
+	}
+	return nil
+}
+
+// applyScientistPatch copies every field set in patch onto scientist.
+func applyScientistPatch(scientist *Scientist, patch *ScientistPatchRequest) {
+	if patch.Name != nil {
+		scientist.Name = *patch.Name
+	}
+	if patch.Field != nil {
+		scientist.Field = *patch.Field
+	}
 }
 
 func (s *sqlScientistService) OnUpsert(ctx context.Context, id string) error {
@@ -69,13 +98,17 @@ func (s *sqlScientistService) Get(ctx context.Context, id string) (*Scientist, *
 }
 
 func (s *sqlScientistService) Create(ctx context.Context, scientist *Scientist) (*Scientist, *errors.ServiceError) {
+	if svcErr := validateScientist(scientist); svcErr != nil {
+		return nil, svcErr
+	}
+
 	scientist, err := s.scientistDao.Create(ctx, scientist)
 	if err != nil {
 		return nil, services.HandleCreateError("Scientist", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Scientists",
+		Source:    ScientistEventSource,
 		SourceID:  scientist.ID,
 		EventType: api.CreateEventType,
 	})
@@ -93,13 +126,42 @@ func (s *sqlScientistService) Replace(ctx context.Context, scientist *Scientist)
 	}
 	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 
-	scientist, err = s.scientistDao.Replace(ctx, scientist)
+	return s.update(ctx, scientist)
+}
+
+// Patch applies a partial update. The read, merge and write all happen under a
+// row lock held until the request transaction commits, so concurrent patches to
+// the same scientist cannot overwrite each other.
+func (s *sqlScientistService) Patch(ctx context.Context, id string, patch *ScientistPatchRequest) (*Scientist, *errors.ServiceError) {
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, scientistsLockType)
+	if err != nil {
+		return nil, errors.DatabaseAdvisoryLock(err)
+	}
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+
+	scientist, err := s.scientistDao.GetForUpdate(ctx, id)
+	if err != nil {
+		return nil, services.HandleGetError("Scientist", "id", id, err)
+	}
+
+	applyScientistPatch(scientist, patch)
+	return s.update(ctx, scientist)
+}
+
+// update validates and saves scientist, then records an update event.
+// Callers must hold the scientist's lock.
+func (s *sqlScientistService) update(ctx context.Context, scientist *Scientist) (*Scientist, *errors.ServiceError) {
+	if svcErr := validateScientist(scientist); svcErr != nil {
+		return nil, svcErr
+	}
+
+	scientist, err := s.scientistDao.Replace(ctx, scientist)
 	if err != nil {
 		return nil, services.HandleUpdateError("Scientist", err)
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Scientists",
+		Source:    ScientistEventSource,
 		SourceID:  scientist.ID,
 		EventType: api.UpdateEventType,
 	})
@@ -116,7 +178,7 @@ func (s *sqlScientistService) Delete(ctx context.Context, id string) *errors.Ser
 	}
 
 	_, evErr := s.events.Create(ctx, &api.Event{
-		Source:    "Scientists",
+		Source:    ScientistEventSource,
 		SourceID:  id,
 		EventType: api.DeleteEventType,
 	})
@@ -141,4 +203,13 @@ func (s *sqlScientistService) All(ctx context.Context) (ScientistList, *errors.S
 		return nil, errors.GeneralError("Unable to get all scientists: %s", err)
 	}
 	return scientists, nil
+}
+
+func (s *sqlScientistService) List(ctx context.Context, args *services.ListArguments) ([]Scientist, *api.PagingMeta, *errors.ServiceError) {
+	var scientists []Scientist
+	paging, err := s.generic.List(ctx, "id", args, &scientists)
+	if err != nil {
+		return nil, nil, err
+	}
+	return scientists, paging, nil
 }
