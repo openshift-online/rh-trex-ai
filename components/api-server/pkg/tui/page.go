@@ -75,6 +75,7 @@ type ResourceTableComponent struct {
 	restoreIdentity string
 	sortProperty    string
 	sortDescending  bool
+	wideColumns     bool
 	theme           Theme
 }
 

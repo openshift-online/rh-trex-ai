@@ -83,12 +83,12 @@ func loadFile() (cfg *Config, err error) {
 		return
 	}
 	if err != nil {
-		err = fmt.Errorf("can't check if config file '%s' exists: %v", file, err)
+		err = fmt.Errorf("can't check if config file '%s' exists: %w", file, err)
 		return
 	}
 	data, err := os.ReadFile(file)
 	if err != nil {
-		err = fmt.Errorf("can't read config file '%s': %v", file, err)
+		err = fmt.Errorf("can't read config file '%s': %w", file, err)
 		return
 	}
 	cfg = &Config{}
@@ -97,7 +97,7 @@ func loadFile() (cfg *Config, err error) {
 	}
 	err = json.Unmarshal(data, cfg)
 	if err != nil {
-		err = fmt.Errorf("can't parse config file '%s': %v", file, err)
+		err = fmt.Errorf("can't parse config file '%s': %w", file, err)
 		return
 	}
 	return
@@ -111,19 +111,19 @@ func saveFile(cfg *Config) error {
 	dir := filepath.Dir(file)
 	err = os.MkdirAll(dir, os.FileMode(0700))
 	if err != nil {
-		return fmt.Errorf("can't create directory %s: %v", dir, err)
+		return fmt.Errorf("can't create directory %s: %w", dir, err)
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return fmt.Errorf("can't marshal config: %v", err)
+		return fmt.Errorf("can't marshal config: %w", err)
 	}
 	err = os.WriteFile(file, data, 0600)
 	if err != nil {
-		return fmt.Errorf("can't write file '%s': %v", file, err)
+		return fmt.Errorf("can't write file '%s': %w", file, err)
 	}
 	// WriteFile keeps the mode of an existing file, and this file holds credentials.
 	if err := os.Chmod(file, 0600); err != nil {
-		return fmt.Errorf("can't restrict permissions of '%s': %v", file, err)
+		return fmt.Errorf("can't restrict permissions of '%s': %w", file, err)
 	}
 	return nil
 }

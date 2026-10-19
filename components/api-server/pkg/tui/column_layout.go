@@ -32,7 +32,7 @@ type columnPolicy struct {
 	expansionWeight int
 }
 
-func calculateColumnLayout(view View, rows []Row, available, requestedOffset int) columnLayout {
+func calculateColumnLayout(view View, rows []Row, available, requestedOffset int, wide bool) columnLayout {
 	count := len(view.Columns)
 	if count == 0 {
 		return columnLayout{}
@@ -46,6 +46,9 @@ func calculateColumnLayout(view View, rows []Row, available, requestedOffset int
 	for index, column := range view.Columns {
 		titleWidth := displayCellWidth(columnTitle(view, column))
 		policy := sizingPolicy(column, titleWidth)
+		if wide {
+			policy.maximum = available
+		}
 		policy.maximum = min(policy.maximum, max(1, available-tableColumnGutterWidth))
 		policy.minimum = min(policy.minimum, policy.maximum)
 		natural := titleWidth
@@ -67,9 +70,12 @@ func calculateColumnLayout(view View, rows []Row, available, requestedOffset int
 	}
 
 	used := columnsDisplayWidth(widths, 0, len(widths))
-	if used < available {
+	switch {
+	case wide:
+		// Full-content mode keeps natural widths; overflow scrolls horizontally.
+	case used < available:
 		expandColumns(widths, maximums, weights, available-used)
-	} else if used > available {
+	case used > available:
 		compressColumns(view.Columns, widths, minimums, used-available)
 	}
 
