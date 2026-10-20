@@ -15,6 +15,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20260311145557-c83711a11ffa
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-healthcheck v0.1.0
+	github.com/felixge/httpsnoop v1.0.4
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.5
 	github.com/golang-jwt/jwt/v4 v4.5.0
@@ -79,7 +80,6 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

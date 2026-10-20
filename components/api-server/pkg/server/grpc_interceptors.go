@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -93,14 +94,27 @@ func MetricsUnaryInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
+// TransactionUnaryInterceptor runs each unary call in a database transaction.
+// The transaction is rolled back when the handler returns an error or panics.
+// Otherwise it is committed, unless something called db.MarkForRollback.
 func TransactionUnaryInterceptor(sessionFactory db.SessionFactory) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		ctx, err := db.NewContext(ctx, sessionFactory)
-		if err != nil {
-			glog.Errorf("Failed to create DB transaction for gRPC call %s: %v", info.FullMethod, err)
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		ctx, txErr := db.NewContext(ctx, sessionFactory)
+		if txErr != nil {
+			glog.Errorf("Failed to create DB transaction for gRPC call %s: %v", info.FullMethod, txErr)
 			return nil, status.Error(codes.Internal, "internal database error")
 		}
-		defer func() { db.Resolve(ctx) }()
+		defer func() {
+			if p := recover(); p != nil {
+				db.MarkForRollback(ctx, fmt.Errorf("panic: %v", p))
+				db.Resolve(ctx)
+				panic(p)
+			}
+			if err != nil {
+				db.MarkForRollback(ctx, err)
+			}
+			db.Resolve(ctx)
+		}()
 
 		return handler(ctx, req)
 	}

@@ -488,20 +488,36 @@ The REST side wraps every request in a DB transaction via `db.TransactionMiddlew
 
 ```go
 func TransactionUnaryInterceptor(sessionFactory db.SessionFactory) grpc.UnaryServerInterceptor {
-    return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-        ctx, err := db.NewContext(ctx, sessionFactory)
-        if err != nil {
-            glog.Errorf("Failed to create DB transaction for gRPC call %s: %v", info.FullMethod, err)
+    return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+        ctx, txErr := db.NewContext(ctx, sessionFactory)
+        if txErr != nil {
+            glog.Errorf("Failed to create DB transaction for gRPC call %s: %v", info.FullMethod, txErr)
             return nil, status.Error(codes.Internal, "internal database error")
         }
-        defer func() { db.Resolve(ctx) }()
+        defer func() {
+            if p := recover(); p != nil {
+                db.MarkForRollback(ctx, fmt.Errorf("panic: %v", p))
+                db.Resolve(ctx)
+                panic(p)
+            }
+            if err != nil {
+                db.MarkForRollback(ctx, err)
+            }
+            db.Resolve(ctx)
+        }()
 
         return handler(ctx, req)
     }
 }
 ```
 
-This ensures gRPC writes have the same transaction semantics as REST writes — `db.NewContext` begins the transaction, `db.Resolve` commits on success or rolls back on error/panic.
+This ensures gRPC writes have the same transaction semantics as REST writes:
+
+1. `db.NewContext` begins the transaction.
+2. If the handler returns an error or panics, the transaction is marked for rollback. The panic is then re-raised for `RecoveryUnaryInterceptor`.
+3. `db.Resolve` commits, or rolls back if the transaction was marked.
+
+On the REST side, `db.TransactionMiddleware` does the same, using the response status: 4xx and 5xx responses roll back.
 
 ##### AuthUnaryInterceptor
 

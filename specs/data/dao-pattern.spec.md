@@ -43,6 +43,24 @@ All DAO methods SHALL obtain a GORM session via `(*sessionFactory).New(ctx)` to 
 - WHEN `db.MarkForRollback(ctx, err)` is called and the request resolves
 - THEN none of those writes SHALL be persisted
 
+#### Scenario: HTTP error response rolls back the request
+- GIVEN an HTTP request that made DAO writes inside the request transaction
+- WHEN the handler responds with a 4xx or 5xx status
+- THEN the transaction middleware SHALL mark the transaction for rollback
+- AND none of those writes SHALL be persisted
+
+#### Scenario: gRPC error rolls back the request
+- GIVEN a unary gRPC call that made DAO writes inside the request transaction
+- WHEN the handler returns a non-nil error
+- THEN the transaction interceptor SHALL mark the transaction for rollback
+- AND none of those writes SHALL be persisted
+
+#### Scenario: Panic rolls back the request
+- GIVEN an HTTP request or unary gRPC call that made DAO writes inside the request transaction
+- WHEN the handler panics
+- THEN the transaction SHALL be rolled back, not committed
+- AND the panic SHALL continue to propagate to outer recovery handlers
+
 #### Scenario: Advisory lock inside a request transaction
 - GIVEN a request context containing a transaction
 - WHEN a service takes an advisory lock with that context
