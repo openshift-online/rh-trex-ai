@@ -10,7 +10,7 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 
 - REST + gRPC dual-protocol API with OpenAPI spec generation
 - Plugin-based entity architecture with auto-registration
-- Entity code generator (`go run ./scripts/generator.go --kind YourKind`)
+- Entity code generator (`trex generate-entity` / `new-entity`) scaffolded into new apps
 - CLI code generator (`scripts/cli-generator/`) — generates a typed CLI from your OpenAPI spec
 - Integrated Bubble Tea TUI (`trex tui`) generated from the OpenAPI spec
 - PostgreSQL with GORM, migrations, and advisory locks
@@ -45,6 +45,55 @@ make run-no-auth
 
 REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
 
+## Start a New Application (Bootstrap)
+
+Scaffold a brand-new TRex-based microservice in a separate repository with one command:
+
+```sh
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir]
+```
+
+Examples:
+
+```sh
+# Create ./my-service with module base github.com/myorg
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg
+
+# Create in a specific parent directory
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/code
+```
+
+What it does:
+
+1. Clones the TRex source (cached in `$HOME/.trex/src`) — or reuses `TREX_SRC` if you set it.
+2. Builds the `trex` CLI from that source.
+3. Runs `trex new-project` to scaffold the project structure and substitute all placeholders.
+4. Points the new project's `replace` directive at the TRex source used, so it builds immediately.
+5. Optionally runs `make generate && go mod tidy && make binary` to verify the scaffold builds.
+
+The scaffolded project is a complete Go service that imports the TRex library and inherits all commands (`serve`, `migrate`, `tui`, `new-entity`, `new-project`).
+
+Then add your first entity:
+
+```sh
+cd my-service
+./my-service new-entity --kind HelloWorld --fields "message:string:required" \
+  --project my-service --repo github.com/myorg \
+  --library github.com/openshift-online/rh-trex-ai/components/api-server \
+  --module github.com/myorg/my-service --proto-package my_service
+make proto && make generate && go build ./...
+```
+
+Environment variables (all optional):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TREX_REPO_URL` | `https://github.com/openshift-online/rh-trex-ai` | Git URL for the TRex source |
+| `TREX_BRANCH` | remote default branch | Branch/tag to fetch |
+| `TREX_SRC` | — | Use an existing local checkout (skips cloning) |
+| `TREX_HOME` | `$HOME/.trex` | Cache dir for the clone |
+| `SKIP_BUILD` | `0` | Set to `1` to skip the verification build |
+
 ## Usage
 
 ```sh
@@ -65,10 +114,10 @@ grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 
 ```sh
 # Basic
-go run ./scripts/generator.go --kind Rocket
+go run ./cmd/trex generate-entity --kind Rocket
 
 # With typed fields (nullable by default, :required for non-nullable)
-go run ./scripts/generator.go --kind Rocket \
+go run ./cmd/trex generate-entity --kind Rocket \
   --fields "name:string:required,fuel_type:string,max_speed:int,active:bool"
 ```
 
@@ -147,7 +196,8 @@ pkg/server/            gRPC server, routing, event broker
 pkg/tui/               Shared descriptor-driven Bubble Tea runtime
 plugins/               Self-registering entity plugins
 proto/                 Protobuf definitions
-scripts/generator.go   Entity code generator
+cmd/trex generate-entity   Entity code generator (in-app command)
+scripts/bootstrap.sh         One-command bootstrap for new apps (curl | bash)
 scripts/cli-generator/ CLI code generator
 scripts/tui-generator/ TUI descriptor generator
 specs/                 Formal requirements (SDD)

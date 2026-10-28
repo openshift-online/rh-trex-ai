@@ -124,7 +124,7 @@ func (h *dinosaurGRPCHandler) WatchDinosaurs(req *pb.WatchDinosaursRequest, stre
 			}
 
 			watchEvent := &pb.DinosaurWatchEvent{
-				Type:       grpcutil.APIEventTypeToProto(evt.EventType),
+				Type:       pb.EventType(grpcutil.APIEventTypeToProto(evt.EventType)),
 				ResourceId: evt.SourceID,
 			}
 

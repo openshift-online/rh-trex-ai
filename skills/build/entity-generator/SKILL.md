@@ -29,7 +29,7 @@ $ARGUMENTS
 
 3. **Run the generator**:
    ```bash
-   go run ./scripts/generator.go --kind {Kind} [--fields "{fields}"] [--plural "{plural}"]
+   go run ./cmd/trex generate-entity --kind {Kind} [--fields "{fields}"] [--plural "{plural}"]
    ```
    This automatically:
    - Creates 16 files in `plugins/{kindLowerPlural}/`

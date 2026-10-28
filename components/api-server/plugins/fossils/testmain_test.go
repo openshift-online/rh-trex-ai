@@ -11,7 +11,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-
 	flag.Parse()
 	slog.Info("Starting fossils integration test", "go_version", runtime.Version())
 	helper := test.NewHelper(&testing.T{})

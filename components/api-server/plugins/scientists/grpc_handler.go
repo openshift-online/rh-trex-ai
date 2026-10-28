@@ -125,7 +125,7 @@ func (h *scientistGRPCHandler) WatchScientists(req *pb.WatchScientistsRequest, s
 			}
 
 			watchEvent := &pb.ScientistWatchEvent{
-				Type:       grpcutil.APIEventTypeToProto(evt.EventType),
+				Type:       pb.EventType(grpcutil.APIEventTypeToProto(evt.EventType)),
 				ResourceId: evt.SourceID,
 			}
 

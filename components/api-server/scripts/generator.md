@@ -1,6 +1,15 @@
 # TRex Software Factory
 
-The ERD below is the **single source of truth** for all Kinds in this project. The software factory reads this ERD as Desired State, scans the codebase as Actual State, and reconciles the difference by generating, updating, or removing Kinds across all generators.
+The machine-readable source of truth for auto-generated Kinds is
+[`scripts/entities.yaml`](./entities.yaml). The software factory reads that
+manifest as Desired State, scans the codebase as Actual State, and reconciles
+the difference by generating, updating, or removing Kinds across all
+generators. `make verify-entities` regenerates every declared entity and
+fails if disk drifts from the manifest.
+
+The ERD below is the human-readable view of the same Desired State (kinds and
+fields, plus documented relationships). Keep it in sync with
+`scripts/entities.yaml`; the manifest is what tooling parses.
 
 ---
 
@@ -91,7 +100,7 @@ Every Kind automatically receives these fields. **Do not include them in the ERD
 
 ## Software Factory Reconciliation Loop
 
-The factory operates as a Kubernetes-style reconciler: it compares Desired State (this ERD) against Actual State (the codebase) and takes action to converge.
+The factory operates as a Kubernetes-style reconciler: it compares Desired State (`scripts/entities.yaml`, with the ERD below as its human-readable view) against Actual State (the codebase) and takes action to converge.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -100,10 +109,10 @@ The factory operates as a Kubernetes-style reconciler: it compares Desired State
 │  ┌──────────┐     ┌──────────┐     ┌───────────────────┐   │
 │  │  OBSERVE  │────▶│  DIFF    │────▶│  ACT              │   │
 │  │           │     │          │     │                   │   │
-│  │ Parse ERD │     │ Compare  │     │ Generate / Delete │   │
-│  │ Scan Code │     │ Kinds    │     │ Build / Test      │   │
-│  └──────────┘     └──────────┘     │ PR / Review       │   │
-│                                     │ Deploy / E2E      │   │
+│  │ Parse      │     │ Compare  │     │ Generate / Delete │   │
+│  │ Manifest   │     │ Kinds    │     │ Build / Test      │   │
+│  │ Scan Code  │     │          │     │ PR / Review       │   │
+│  └──────────┘     └──────────┘     │ Deploy / E2E      │   │
 │                                     └───────────────────┘   │
 │                                               │             │
 │                                               ▼             │
@@ -120,7 +129,7 @@ The factory operates as a Kubernetes-style reconciler: it compares Desired State
 
 | Step | Action | Output |
 | --- | --- | --- |
-| 1a | Parse ERD from this file | Set of desired Kinds with fields, types, nullability, relationships |
+| 1a | Parse `scripts/entities.yaml` | Set of desired Kinds with fields, types, nullability, relationships |
 | 1b | Scan `plugins/*/` directories | Set of actual Kinds currently in the codebase |
 | 1c | Scan `openapi/openapi.*.yaml` | Set of actual OpenAPI sub-specs |
 | 1d | Scan `proto/rh_trex/v1/*.proto` | Set of actual proto definitions |
@@ -129,11 +138,11 @@ The factory operates as a Kubernetes-style reconciler: it compares Desired State
 
 | Condition | Classification |
 | --- | --- |
-| Kind in ERD, not in codebase | **CREATE** — new Kind needed |
-| Kind in codebase, not in ERD | **DELETE** — Kind should be removed |
+| Kind in manifest, not in codebase | **CREATE** — new Kind needed |
+| Kind in codebase, not in manifest | **DELETE** — Kind should be removed |
 | Kind in both, fields differ | **UPDATE** — migration + model changes needed |
-| Relationship in ERD, not in code | **ADD RELATION** — FK, nested routes, join tables needed |
-| Relationship in code, not in ERD | **REMOVE RELATION** — FK cleanup needed |
+| Relationship in manifest, not in code | **ADD RELATION** — FK, nested routes, join tables needed |
+| Relationship in code, not in manifest | **REMOVE RELATION** — FK cleanup needed |
 
 ### Phase 3: ACT
 
@@ -143,7 +152,7 @@ For each diff item, the factory executes a pipeline:
 
 | Action | Generator | Command |
 | --- | --- | --- |
-| New Kind | Entity Generator | `go run ./scripts/generator.go --kind <Kind> --fields "<fields>"` |
+| New Kind | Entity Generator | `go run ./cmd/trex generate-entity --kind <Kind> --fields "<fields>"` |
 | SDK regen | SDK Generator | `make generate-sdk` |
 | CLI regen | CLI Generator | `make generate-cli` |
 | Console regen | Console Plugin Generator | `make generate-console-plugin` |
@@ -209,7 +218,7 @@ When the factory parses the ERD, each entity becomes a `--kind` invocation and e
 
 ```
 ERD Entity:                        Generator Command:
-┌─────────────────────────┐        go run ./scripts/generator.go \
+┌─────────────────────────┐        go run ./cmd/trex generate-entity \
 │ Fossil {                │          --kind Fossil \
 │   string discovery  PK  │──────▶   --fields "discovery_location:string:required,
 │   int estimated_age     │                    estimated_age:int,
@@ -244,7 +253,7 @@ The infrastructure for FK migrations already exists in `pkg/db/model.go` (`FKMig
 
 Complete list of files produced by each generator in `scripts/`.
 
-### 1. Entity Generator (`scripts/generator.go`)
+### 1. Entity Generator (`trex generate-entity`)
 
 Generates a full CRUD entity with event-driven controllers from `--kind KindName`.
 

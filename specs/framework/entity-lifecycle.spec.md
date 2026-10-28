@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** FW-002
 **Related:** [Plugin Architecture](plugin-architecture.spec.md), [DAO Pattern](../data/dao-pattern.spec.md), [REST Conventions](../api/rest-conventions.spec.md)
-**Implements:** `scripts/generator.go`, `plugins/*/`
+**Implements:** `pkg/generator/`, `pkg/cmd/generate.go`, `plugins/*/`
 
 ---
 
@@ -128,7 +128,7 @@ Each entity SHALL have a presenter that converts between the internal model and 
 The entity generator SHALL support custom fields via the `--fields` flag with types: `string`, `int`, `int64`, `bool`, `float`, `time`.
 
 #### Scenario: Generating entity with custom fields
-- GIVEN the command `go run ./scripts/generator.go --kind Rocket --fields "name:string:required,fuel_type:string,max_speed:int"`
+- GIVEN the command `go run ./cmd/trex generate-entity --kind Rocket --fields "name:string:required,fuel_type:string,max_speed:int"`
 - WHEN generation completes
 - THEN `name` SHALL be `string` (non-pointer, non-nullable)
 - AND `fuel_type` SHALL be `*string` (pointer, nullable)

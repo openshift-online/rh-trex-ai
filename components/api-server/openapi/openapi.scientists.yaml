@@ -92,7 +92,7 @@ paths:
   # NEW ENDPOINT END
     get:
       operationId: getScientist
-      summary: Get an scientist by id
+      summary: Get a scientist by id
       security:
         - Bearer: []
       responses:
@@ -128,7 +128,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
       operationId: updateScientist
-      summary: Update an scientist
+      summary: Update a scientist
       security:
         - Bearer: []
       requestBody:

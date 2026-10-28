@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** CG-001
 **Related:** [Plugin Architecture](../framework/plugin-architecture.spec.md), [Entity Lifecycle](../framework/entity-lifecycle.spec.md), [Migration Pattern](../data/migration-pattern.spec.md)
-**Implements:** `scripts/generator.go`, `templates/generate-*.txt`
+**Implements:** `pkg/generator/`, `pkg/cmd/generate.go`, `templates/generate-*.txt`
 **Skill:** `skills/build/entity-generator/`
 
 ---
@@ -17,10 +17,10 @@ Define the entity generator that produces complete CRUD functionality for a new 
 
 ### Requirement: Single Command Generation
 
-Running `go run ./scripts/generator.go --kind KindName` SHALL produce a complete, working entity implementation.
+Running `go run ./cmd/trex generate-entity --kind KindName` SHALL produce a complete, working entity implementation.
 
 #### Scenario: Generate a new entity
-- GIVEN the command `go run ./scripts/generator.go --kind FizzBuzz`
+- GIVEN the command `go run ./cmd/trex generate-entity --kind FizzBuzz`
 - WHEN the generator completes
 - THEN all files SHALL be created in `plugins/fizzBuzzs/`
 - AND `openapi/openapi.fizzBuzzs.yaml` SHALL be created

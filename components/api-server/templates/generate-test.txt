@@ -18,8 +18,8 @@ import (
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 
-	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
-	"{{.Repo}}/{{.Project}}/test"
+	"{{.Module}}/pkg/api/openapi"
+	"{{.Module}}/test"
 )
 
 func Test{{.Kind}}Get(t *testing.T) {
