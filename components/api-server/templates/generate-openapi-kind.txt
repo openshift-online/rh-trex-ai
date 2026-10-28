@@ -92,7 +92,7 @@ paths:
   # NEW ENDPOINT END
     get:
       operationId: get{{.Kind}}
-      summary: Get an {{.KindLowerSingular}} by id
+      summary: Get {{ article .KindLowerSingular }} {{.KindLowerSingular}} by id
       security:
         - Bearer: []
       responses:
@@ -128,7 +128,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
       operationId: update{{.Kind}}
-      summary: Update an {{.KindLowerSingular}}
+      summary: Update {{ article .KindLowerSingular }} {{.KindLowerSingular}}
       security:
         - Bearer: []
       requestBody:
@@ -183,7 +183,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     delete:
       operationId: delete{{.Kind}}
-      summary: Delete an {{.KindLowerSingular}}
+      summary: Delete {{ article .KindLowerSingular }} {{.KindLowerSingular}}
       security:
         - Bearer: []
       responses:

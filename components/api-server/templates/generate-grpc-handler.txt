@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"{{.Library}}/pkg/api"
-	pb "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
+	pb "{{.Module}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
 	pkgserver "{{.Library}}/pkg/server"
 	"{{.Library}}/pkg/server/grpcutil"
 	"{{.Library}}/pkg/services"

@@ -12,9 +12,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
-	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
-	"{{.Repo}}/{{.Project}}/test"
+	pb "{{.Module}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
+	"{{.Module}}/pkg/api/openapi"
+	"{{.Module}}/test"
 )
 
 type bearerToken struct {

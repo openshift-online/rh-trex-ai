@@ -1071,7 +1071,7 @@ Add these templates to `generator/templates/`:
 
 #### 4.2 Generator Updates
 
-Modify `scripts/generator.go` to:
+Modify `pkg/generator/` to:
 1. Generate `.proto` file from template with custom fields mapped to protobuf types
 2. Generate `grpc_handler.go` and `grpc_presenter.go` in the plugin directory
 3. Add `RegisterGRPCService()` call to the generated `plugin.go` template
@@ -1325,7 +1325,7 @@ generator/templates/kind.proto.tmpl              # Generator template for proto 
 pkg/config/config.go                             # Add GRPCConfig to ApplicationConfig
 pkg/cmd/serve.go                                 # Add gRPC server goroutine + signal handling
 plugins/dinosaurs/plugin.go                      # Add RegisterGRPCService() call in init()
-scripts/generator.go                             # Add proto + gRPC handler generation
+pkg/generator/                             # Add proto + gRPC handler generation
 go.mod                                           # Promote grpc + protobuf to direct deps
 Makefile                                         # Add proto, proto-lint, proto-breaking targets
 ```
@@ -1418,7 +1418,7 @@ grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 | Phase 1: Proto Tooling | 1-2 days | `buf generate` works, `buf lint` passes, common.proto compiles, CI pipeline updated |
 | Phase 2: Server Infra | 3-4 days | gRPC server starts, all interceptors work (auth, tx, metrics, logging, recovery), graceful shutdown for all servers, `--enable-grpc` flag |
 | Phase 3: Dinosaurs | 2-3 days | Full CRUD via gRPC with validation and pagination, integration tests pass |
-| Phase 4: Generator | 2-3 days | `go run ./scripts/generator.go --kind Foo` produces proto + gRPC files |
+| Phase 4: Generator | 2-3 days | `go run ./cmd/trex generate-entity --kind Foo` produces proto + gRPC files |
 | Phase 5: Streaming | 5-7 days | EventBroker with fan-out, WatchDinosaurs streaming, BulkCreate, backpressure metrics |
 | Phase 6: grpc-gateway | 4-8 weeks | Optional: REST generated from protos with full feature parity |
 

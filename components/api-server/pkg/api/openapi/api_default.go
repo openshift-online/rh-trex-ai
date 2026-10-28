@@ -924,7 +924,7 @@ func (r ApiGetDinosaurRequest) Execute() (*Dinosaur, *http.Response, error) {
 }
 
 /*
-GetDinosaur Get an dinosaur by id
+GetDinosaur Get a dinosaur by id
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
@@ -1069,7 +1069,7 @@ func (r ApiGetFossilRequest) Execute() (*Fossil, *http.Response, error) {
 }
 
 /*
-GetFossil Get an fossil by id
+GetFossil Get a fossil by id
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
@@ -1214,7 +1214,7 @@ func (r ApiGetScientistRequest) Execute() (*Scientist, *http.Response, error) {
 }
 
 /*
-GetScientist Get an scientist by id
+GetScientist Get a scientist by id
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
@@ -1924,7 +1924,7 @@ func (r ApiUpdateDinosaurRequest) Execute() (*Dinosaur, *http.Response, error) {
 }
 
 /*
-UpdateDinosaur Update an dinosaur
+UpdateDinosaur Update a dinosaur
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
@@ -2103,7 +2103,7 @@ func (r ApiUpdateFossilRequest) Execute() (*Fossil, *http.Response, error) {
 }
 
 /*
-UpdateFossil Update an fossil
+UpdateFossil Update a fossil
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
@@ -2282,7 +2282,7 @@ func (r ApiUpdateScientistRequest) Execute() (*Scientist, *http.Response, error)
 }
 
 /*
-UpdateScientist Update an scientist
+UpdateScientist Update a scientist
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record

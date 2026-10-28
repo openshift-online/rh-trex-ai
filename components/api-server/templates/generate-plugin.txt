@@ -16,7 +16,7 @@ import (
 	"{{.Library}}/pkg/db"
 	"{{.Library}}/plugins/events"
 	"{{.Library}}/plugins/generic"
-	pb "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
+	pb "{{.Module}}/pkg/api/grpc/{{.ProtoPackage}}/v1"
 )
 
 type ServiceLocator func() {{.Kind}}Service

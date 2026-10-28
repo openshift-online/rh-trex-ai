@@ -133,7 +133,7 @@ func (h *fossilGRPCHandler) WatchFossils(req *pb.WatchFossilsRequest, stream grp
 			}
 
 			watchEvent := &pb.FossilWatchEvent{
-				Type:       grpcutil.APIEventTypeToProto(evt.EventType),
+				Type:       pb.EventType(grpcutil.APIEventTypeToProto(evt.EventType)),
 				ResourceId: evt.SourceID,
 			}
 

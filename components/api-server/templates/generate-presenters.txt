@@ -12,7 +12,7 @@ import (
 
 {{- end}}
 	"{{.Library}}/pkg/api"
-	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
+	"{{.Module}}/pkg/api/openapi"
 	"{{.Library}}/pkg/api/presenters"
 	"{{.Library}}/pkg/util"
 )

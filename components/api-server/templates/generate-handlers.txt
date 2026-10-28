@@ -5,7 +5,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"{{.Repo}}/{{.Project}}/pkg/api/openapi"
+	"{{.Module}}/pkg/api/openapi"
 	"{{.Library}}/pkg/api/presenters"
 	"{{.Library}}/pkg/errors"
 	"{{.Library}}/pkg/handlers"
@@ -77,15 +77,11 @@ func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Reque
 			if err != nil {
 				return nil, err
 			}
-			kindStr := "{{.Kind}}List"
-			pageVal := int32(paging.Page)
-			sizeVal := int32(paging.Size)
-			totalVal := int32(paging.Total)
 			{{.KindLowerSingular}}List := openapi.{{.Kind}}List{
-				Kind:  &kindStr,
-				Page:  &pageVal,
-				Size:  &sizeVal,
-				Total: &totalVal,
+				Kind:  "{{.Kind}}List",
+				Page:  int32(paging.Page),
+				Size:  int32(paging.Size),
+				Total: int32(paging.Total),
 				Items: []openapi.{{.Kind}}{},
 			}
 

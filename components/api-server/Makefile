@@ -68,6 +68,7 @@ help:
 	@echo "TRex API Service"
 	@echo ""
 	@echo "make verify               verify source code"
+	@echo "make verify-entities      verify declared entities match generator output"
 	@echo "make lint                 run golangci-lint"
 	@echo "make binary               compile binaries"
 	@echo "make install              compile binaries and install in GOPATH bin"
@@ -126,7 +127,7 @@ endif
 .PHONY: check-gopath
 
 # Verifies that source passes standard checks.
-verify: check-gopath
+verify: check-gopath verify-entities
 	${GO} vet \
 		./cmd/... \
 		./pkg/...
@@ -142,6 +143,12 @@ verify: check-gopath
 			printf '\033[0m'; \
 		)
 .PHONY: verify
+
+# Verifies that entities declared in scripts/entities.yaml match what the
+# generator would produce from the current templates.
+.PHONY: verify-entities
+verify-entities:
+	$(GO) run ./cmd/trex generate-entity --manifest scripts/entities.yaml --verify
 
 # Runs our linter to verify that everything is following best practices
 # Requires golangci-lint to be installed @ $(go env GOPATH)/bin/golangci-lint

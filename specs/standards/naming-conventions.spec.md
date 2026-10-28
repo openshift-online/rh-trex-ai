@@ -3,7 +3,7 @@
 **Date:** 2026-07-06
 **Status:** Active
 **ID:** STD-001
-**Implements:** `scripts/generator.go` (naming transforms), all generated code
+**Implements:** `pkg/generator/` (naming transforms), all generated code
 
 ---
 

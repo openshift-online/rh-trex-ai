@@ -18,17 +18,17 @@ Ask the user for:
 ### Step 2: Run the Generator
 
 ```bash
-go run ./scripts/generator.go --kind {KindName}
+go run ./cmd/trex generate-entity --kind {KindName}
 ```
 
 With custom fields:
 ```bash
-go run ./scripts/generator.go --kind {KindName} --fields "{field1}:{type1}:{nullability},{field2}:{type2}"
+go run ./cmd/trex generate-entity --kind {KindName} --fields "{field1}:{type1}:{nullability},{field2}:{type2}"
 ```
 
 Example:
 ```bash
-go run ./scripts/generator.go --kind Rocket --fields "name:string:required,fuel_type:string,max_speed:int"
+go run ./cmd/trex generate-entity --kind Rocket --fields "name:string:required,fuel_type:string,max_speed:int"
 ```
 
 The generator automatically:

@@ -92,7 +92,7 @@ paths:
   # NEW ENDPOINT END
     get:
       operationId: getDinosaur
-      summary: Get an dinosaur by id
+      summary: Get a dinosaur by id
       security:
         - Bearer: []
       responses:
@@ -128,7 +128,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
       operationId: updateDinosaur
-      summary: Update an dinosaur
+      summary: Update a dinosaur
       security:
         - Bearer: []
       requestBody:

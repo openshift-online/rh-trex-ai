@@ -10,15 +10,15 @@ Method | HTTP request | Description
 [**DeleteDinosaur**](DefaultAPI.md#DeleteDinosaur) | **Delete** /api/rh-trex-ai/v1/dinosaurs/{id} | Delete a dinosaur
 [**DeleteFossil**](DefaultAPI.md#DeleteFossil) | **Delete** /api/rh-trex-ai/v1/fossils/{id} | Delete a fossil
 [**DeleteScientist**](DefaultAPI.md#DeleteScientist) | **Delete** /api/rh-trex-ai/v1/scientists/{id} | Delete a scientist
-[**GetDinosaur**](DefaultAPI.md#GetDinosaur) | **Get** /api/rh-trex-ai/v1/dinosaurs/{id} | Get an dinosaur by id
-[**GetFossil**](DefaultAPI.md#GetFossil) | **Get** /api/rh-trex-ai/v1/fossils/{id} | Get an fossil by id
-[**GetScientist**](DefaultAPI.md#GetScientist) | **Get** /api/rh-trex-ai/v1/scientists/{id} | Get an scientist by id
+[**GetDinosaur**](DefaultAPI.md#GetDinosaur) | **Get** /api/rh-trex-ai/v1/dinosaurs/{id} | Get a dinosaur by id
+[**GetFossil**](DefaultAPI.md#GetFossil) | **Get** /api/rh-trex-ai/v1/fossils/{id} | Get a fossil by id
+[**GetScientist**](DefaultAPI.md#GetScientist) | **Get** /api/rh-trex-ai/v1/scientists/{id} | Get a scientist by id
 [**ListDinosaurs**](DefaultAPI.md#ListDinosaurs) | **Get** /api/rh-trex-ai/v1/dinosaurs | Returns a list of dinosaurs
 [**ListFossils**](DefaultAPI.md#ListFossils) | **Get** /api/rh-trex-ai/v1/fossils | Returns a list of fossils
 [**ListScientists**](DefaultAPI.md#ListScientists) | **Get** /api/rh-trex-ai/v1/scientists | Returns a list of scientists
-[**UpdateDinosaur**](DefaultAPI.md#UpdateDinosaur) | **Patch** /api/rh-trex-ai/v1/dinosaurs/{id} | Update an dinosaur
-[**UpdateFossil**](DefaultAPI.md#UpdateFossil) | **Patch** /api/rh-trex-ai/v1/fossils/{id} | Update an fossil
-[**UpdateScientist**](DefaultAPI.md#UpdateScientist) | **Patch** /api/rh-trex-ai/v1/scientists/{id} | Update an scientist
+[**UpdateDinosaur**](DefaultAPI.md#UpdateDinosaur) | **Patch** /api/rh-trex-ai/v1/dinosaurs/{id} | Update a dinosaur
+[**UpdateFossil**](DefaultAPI.md#UpdateFossil) | **Patch** /api/rh-trex-ai/v1/fossils/{id} | Update a fossil
+[**UpdateScientist**](DefaultAPI.md#UpdateScientist) | **Patch** /api/rh-trex-ai/v1/scientists/{id} | Update a scientist
 
 
 
@@ -416,7 +416,7 @@ Name | Type | Description  | Notes
 
 > Dinosaur GetDinosaur(ctx, id).Execute()
 
-Get an dinosaur by id
+Get a dinosaur by id
 
 ### Example
 
@@ -484,7 +484,7 @@ Name | Type | Description  | Notes
 
 > Fossil GetFossil(ctx, id).Execute()
 
-Get an fossil by id
+Get a fossil by id
 
 ### Example
 
@@ -552,7 +552,7 @@ Name | Type | Description  | Notes
 
 > Scientist GetScientist(ctx, id).Execute()
 
-Get an scientist by id
+Get a scientist by id
 
 ### Example
 
@@ -836,7 +836,7 @@ Name | Type | Description  | Notes
 
 > Dinosaur UpdateDinosaur(ctx, id).DinosaurPatchRequest(dinosaurPatchRequest).Execute()
 
-Update an dinosaur
+Update a dinosaur
 
 ### Example
 
@@ -906,7 +906,7 @@ Name | Type | Description  | Notes
 
 > Fossil UpdateFossil(ctx, id).FossilPatchRequest(fossilPatchRequest).Execute()
 
-Update an fossil
+Update a fossil
 
 ### Example
 
@@ -976,7 +976,7 @@ Name | Type | Description  | Notes
 
 > Scientist UpdateScientist(ctx, id).ScientistPatchRequest(scientistPatchRequest).Execute()
 
-Update an scientist
+Update a scientist
 
 ### Example
 

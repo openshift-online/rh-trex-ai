@@ -7,6 +7,8 @@ import (
 	"sort"
 	"testing"
 	"text/template"
+
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/generator"
 )
 
 func TestGeneratedEntityOpenAPIDocumentsCompleteCRUDContract(t *testing.T) {
@@ -16,7 +18,7 @@ func TestGeneratedEntityOpenAPIDocumentsCompleteCRUDContract(t *testing.T) {
 		t.Fatalf("read entity OpenAPI template: %v", err)
 	}
 
-	parsed, err := template.New(filepath.Base(templatePath)).Parse(string(contents))
+	parsed, err := template.New(filepath.Base(templatePath)).Funcs(generator.TemplateFuncs()).Parse(string(contents))
 	if err != nil {
 		t.Fatalf("parse entity OpenAPI template: %v", err)
 	}

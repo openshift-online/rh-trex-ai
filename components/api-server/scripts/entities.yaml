@@ -1,0 +1,32 @@
+# Auto-generated entities (Desired State).
+#
+# This manifest is the single source of truth for which entities the TRex
+# entity generator owns. It mirrors the ERD in scripts/generator.md.
+#
+# Each entity maps to:
+#   trex generate-entity --kind <kind> --fields "<fields>" --proto-package <proto_package>
+#
+# Field syntax: name:type[:required|optional]
+#   types: string, int, int64, bool, float, time (default nullable; :required = non-nullable)
+#   relations (PK/FK/UK) are not yet supported by the generator templates.
+#
+# Entities are kept alphabetically sorted by kind so that generation order
+# (and therefore the order of $ref entries inserted into openapi/openapi.yaml)
+# is deterministic and matches the checked-in aggregate.
+
+proto_package: rh_trex
+
+# Paths that are intentionally allowed to deviate from regenerated output.
+# These are hand-tuned golden tests; everything else must match the generator.
+ignore:
+  - "plugins/*/grpc_integration_test.go"
+
+entities:
+  - kind: Dinosaur
+    fields: "species:string:required"
+
+  - kind: Fossil
+    fields: "discovery_location:string:required,estimated_age:int,fossil_type:string,excavator_name:string"
+
+  - kind: Scientist
+    fields: "name:string:required,field:string:required"
