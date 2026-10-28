@@ -9,11 +9,23 @@
 #   [repo-base]     Go module base path, default github.com/example
 #   [dir]           parent directory to create the project in, default current dir
 #
+# How it works:
+#   1. Writes a minimal Go harness in a temp dir: a go.mod that requires the
+#      TRex library plus a main.go that imports pkg/cmd and inherits the
+#      commands (new-project, generate-entity, ...). No separate CLI build.
+#   2. Runs the inherited `new-project` command, which scaffolds the complete
+#      application from the library's embedded template.
+#   3. Fixes the scaffolded project's `replace` directive to point at the
+#      TRex source used (or removes it when TREX_PUBLISHED=1).
+#   4. Optionally verifies the scaffold builds.
+#
 # Environment:
 #   TREX_REPO_URL   git URL of the TRex source (default: https://github.com/openshift-online/rh-trex-ai)
 #   TREX_BRANCH    branch/tag to fetch (default: remote's default branch)
-#   TREX_SRC       existing local TRex source checkout (skips cloning)
+#   TREX_SRC       existing local TRex source checkout (skips cloning; used for replace)
 #   TREX_HOME      cache dir for the source clone (default: $HOME/.trex)
+#   TREX_PUBLISHED set to 1 when the TRex library is published to a module
+#                   proxy; skips cloning and replace entirely
 #   SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
 set -euo pipefail
 
@@ -32,6 +44,7 @@ Environment:
   TREX_BRANCH    branch/tag to fetch (default: remote's default branch)
   TREX_SRC       existing local TRex source checkout (skips cloning)
   TREX_HOME      cache dir for the source clone (default: $HOME/.trex)
+  TREX_PUBLISHED set to 1 when the TRex library is published (skips clone/replace)
   SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
 EOF
 }
@@ -51,6 +64,9 @@ if [[ -z "$NAME" ]]; then
   exit 1
 fi
 
+# Resolve DIR to an absolute path so it is independent of the harness cwd.
+DIR="$(cd "$DIR" && pwd)"
+
 for tool in git go; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "error: required tool '$tool' not found in PATH" >&2
@@ -62,40 +78,84 @@ TREX_REPO_URL="${TREX_REPO_URL:-https://github.com/openshift-online/rh-trex-ai}"
 TREX_BRANCH="${TREX_BRANCH:-}"
 TREX_HOME="${TREX_HOME:-$HOME/.trex}"
 
-# Locate or fetch the TRex source.
-if [[ -n "${TREX_SRC:-}" ]]; then
-  SRC="$TREX_SRC"
-else
-  SRC="$TREX_HOME/src"
-  if [[ ! -d "$SRC/components/api-server" ]]; then
-    echo "==> fetching TRex source ($TREX_REPO_URL)"
-    mkdir -p "$TREX_HOME"
-    if [[ -n "$TREX_BRANCH" ]]; then
-      git clone --depth 1 --branch "$TREX_BRANCH" "$TREX_REPO_URL" "$SRC"
-    else
-      # Use the remote's default branch.
-      git clone --depth 1 "$TREX_REPO_URL" "$SRC"
-    fi
+LIB_MODULE=github.com/openshift-online/rh-trex-ai/components/api-server
+
+# Resolve the TRex source used for the `replace` directive.
+SRC=""
+if [[ "${TREX_PUBLISHED:-0}" != "1" ]]; then
+  if [[ -n "${TREX_SRC:-}" ]]; then
+    SRC="$TREX_SRC"
   else
-    echo "==> reusing TRex source at $SRC"
+    SRC="$TREX_HOME/src"
+    if [[ ! -d "$SRC/components/api-server" ]]; then
+      echo "==> fetching TRex source ($TREX_REPO_URL)"
+      mkdir -p "$TREX_HOME"
+      if [[ -n "$TREX_BRANCH" ]]; then
+        git clone --depth 1 --branch "$TREX_BRANCH" "$TREX_REPO_URL" "$SRC"
+      else
+        git clone --depth 1 "$TREX_REPO_URL" "$SRC"
+      fi
+    else
+      echo "==> reusing TRex source at $SRC"
+    fi
+  fi
+  SRC="$(cd "$SRC" && pwd)"
+  if [[ ! -f "$SRC/components/api-server/go.mod" ]]; then
+    echo "error: TRex source has no components/api-server module at $SRC" >&2
+    exit 1
   fi
 fi
 
-SRC="$(cd "$SRC" && pwd)"
-API_SERVER="$SRC/components/api-server"
-if [[ ! -f "$API_SERVER/go.mod" ]]; then
-  echo "error: TRex source has no components/api-server module at $API_SERVER" >&2
-  exit 1
-fi
-
+# Build a minimal harness that inherits the commands from the library.
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+# Seed from the template's canonical go.mod (full require block) so the
+# dependency graph resolves cleanly, then rename the module and the replace.
+if [[ -n "$SRC" ]]; then
+  cp "$SRC/components/api-server/templates/new-project/go.mod.tmpl" "$WORK/go.mod"
+  sed -i.bak \
+    -e 's#module github.com/example/my-service#module github.com/acme/bootstrap-harness#' \
+    -e "s#../path/to/rh-trex-ai/components/api-server#$SRC/components/api-server#" \
+    "$WORK/go.mod"
+  rm -f "$WORK/go.mod.bak"
+else
+  cat > "$WORK/go.mod" <<EOF
+module github.com/acme/bootstrap-harness
 
-echo "==> building trex CLI"
-( cd "$API_SERVER" && go build -o "$WORK/trex" ./cmd/trex )
+go 1.24.2
+
+toolchain go1.24.9
+
+require $LIB_MODULE v0.0.0-00010101000000-000000000000
+EOF
+fi
+
+cat > "$WORK/main.go" <<'EOF'
+package main
+
+import (
+	"os"
+
+	pkgcmd "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/cmd"
+)
+
+func main() {
+	root := pkgcmd.NewRootCommand("bootstrap", "Bootstrap harness")
+	root.AddCommand(
+		pkgcmd.NewProjectCommand(),
+		pkgcmd.NewGenerateEntityCommand(),
+	)
+	if err := root.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+EOF
+
+echo "==> preparing harness (go mod tidy)"
+( cd "$WORK" && go mod tidy >/dev/null 2>&1 )
 
 echo "==> scaffolding $NAME"
-"$WORK/trex" new-project "$NAME" --repo "$REPO" --dir "$DIR"
+( cd "$WORK" && go run . new-project "$NAME" --repo "$REPO" --dir "$DIR" )
 
 PROJ="$DIR/$NAME"
 if [[ ! -f "$PROJ/go.mod" ]]; then
@@ -103,11 +163,16 @@ if [[ ! -f "$PROJ/go.mod" ]]; then
   exit 1
 fi
 
-# Point the replace directive at the TRex source we used.
-REPLACE_OLD="replace github.com/openshift-online/rh-trex-ai/components/api-server => ../path/to/rh-trex-ai/components/api-server"
-REPLACE_NEW="replace github.com/openshift-online/rh-trex-ai/components/api-server => $API_SERVER"
-if grep -qF "$REPLACE_OLD" "$PROJ/go.mod"; then
-  sed -i.bak "s#$REPLACE_OLD#$REPLACE_NEW#" "$PROJ/go.mod"
+# Fix the replace directive in the scaffolded project.
+if [[ -n "$SRC" ]]; then
+  REPLACE_OLD="replace $LIB_MODULE => ../path/to/rh-trex-ai/components/api-server"
+  REPLACE_NEW="replace $LIB_MODULE => $SRC/components/api-server"
+  if grep -qF "$REPLACE_OLD" "$PROJ/go.mod"; then
+    sed -i.bak "s#$REPLACE_OLD#$REPLACE_NEW#" "$PROJ/go.mod"
+    rm -f "$PROJ/go.mod.bak"
+  fi
+else
+  sed -i.bak "/^replace $LIB_MODULE =>/d" "$PROJ/go.mod"
   rm -f "$PROJ/go.mod.bak"
 fi
 
@@ -128,7 +193,7 @@ Next steps:
   cd $PROJ
   ./$NAME new-entity --kind HelloWorld --fields "message:string:required" \\
     --project $NAME --repo $REPO \\
-    --library github.com/openshift-online/rh-trex-ai/components/api-server \\
+    --library $LIB_MODULE \\
     --module $REPO/$NAME --proto-package ${NAME//-/_}
   make proto && make generate && go build ./...
 EOF

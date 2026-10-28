@@ -65,10 +65,10 @@ curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/
 
 What it does:
 
-1. Clones the TRex source (cached in `$HOME/.trex/src`) — or reuses `TREX_SRC` if you set it.
-2. Builds the `trex` CLI from that source.
-3. Runs `trex new-project` to scaffold the project structure and substitute all placeholders.
-4. Points the new project's `replace` directive at the TRex source used, so it builds immediately.
+1. Resolves the TRex source: uses `TREX_SRC` if set, else clones `TREX_REPO_URL` (cached in `$HOME/.trex/src`) — or skips both when `TREX_PUBLISHED=1`.
+2. Writes a minimal Go harness (a `go.mod` plus a small `main.go` that imports `pkg/cmd`), so the commands are inherited from the library — no separate CLI build.
+3. Runs the inherited `new-project` command, which scaffolds the project structure and substitutes all placeholders.
+4. Points the new project's `replace` directive at the TRex source used, so it builds immediately (removes it when published).
 5. Optionally runs `make generate && go mod tidy && make binary` to verify the scaffold builds.
 
 The scaffolded project is a complete Go service that imports the TRex library and inherits all commands (`serve`, `migrate`, `tui`, `new-entity`, `new-project`).
@@ -92,6 +92,7 @@ Environment variables (all optional):
 | `TREX_BRANCH` | remote default branch | Branch/tag to fetch |
 | `TREX_SRC` | — | Use an existing local checkout (skips cloning) |
 | `TREX_HOME` | `$HOME/.trex` | Cache dir for the clone |
+| `TREX_PUBLISHED` | `0` | Set to `1` when the library is published (skips clone/replace) |
 | `SKIP_BUILD` | `0` | Set to `1` to skip the verification build |
 
 ## Usage
