@@ -25,6 +25,8 @@ func main() {
 	cliModule := flag.String("module", "", "Go module path for the CLI (e.g. github.com/myorg/myproject-cli)")
 	configName := flag.String("config-name", "", "name used for the config file and its environment variable, e.g. hypershell gives ~/.hypershell.json and HYPERSHELL_CONFIG (default: the binary name)")
 	oidcClientID := flag.String("oidc-client-id", "", "default OpenID Connect client ID for 'login --issuer-url' (default: the binary name)")
+	enableTUI := flag.Bool("tui", true, "include the TUI command (uses the TRex library's tuicmd + an embedded OpenAPI descriptor)")
+	libraryModule := flag.String("library-module", "github.com/openshift-online/rh-trex-ai/components/api-server", "Go module path of the TRex library providing the TUI runtime (used when --tui)")
 	flag.Parse()
 
 	if *specPath == "" || *outDir == "" {
@@ -71,8 +73,10 @@ func main() {
 		Module:    *cliModule,
 		Resources: resources,
 
-		OIDCClientID: *oidcClientID,
-		ConfigName:   *configName,
+		OIDCClientID:  *oidcClientID,
+		ConfigName:    *configName,
+		TUI:           *enableTUI,
+		LibraryModule: *libraryModule,
 	}
 
 	if err := generateCLI(data, *outDir); err != nil {
@@ -118,6 +122,12 @@ type cliData struct {
 	OIDCClientID string
 	// ConfigName names the config file and its environment variable; empty means the binary name.
 	ConfigName string
+	// TUI includes the terminal UI command, which reuses the TRex library's
+	// tuicmd runtime with an embedded OpenAPI descriptor.
+	TUI bool
+	// LibraryModule is the Go module path of the TRex library providing the
+	// TUI runtime and the embedded descriptor generator.
+	LibraryModule string
 }
 
 var configNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
@@ -442,6 +452,9 @@ func generateCLI(data cliData, outDir string) error {
 	}
 	if data.HasUpdate() {
 		mappings = append(mappings, tmplMapping{"cmd/update.go.tmpl", filepath.Join("cmd", data.Binary, "update", "cmd.go"), nil, false})
+	}
+	if data.TUI {
+		mappings = append(mappings, tmplMapping{"cmd/tui.go.tmpl", filepath.Join("cmd", data.Binary, "tui", "cmd.go"), nil, false})
 	}
 
 	for i := range data.Resources {

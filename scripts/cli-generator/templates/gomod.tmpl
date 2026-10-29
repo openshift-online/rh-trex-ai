@@ -9,6 +9,9 @@ require (
 	github.com/spf13/pflag v1.0.6
 	gitlab.com/c0b/go-ordered-json v0.0.0-20171130231205-49bbdab258c2
 	golang.org/x/term v0.28.0
+{{- if .TUI}}
+	{{.LibraryModule}} v0.0.0-00010101000000-000000000000
+{{- end}}
 )
 
 require (
@@ -18,3 +21,10 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 )
+{{- if .TUI}}
+
+// Local development: point at your TRex source checkout (the directory
+// containing components/api-server/go.mod). Remove when the library is
+// published to a module proxy.
+replace {{.LibraryModule}} => ../path/to/rh-trex-ai/components/api-server
+{{- end}}

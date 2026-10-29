@@ -114,7 +114,7 @@ The `tui` subcommand SHALL accept no positional arguments and SHALL preserve the
 #### Scenario: Launch with the established runtime options
 
 - GIVEN the integrated descriptor declares a default server
-- WHEN the user runs `trex tui` with any supported connection, credential, trust, security, or refresh option
+- WHEN the user runs `trexctl tui` with any supported connection, credential, trust, security, or refresh option
 - THEN the command SHALL pass the resolved values directly into the generic TUI client configuration
 - AND invalid descriptor, credential-file, client, or Bubble Tea startup errors SHALL return through Cobra after terminal restoration
 - AND any positional argument SHALL be rejected before the TUI starts

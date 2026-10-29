@@ -266,6 +266,28 @@ generate:
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/data/generated/openapi/openapi.go ./data/generated/openapi/openapi.go
 .PHONY: generate
 
+# Build the trexctl component: generated CLI + TUI in a single binary.
+.PHONY: ctl
+ctl: build-ctl
+
+.PHONY: build-ctl
+build-ctl:
+	rm -rf generated/ctl
+	cd ../../scripts/cli-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out $(CURDIR)/generated/ctl \
+		--binary trexctl \
+		--module github.com/openshift-online/rh-trex-ai/components/api-server/generated/ctl \
+		--tui \
+		--api-prefix /api/rh-trex-ai/v1 \
+		--project rh-trex-ai
+	cd ../../scripts/tui-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out $(CURDIR)/generated/ctl/data/generated/tui
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' generated/ctl/go.mod
+	rm -f generated/ctl/go.mod.bak
+	cd generated/ctl && $(GO) mod tidy && $(GO) build -o trexctl ./cmd/trexctl
+
 run: binary
 	./trex migrate
 	./trex serve

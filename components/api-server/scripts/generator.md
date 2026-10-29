@@ -156,7 +156,7 @@ For each diff item, the factory executes a pipeline:
 | SDK regen | SDK Generator | `make generate-sdk` |
 | CLI regen | CLI Generator | `make generate-cli` |
 | Console regen | Console Plugin Generator | `make generate-console-plugin` |
-| TUI regen | TUI Generator | `make generate-tui` |
+| TUI regen | TUI Generator | `make generate-tui` (descriptor) / `make ctl` (component) |
 | Proto regen | Protobuf | `make proto` |
 | OpenAPI regen | OpenAPI | `make generate` |
 
@@ -414,10 +414,10 @@ Generates the OpenAPI-derived descriptor package consumed by the reusable Bubble
 
 ```bash
 make binary
-./trex tui --server http://localhost:8000 --token-file /dev/stdin < token.txt
+./generated/ctl/trexctl tui --server http://localhost:8000 --token-file /dev/stdin < token.txt
 ```
 
-`make binary` regenerates the embedded descriptor and compiles the CLI and TUI into the same `trex` executable. `make generate-tui` remains available when only the generated descriptor needs to be inspected or refreshed. The integrated command intentionally has no raw `--token` argument. Use `--token-file /dev/stdin` when credentials should come from a pipe.
+`make ctl` generates the `trexctl` component (CLI + TUI in one binary) from the OpenAPI spec: `scripts/cli-generator` emits the CLI and a `tui` command wired to the library's `tuicmd` runtime, and `scripts/tui-generator` produces the embedded descriptor. `make generate-tui` remains available when only the descriptor needs to be inspected or refreshed. The TUI command intentionally has no raw `--token` argument; use `--token-file /dev/stdin` when credentials should come from a pipe.
 
 ---
 
@@ -448,6 +448,7 @@ make binary
 | `make generate-sdk-ts`         | Generate TypeScript SDK only              |
 | `make generate-cli`            | Generate CLI project                      |
 | `make generate-console-plugin` | Generate OpenShift Console dynamic plugin |
-| `make generate-tui`            | Regenerate embedded TUI descriptor only    |
+| `make ctl` (api-server) / `make ctl` (new project) | Generate + build the `trexctl` / `<name>ctl` component (CLI + TUI) |
+| `make generate-tui`            | Regenerate the embedded TUI descriptor only    |
 | `make generate-all`            | Generate SDK + CLI + Console Plugin + TUI |
 | `make generate-clean`          | Remove standalone SDK/CLI/plugin output   |

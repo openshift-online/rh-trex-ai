@@ -2,11 +2,12 @@ package main
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 )
 
-func TestRootHelpExposesIntegratedTUICommand(t *testing.T) {
+// The TUI is no longer integrated into the server binary; it lives in the
+// separate trexctl component (CLI + TUI). The server root must not expose it.
+func TestRootHelpOmitsTUICommand(t *testing.T) {
 	root := newRootCommand()
 	var output bytes.Buffer
 	root.SetOut(&output)
@@ -16,7 +17,7 @@ func TestRootHelpExposesIntegratedTUICommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	help := output.String()
-	if !strings.Contains(help, "tui") || !strings.Contains(help, "Browse and operate the service from a terminal UI") {
-		t.Fatalf("root help omitted integrated TUI command:\n%s", help)
+	if bytes.Contains(output.Bytes(), []byte("tui")) {
+		t.Fatalf("server root help unexpectedly exposes the integrated TUI command (moved to trexctl):\n%s", help)
 	}
 }

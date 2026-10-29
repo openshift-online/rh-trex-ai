@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	generatedtui "github.com/openshift-online/rh-trex-ai/components/api-server/data/generated/tui"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api"
 	pkgcmd "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/cmd"
 
@@ -32,7 +31,6 @@ func newRootCommand() *cobra.Command {
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("rh-trex"),
 		pkgcmd.NewServeCommand(api.GetOpenAPISpec),
-		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 		pkgcmd.NewGenerateEntityCommand(),
 		pkgcmd.NewProjectCommand(),
 	)

@@ -137,21 +137,29 @@ After generating Kinds, API endpoints follow this pattern:
 - `GET /api/my-service/v1/{kinds}/{id}` - Get specific item
 - `PATCH /api/my-service/v1/{kinds}/{id}` - Update specific item
 
-## Generate a CLI
+## Generate the Client Component (`<name>ctl`)
 
-Generate a typed Cobra CLI from the project's OpenAPI spec:
+Generate and build the CLI + TUI component (one binary) from the project's OpenAPI spec:
 
 ```bash
-make generate-cli
+make ctl
+./generated/ctl/my-servicectl --help
 ```
 
-The CLI is written to `generated/cli` (binary `my-service-cli`). After adding entities, regenerate the OpenAPI client first so the CLI includes them:
+The component includes all CRUD commands plus a terminal UI:
+
+```bash
+./my-servicectl login --token-file /dev/stdin --url http://localhost:8000
+./my-servicectl list <resource>
+./my-servicectl create <resource> --<field> <value>
+./my-servicectl tui --server http://localhost:8000
+```
+
+After adding entities, regenerate the OpenAPI client first so the component includes them:
 
 ```bash
 make proto && make generate
-make generate-cli
-cd generated/cli
-go mod tidy && go build -o my-service-cli ./cmd/my-service-cli
+make ctl
 ```
 
 ## Conformance & Upgrading

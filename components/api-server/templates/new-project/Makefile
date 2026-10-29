@@ -58,34 +58,40 @@ verify: verify-entities
 
 # TRex source root: derived from the replace directive in go.mod (the parent
 # directory of the components/api-server module path). Empty when the library
-# is resolved via a proxy (published); then the CLI generator module is used.
+# is resolved via a proxy (published); then the generators cannot be run from
+# a local checkout and the targets below fail with this error.
 TREX_REPLACE := $(shell grep '^replace github.com/openshift-online/rh-trex-ai/components/api-server' go.mod | awk '{print $$4}')
 TREX_SRC := $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
-CLI_MODULE ?= github.com/openshift-online/rh-trex-ai/scripts/cli-generator
-CLI_OUT ?= generated/cli
-CLI_BINARY ?= $(BINARY_NAME)-cli
+CTL_OUT ?= generated/ctl
+CTL_BINARY ?= $(BINARY_NAME)ctl
 
-# Generate a Cobra CLI client from the project's OpenAPI spec.
+# Generate the <name>ctl component: the Cobra CLI plus the TUI command,
+# sourced from the TRex library's cli-generator and tui-generator.
 .PHONY: generate-cli
 generate-cli:
-	rm -rf $(CLI_OUT)
-ifneq ($(TREX_SRC),)
+	@test -n "$(TREX_SRC)" || (echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1)
+	rm -rf $(CTL_OUT)
 	cd $(TREX_SRC)/scripts/cli-generator && go run . \
 		--spec $(abspath openapi/openapi.yaml) \
-		--out $(abspath $(CLI_OUT)) \
-		--binary $(CLI_BINARY) \
-		--module $(REPO)/$(CLI_BINARY) \
+		--out $(abspath $(CTL_OUT)) \
+		--binary $(CTL_BINARY) \
+		--module $(REPO)/$(CTL_BINARY) \
 		--api-prefix /api/$(BINARY_NAME)/v1 \
-		--project $(BINARY_NAME)
-else
-	go run $(CLI_MODULE)@latest \
+		--project $(BINARY_NAME) \
+		--tui
+	cd $(TREX_SRC)/scripts/tui-generator && go run . \
 		--spec $(abspath openapi/openapi.yaml) \
-		--out $(abspath $(CLI_OUT)) \
-		--binary $(CLI_BINARY) \
-		--module $(REPO)/$(CLI_BINARY) \
-		--api-prefix /api/$(BINARY_NAME)/v1 \
-		--project $(BINARY_NAME)
-endif
+		--out $(abspath $(CTL_OUT)/data/generated/tui)
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(TREX_SRC)/components/api-server#' $(CTL_OUT)/go.mod
+	rm -f $(CTL_OUT)/go.mod.bak
+
+# Build the <name>ctl binary (CLI + TUI).
+.PHONY: ctl
+ctl: build-ctl
+
+.PHONY: build-ctl
+build-ctl: generate-cli
+	cd $(CTL_OUT) && go mod tidy && go build -o $(CTL_BINARY) ./cmd/$(CTL_BINARY)
 
 .PHONY: test-integration
 test-integration: install
