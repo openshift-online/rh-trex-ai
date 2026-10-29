@@ -14,10 +14,12 @@ import (
 
 func NewGenerateEntityCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "generate-entity",
-		Aliases: []string{"new-entity"},
-		Short:   "Generate a new entity (CRUD) from embedded templates",
-		Long:    "Generate a new entity (CRUD) from embedded templates. Run from the api-server source directory.",
+		Use:           "generate-entity",
+		Aliases:       []string{"new-entity"},
+		Short:         "Generate a new entity (CRUD) from embedded templates",
+		Long:          "Generate a new entity (CRUD) from embedded templates. Run from the api-server source directory.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts, err := generateEntityOptions(cmd)
 			if err != nil {
