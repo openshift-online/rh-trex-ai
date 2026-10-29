@@ -113,11 +113,15 @@ func scaffoldProject(name, repo, dir string) error {
 
 	fmt.Printf("Created new TRex project at %s\n", target)
 	fmt.Printf("Next steps:\n")
-	fmt.Printf("  cd %s\n", target)
-	fmt.Printf("  make generate   # generate OpenAPI client\n")
-	fmt.Printf("  go mod tidy     # resolve dependencies\n")
-	fmt.Printf("  make binary      # build %s\n", name)
-	fmt.Printf("  ./%s new-entity --kind HelloWorld --fields \"message:string:required\" --project %s --repo %s\n", name, name, repo)
+	fmt.Printf("  1. Declare your entities in %s/specs/entities.yaml\n", target)
+	fmt.Printf("     (see TRex specs/codegen/entities.yaml for examples: Dinosaur, Scientist, Fossil)\n")
+	fmt.Printf("  2. Generate the API code from that manifest:\n")
+	fmt.Printf("     cd %s\n", target)
+	fmt.Printf("     make generate-entities       # writes plugins/*, protos, OpenAPI refs\n")
+	fmt.Printf("     make proto && make generate  # protobuf stubs + OpenAPI client\n")
+	fmt.Printf("     make binary                   # build the server binary (./%s)\n", name)
+	fmt.Printf("  3. Optional: build the client component (CLI + TUI): make ctl\n")
+	fmt.Printf("  4. Run: make db/setup && ./%s migrate && ./%s serve --enable-authz=false --enable-jwt=false\n", name, name)
 	return nil
 }
 
