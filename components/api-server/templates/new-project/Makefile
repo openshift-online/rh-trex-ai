@@ -56,6 +56,37 @@ verify: verify-entities
 	go vet ./...
 	@test -z "$$(gofmt -l cmd pkg plugins)" || (echo "Unformatted files:"; gofmt -l cmd pkg plugins; exit 1)
 
+# TRex source root: derived from the replace directive in go.mod (the parent
+# directory of the components/api-server module path). Empty when the library
+# is resolved via a proxy (published); then the CLI generator module is used.
+TREX_REPLACE := $(shell grep '^replace github.com/openshift-online/rh-trex-ai/components/api-server' go.mod | awk '{print $$4}')
+TREX_SRC := $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
+CLI_MODULE ?= github.com/openshift-online/rh-trex-ai/scripts/cli-generator
+CLI_OUT ?= generated/cli
+CLI_BINARY ?= $(BINARY_NAME)-cli
+
+# Generate a Cobra CLI client from the project's OpenAPI spec.
+.PHONY: generate-cli
+generate-cli:
+	rm -rf $(CLI_OUT)
+ifneq ($(TREX_SRC),)
+	cd $(TREX_SRC)/scripts/cli-generator && go run . \
+		--spec $(abspath openapi/openapi.yaml) \
+		--out $(abspath $(CLI_OUT)) \
+		--binary $(CLI_BINARY) \
+		--module $(REPO)/$(CLI_BINARY) \
+		--api-prefix /api/$(BINARY_NAME)/v1 \
+		--project $(BINARY_NAME)
+else
+	go run $(CLI_MODULE)@latest \
+		--spec $(abspath openapi/openapi.yaml) \
+		--out $(abspath $(CLI_OUT)) \
+		--binary $(CLI_BINARY) \
+		--module $(REPO)/$(CLI_BINARY) \
+		--api-prefix /api/$(BINARY_NAME)/v1 \
+		--project $(BINARY_NAME)
+endif
+
 .PHONY: test-integration
 test-integration: install
 	API_ENV=integration_testing go test -p 1 -v ./plugins/... -count=1

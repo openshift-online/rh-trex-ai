@@ -137,6 +137,23 @@ After generating Kinds, API endpoints follow this pattern:
 - `GET /api/my-service/v1/{kinds}/{id}` - Get specific item
 - `PATCH /api/my-service/v1/{kinds}/{id}` - Update specific item
 
+## Generate a CLI
+
+Generate a typed Cobra CLI from the project's OpenAPI spec:
+
+```bash
+make generate-cli
+```
+
+The CLI is written to `generated/cli` (binary `my-service-cli`). After adding entities, regenerate the OpenAPI client first so the CLI includes them:
+
+```bash
+make proto && make generate
+make generate-cli
+cd generated/cli
+go mod tidy && go build -o my-service-cli ./cmd/my-service-cli
+```
+
 ## Conformance & Upgrading
 
 The entities declared in `scripts/entities.yaml` are owned by the TRex entity generator. `make verify-entities` regenerates each declared entity from the *currently required* TRex library's templates and fails if your on-disk generated files have drifted:
