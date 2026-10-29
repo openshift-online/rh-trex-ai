@@ -56,6 +56,7 @@ verify-entities: binary
 		--proto-package $(PROTO_PACKAGE)
 
 # Regenerate every entity declared in specs/entities.yaml in place.
+# Refresh go.sum afterwards so new generated imports (e.g. test deps) resolve.
 .PHONY: generate-entities
 generate-entities: binary
 	./$(BINARY_NAME) generate-entity --manifest specs/entities.yaml --regenerate \
@@ -64,6 +65,7 @@ generate-entities: binary
 		--library $(LIB_MODULE) \
 		--module $(REPO)/$(BINARY_NAME) \
 		--proto-package $(PROTO_PACKAGE)
+	go mod tidy
 
 # Combined verification: entity conformance + ctl conformance + vet + formatting.
 .PHONY: verify
