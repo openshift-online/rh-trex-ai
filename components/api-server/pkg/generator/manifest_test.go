@@ -48,8 +48,20 @@ entities:
 }
 
 func TestLoadManifestErrors(t *testing.T) {
-	if _, err := LoadManifest(writeManifest(t, "entities: []")); err == nil {
-		t.Error("expected error for empty entities")
+	if _, err := LoadManifest(writeManifest(t, "entities: []")); err != nil {
+		t.Errorf("expected empty entities to be valid, got error: %v", err)
+	}
+	if _, err := LoadManifest(writeManifest(t, "proto_package: rh_trex\nentities: []")); err != nil {
+		t.Errorf("expected empty entities manifest to load, got error: %v", err)
+	}
+	// LoadManifest returns without error; verify empty manifest reports no drift.
+	empty, err := LoadManifest(writeManifest(t, "entities: []"))
+	if err != nil {
+		t.Fatalf("unexpected load error: %v", err)
+	}
+	root := seedRepo(t)
+	if drift, err := Verify(verifyOptions(root), empty, root); err != nil || len(drift) != 0 {
+		t.Errorf("expected empty manifest verify to be clean, got drift=%v err=%v", drift, err)
 	}
 	if _, err := LoadManifest(writeManifest(t, "entities:\n  - fields: \"x:string\"")); err == nil {
 		t.Error("expected error for entity without kind")

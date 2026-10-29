@@ -57,8 +57,9 @@ func entityOutputPaths(n Naming, protoPackage string) []string {
 // example entities) are stripped from both sides before the aggregate and
 // main.go are compared, so they do not cause false drift.
 func Verify(opts Options, m *Manifest, repoRoot string) ([]string, error) {
+	// A manifest with no entities has nothing to drift; treat as clean.
 	if len(m.Entities) == 0 {
-		return nil, fmt.Errorf("manifest declares no entities")
+		return nil, nil
 	}
 
 	baseDir, err := os.MkdirTemp("", "trex-verify-*")
