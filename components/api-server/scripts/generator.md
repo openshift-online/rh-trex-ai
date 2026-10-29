@@ -1,7 +1,7 @@
 # TRex Software Factory
 
 The machine-readable source of truth for auto-generated Kinds is
-[`scripts/entities.yaml`](./entities.yaml). The software factory reads that
+[`specs/codegen/entities.yaml`](../../specs/codegen/entities.yaml). The software factory reads that
 manifest as Desired State, scans the codebase as Actual State, and reconciles
 the difference by generating, updating, or removing Kinds across all
 generators. `make verify-entities` regenerates every declared entity and
@@ -9,7 +9,7 @@ fails if disk drifts from the manifest.
 
 The ERD below is the human-readable view of the same Desired State (kinds and
 fields, plus documented relationships). Keep it in sync with
-`scripts/entities.yaml`; the manifest is what tooling parses.
+`specs/codegen/entities.yaml`; the manifest is what tooling parses.
 
 ---
 
@@ -100,7 +100,7 @@ Every Kind automatically receives these fields. **Do not include them in the ERD
 
 ## Software Factory Reconciliation Loop
 
-The factory operates as a Kubernetes-style reconciler: it compares Desired State (`scripts/entities.yaml`, with the ERD below as its human-readable view) against Actual State (the codebase) and takes action to converge.
+The factory operates as a Kubernetes-style reconciler: it compares Desired State (`specs/codegen/entities.yaml`, with the ERD below as its human-readable view) against Actual State (the codebase) and takes action to converge.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -129,7 +129,7 @@ The factory operates as a Kubernetes-style reconciler: it compares Desired State
 
 | Step | Action | Output |
 | --- | --- | --- |
-| 1a | Parse `scripts/entities.yaml` | Set of desired Kinds with fields, types, nullability, relationships |
+| 1a | Parse `specs/codegen/entities.yaml` | Set of desired Kinds with fields, types, nullability, relationships |
 | 1b | Scan `plugins/*/` directories | Set of actual Kinds currently in the codebase |
 | 1c | Scan `openapi/openapi.*.yaml` | Set of actual OpenAPI sub-specs |
 | 1d | Scan `proto/rh_trex/v1/*.proto` | Set of actual proto definitions |

@@ -71,7 +71,7 @@ What it does:
 4. Points the new project's `replace` directive at the TRex source used, so it builds immediately (removes it when published).
 5. Optionally runs `make generate && go mod tidy && make binary` to verify the scaffold builds.
 
-The scaffolded project is a complete Go service that imports the TRex library and inherits all server commands (`serve`, `migrate`, `new-entity`, `new-project`). Its client component (`<name>ctl`, generated CLI + TUI) is built with `make ctl`. It also ships a `scripts/entities.yaml` manifest and a `make verify-entities` target, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
+The scaffolded project is a complete Go service that imports the TRex library and inherits all server commands (`serve`, `migrate`, `new-entity`, `new-project`). Its client component (`<name>ctl`, generated CLI + TUI) is built with `make ctl`. It also ships a `specs/entities.yaml` manifest and `make verify-entities` / `make generate-entities` targets, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
 
 Then add your first entity:
 

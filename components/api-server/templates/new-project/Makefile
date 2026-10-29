@@ -38,12 +38,22 @@ run-no-auth: binary
 test: install
 	go test -v ./...
 
-# Verify that entities declared in scripts/entities.yaml match what the TRex
+# Verify that entities declared in specs/entities.yaml match what the TRex
 # generator would produce from the currently-required library version. Run
 # this after upgrading the TRex library to detect generated-code drift.
 .PHONY: verify-entities
 verify-entities: binary
-	./$(BINARY_NAME) generate-entity --manifest scripts/entities.yaml --verify \
+	./$(BINARY_NAME) generate-entity --manifest specs/entities.yaml --verify \
+		--project $(BINARY_NAME) \
+		--repo $(REPO) \
+		--library $(LIB_MODULE) \
+		--module $(REPO)/$(BINARY_NAME) \
+		--proto-package $(PROTO_PACKAGE)
+
+# Regenerate every entity declared in specs/entities.yaml in place.
+.PHONY: generate-entities
+generate-entities: binary
+	./$(BINARY_NAME) generate-entity --manifest specs/entities.yaml --regenerate \
 		--project $(BINARY_NAME) \
 		--repo $(REPO) \
 		--library $(LIB_MODULE) \
