@@ -80,6 +80,13 @@ TREX_HOME="${TREX_HOME:-$HOME/.trex}"
 
 LIB_MODULE=github.com/openshift-online/rh-trex-ai/components/api-server
 
+# A customized origin/branch means the user explicitly asked for a specific
+# source; never reuse a possibly-stale cache for it.
+CUSTOM_ORIGIN=0
+if [[ "$TREX_REPO_URL" != "https://github.com/openshift-online/rh-trex-ai" ]] || [[ -n "$TREX_BRANCH" ]]; then
+  CUSTOM_ORIGIN=1
+fi
+
 # Resolve the TRex source used for the `replace` directive.
 SRC=""
 if [[ "${TREX_PUBLISHED:-0}" != "1" ]]; then
@@ -87,6 +94,13 @@ if [[ "${TREX_PUBLISHED:-0}" != "1" ]]; then
     SRC="$TREX_SRC"
   else
     SRC="$TREX_HOME/src"
+    if [[ -n "$TREX_BRANCH" ]]; then
+      SRC="$TREX_HOME/src-$TREX_BRANCH"
+    fi
+    if [[ "$CUSTOM_ORIGIN" == "1" && -d "$SRC" ]]; then
+      echo "==> refreshing TRex source cache for custom origin/branch"
+      rm -rf "$SRC"
+    fi
     if [[ ! -d "$SRC/components/api-server" ]]; then
       echo "==> fetching TRex source ($TREX_REPO_URL)"
       mkdir -p "$TREX_HOME"
@@ -102,6 +116,13 @@ if [[ "${TREX_PUBLISHED:-0}" != "1" ]]; then
   SRC="$(cd "$SRC" && pwd)"
   if [[ ! -f "$SRC/components/api-server/go.mod" ]]; then
     echo "error: TRex source has no components/api-server module at $SRC" >&2
+    exit 1
+  fi
+  # Guard against an outdated source that predates the new-project generator.
+  if [[ ! -f "$SRC/components/api-server/pkg/cmd/newproject.go" ]]; then
+    echo "error: the TRex source at $SRC predates the new-project generator." >&2
+    echo "       Set TREX_SRC (or TREX_REPO_URL/TREX_BRANCH) to a source that contains" >&2
+    echo "       pkg/cmd/newproject.go (e.g. the generator-embedded branch)." >&2
     exit 1
   fi
 fi
