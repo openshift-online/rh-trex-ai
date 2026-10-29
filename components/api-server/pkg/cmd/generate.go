@@ -37,8 +37,9 @@ func NewGenerateEntityCommand() *cobra.Command {
 	flags.String("module", "", "the Go module path of the project entities are generated into (default: same as --library)")
 	flags.String("proto-package", "", "the protobuf package name (e.g. rh_trex_mgr). Defaults to snake_case of project name")
 	flags.String("dir", "", "directory to write generated files into (default: current directory)")
-	flags.String("manifest", "", "YAML manifest describing entities to generate or verify (scripts/entities.yaml)")
+	flags.String("manifest", "", "YAML manifest describing entities to generate or verify (specs/codegen/entities.yaml)")
 	flags.Bool("verify", false, "regenerate manifest entities in a temp dir and compare against disk; exit non-zero on drift")
+	flags.Bool("regenerate", false, "strip and regenerate manifest entities in place (idempotent)")
 	flags.String("templates-dir", "", "directory containing generate-*.txt template files (defaults to embedded templates)")
 	flags.Bool("run-make", true, "run make proto and make generate after generating files")
 
@@ -92,6 +93,28 @@ func runGenerateEntity(cmd *cobra.Command, opts generator.Options) error {
 			return fmt.Errorf("entities out of sync")
 		}
 		fmt.Printf("OK: all %d entities in manifest %s match generated output\n", len(m.Entities), manifestPath)
+		return nil
+	}
+
+	regenerate, err := cmd.Flags().GetBool("regenerate")
+	if err != nil {
+		return err
+	}
+	if regenerate {
+		repoRoot := opts.BaseDir
+		if repoRoot == "" {
+			repoRoot, err = os.Getwd()
+			if err != nil {
+				return err
+			}
+		}
+		if err := generator.Regenerate(opts, m, repoRoot); err != nil {
+			return err
+		}
+		if opts.RunMake {
+			generator.RunMakeSteps(repoRoot)
+		}
+		fmt.Printf("Regenerated %d entities from manifest %s\n", len(m.Entities), manifestPath)
 		return nil
 	}
 

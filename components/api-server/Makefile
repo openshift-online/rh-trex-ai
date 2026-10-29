@@ -144,11 +144,17 @@ verify: check-gopath verify-entities
 		)
 .PHONY: verify
 
-# Verifies that entities declared in scripts/entities.yaml match what the
+# Verifies that entities declared in specs/codegen/entities.yaml match what the
 # generator would produce from the current templates.
 .PHONY: verify-entities
 verify-entities:
-	$(GO) run ./cmd/trex generate-entity --manifest scripts/entities.yaml --verify
+	$(GO) run ./cmd/trex generate-entity --manifest ../../specs/codegen/entities.yaml --verify
+
+# Regenerates every entity declared in specs/codegen/entities.yaml in place
+# (idempotent: strips existing refs/imports first).
+.PHONY: generate-entities
+generate-entities:
+	$(GO) run ./cmd/trex generate-entity --manifest ../../specs/codegen/entities.yaml --regenerate
 
 # Runs our linter to verify that everything is following best practices
 # Requires golangci-lint to be installed @ $(go env GOPATH)/bin/golangci-lint
