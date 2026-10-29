@@ -5,7 +5,6 @@ package main
 import (
 	"os"
 
-	generatedtui "github.com/example/my-service/data/generated/tui"
 	localapi "github.com/example/my-service/pkg/api"
 	pkgcmd "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/cmd"
 
@@ -19,7 +18,6 @@ func main() {
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("my-service"),
 		pkgcmd.NewServeCommand(localapi.GetOpenAPISpec),
-		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 		pkgcmd.NewGenerateEntityCommand(),
 		pkgcmd.NewProjectCommand(),
 	)

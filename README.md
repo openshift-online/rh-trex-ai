@@ -11,8 +11,8 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 - REST + gRPC dual-protocol API with OpenAPI spec generation
 - Plugin-based entity architecture with auto-registration
 - Entity code generator (`trex generate-entity` / `new-entity`) scaffolded into new apps
-- CLI code generator (`scripts/cli-generator/`) — generates a typed CLI from your OpenAPI spec
-- Integrated Bubble Tea TUI (`trex tui`) generated from the OpenAPI spec
+- `trexctl` component (generated CLI + Bubble Tea TUI in one binary) built with `make ctl`
+- CLI/TUI generators (`scripts/cli-generator/`, `scripts/tui-generator/`) produce it from your OpenAPI spec
 - PostgreSQL with GORM, migrations, and advisory locks
 - Event-driven controllers via PostgreSQL LISTEN/NOTIFY
 - JWT authentication with multi-issuer support (multiple JWK URLs + file)
@@ -40,7 +40,7 @@ make db/setup
 make run-no-auth
 
 # In another terminal, browse and operate on API resources
-./trex tui --server http://localhost:8000
+./generated/ctl/trexctl tui --server http://localhost:8000
 ```
 
 REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
@@ -71,7 +71,7 @@ What it does:
 4. Points the new project's `replace` directive at the TRex source used, so it builds immediately (removes it when published).
 5. Optionally runs `make generate && go mod tidy && make binary` to verify the scaffold builds.
 
-The scaffolded project is a complete Go service that imports the TRex library and inherits all commands (`serve`, `migrate`, `tui`, `new-entity`, `new-project`). It also ships a `scripts/entities.yaml` manifest and a `make verify-entities` target, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
+The scaffolded project is a complete Go service that imports the TRex library and inherits all server commands (`serve`, `migrate`, `new-entity`, `new-project`). Its client component (`<name>ctl`, generated CLI + TUI) is built with `make ctl`. It also ships a `scripts/entities.yaml` manifest and a `make verify-entities` target, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
 
 Then add your first entity:
 
@@ -108,7 +108,7 @@ grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 
 # Terminal UI (use --token-file when the server requires authentication)
-./trex tui --server http://localhost:8000
+./generated/ctl/trexctl tui --server http://localhost:8000
 ```
 
 ## Generate a New Entity
@@ -135,27 +135,28 @@ make db/teardown && make db/setup
 make run-no-auth
 ```
 
-## Generate a CLI
+## Generate the Client Component (`trexctl`)
 
-Generate a typed CLI from the OpenAPI spec:
+Build the CLI + TUI component (one binary) from the OpenAPI spec:
 
 ```sh
-cd scripts/cli-generator
-go run . --spec ../../openapi/openapi.yaml --out /tmp/trex-cli
-cd /tmp/trex-cli
-go build -o trex-cli ./cmd/trex-cli
+make ctl
+./generated/ctl/trexctl --help
 ```
 
-Use the generated CLI:
+Use the generated `trexctl`:
 
 ```sh
 # Login
-trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
 
 # CRUD
-trex-cli list dinosaurs
-trex-cli create dinosaur --species Velociraptor
-trex-cli get dinosaur <id>
+trexctl list dinosaurs
+trexctl create dinosaur --species Velociraptor
+trexctl get dinosaur <id>
+
+# Terminal UI
+trexctl tui --server http://localhost:8000
 ```
 
 ## Run With Authentication
@@ -163,9 +164,10 @@ trex-cli get dinosaur <id>
 ```sh
 make run
 
-# Using the generated CLI
-trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
-trex-cli list dinosaurs
+# Using the generated trexctl
+make ctl
+trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+trexctl list dinosaurs
 
 # Or with curl
 curl -H "Authorization: Bearer $OIDC_TOKEN" http://localhost:8000/api/rh-trex/v1/dinosaurs
@@ -185,8 +187,8 @@ make lint              # golangci-lint
 ## Architecture
 
 ```
-cmd/trex/              CLI entrypoint (serve, migrate, tui)
-data/generated/tui/    OpenAPI-derived embedded TUI descriptor
+cmd/trex/              Server entrypoint (serve, migrate, generate-entity, new-project)
+generated/ctl/         Generated trexctl component (CLI + TUI)
 pkg/api/               Models and OpenAPI client
 pkg/handlers/          REST handlers
 pkg/services/          Business logic + event handlers
@@ -199,7 +201,7 @@ plugins/               Self-registering entity plugins
 proto/                 Protobuf definitions
 cmd/trex generate-entity   Entity code generator (in-app command)
 scripts/bootstrap.sh         One-command bootstrap for new apps (curl | bash)
-scripts/cli-generator/ CLI code generator
+scripts/cli-generator/ CLI generator (emits the ctl component)
 scripts/tui-generator/ TUI descriptor generator
 specs/                 Formal requirements (SDD)
 skills/                Agent-executable procedures
