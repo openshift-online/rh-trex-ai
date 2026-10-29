@@ -199,6 +199,13 @@ fi
 
 echo "==> project created at $PROJ"
 
+# Record the TRex source commit used for this scaffold, so the project can
+# detect upstream changes later (make check-trex-version).
+if [[ -n "$SRC" ]]; then
+  mkdir -p "$PROJ/specs"
+  git -C "$SRC" rev-parse HEAD > "$PROJ/specs/trex.version" 2>/dev/null || true
+fi
+
 if [[ "${SKIP_BUILD:-1}" != "1" ]]; then
   echo "==> building project (make generate && go mod tidy && make binary)"
   if ( cd "$PROJ" && make generate && go mod tidy && make binary ); then
