@@ -1,0 +1,25 @@
+# Auto-generated entities (Desired State).
+#
+# This manifest is the single source of truth for which entities in this
+# project are owned by the TRex entity generator. `make verify-entities`
+# regenerates every declared entity from the TRex library's embedded templates
+# and fails if the files on disk have drifted — e.g. after upgrading the TRex
+# library, when a template changed and your generated code must be refreshed.
+#
+# Field syntax: name:type[:required|optional]
+#   types: string, int, int64, bool, float, time
+#   (default nullable; :required = non-nullable)
+#
+# Example:
+#   entities:
+#     - kind: Widget
+#       fields: "name:string:required,count:int"
+
+proto_package: my_service
+
+# Paths intentionally allowed to deviate from regenerated output.
+# These are hand-tuned golden tests; everything else must match the generator.
+ignore:
+  - "plugins/*/grpc_integration_test.go"
+
+entities: []

@@ -1,6 +1,13 @@
 BINARY_NAME=my-service
 CONTAINER_ENGINE?=$(shell command -v podman 2>/dev/null || echo docker)
 
+# Module base for the project (e.g. github.com/myorg); used by verify-entities.
+REPO?=github.com/example
+# Protobuf package (snake_case of the project name). Set if not the default.
+PROTO_PACKAGE?=my_service
+# Path of the TRex library module; used by verify-entities.
+LIB_MODULE=github.com/openshift-online/rh-trex-ai/components/api-server
+
 # Version information for ldflags
 git_sha:=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 git_dirty:=$(shell git diff --quiet 2>/dev/null || echo "-modified")
@@ -30,6 +37,24 @@ run-no-auth: binary
 .PHONY: test
 test: install
 	go test -v ./...
+
+# Verify that entities declared in scripts/entities.yaml match what the TRex
+# generator would produce from the currently-required library version. Run
+# this after upgrading the TRex library to detect generated-code drift.
+.PHONY: verify-entities
+verify-entities: binary
+	./$(BINARY_NAME) generate-entity --manifest scripts/entities.yaml --verify \
+		--project $(BINARY_NAME) \
+		--repo $(REPO) \
+		--library $(LIB_MODULE) \
+		--module $(REPO)/$(BINARY_NAME) \
+		--proto-package $(PROTO_PACKAGE)
+
+# Combined verification: entity conformance + vet + formatting.
+.PHONY: verify
+verify: verify-entities
+	go vet ./...
+	@test -z "$$(gofmt -l cmd pkg plugins)" || (echo "Unformatted files:"; gofmt -l cmd pkg plugins; exit 1)
 
 .PHONY: test-integration
 test-integration: install

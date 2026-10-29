@@ -51,9 +51,8 @@ func LoadManifest(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("parsing manifest %s: %w", path, err)
 	}
 
-	if len(m.Entities) == 0 {
-		return nil, fmt.Errorf("manifest %s declares no entities", path)
-	}
+	// An empty entities list is valid (e.g. a fresh downstream project that
+	// has not declared entities yet); the verifier treats it as no drift.
 	for _, e := range m.Entities {
 		if e.Kind == "" {
 			return nil, fmt.Errorf("manifest %s contains an entity without a kind", path)

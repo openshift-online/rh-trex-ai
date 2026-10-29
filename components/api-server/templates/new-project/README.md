@@ -137,6 +137,23 @@ After generating Kinds, API endpoints follow this pattern:
 - `GET /api/my-service/v1/{kinds}/{id}` - Get specific item
 - `PATCH /api/my-service/v1/{kinds}/{id}` - Update specific item
 
+## Conformance & Upgrading
+
+The entities declared in `scripts/entities.yaml` are owned by the TRex entity generator. `make verify-entities` regenerates each declared entity from the *currently required* TRex library's templates and fails if your on-disk generated files have drifted:
+
+```bash
+make verify-entities
+```
+
+After upgrading the TRex library (for example bumping the module version or the `replace` target), run `make verify-entities` to discover which generated files need refreshing. Fix drift by regenerating the affected entities:
+
+```bash
+./my-service generate-entity --manifest scripts/entities.yaml --project my-service --repo github.com/example --module github.com/example/my-service --proto-package my_service
+make proto && make generate
+```
+
+`make verify` composes entity conformance with `go vet` and `gofmt` checks.
+
 ## Development Workflow
 
 1. **Generate new Kind**: `./my-service generate-entity --kind MyKind --fields "name:string:required" --library github.com/openshift-online/rh-trex-ai/components/api-server --module github.com/example/my-service --proto-package my_service`
