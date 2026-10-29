@@ -15,13 +15,18 @@ build_version:=$(git_sha)$(git_dirty)
 build_time:=$(shell date -u '+%Y-%m-%d %H:%M:%S UTC')
 ldflags=-X github.com/example/my-service/pkg/api.Version=$(build_version) -X 'github.com/example/my-service/pkg/api.BuildTime=$(build_time)'
 
+.PHONY: ensure-deps
+ensure-deps:
+	@test -d pkg/api/openapi || $(MAKE) generate
+	@test -f go.sum || go mod tidy
+
 .PHONY: binary
-binary:
+binary: ensure-deps
 	@echo "Building version: $(build_version)"
 	go build -ldflags="$(ldflags)" -o $(BINARY_NAME) ./cmd/my-service
 
 .PHONY: install
-install:
+install: ensure-deps
 	go install -ldflags="$(ldflags)" ./cmd/my-service
 
 .PHONY: run
