@@ -26,7 +26,7 @@
 #   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
 #   TREX_PUBLISHED set to 1 when the TRex library is published to a module
 #                   proxy; skips cloning and replace entirely
-#   SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
+#   SKIP_BUILD     set to 0 to run a verification build (make generate + tidy + binary) after scaffolding; default 1 (skip)
 set -euo pipefail
 
 usage() {
@@ -45,7 +45,7 @@ Environment:
   TREX_SRC       existing local TRex source checkout (skips cloning)
   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
   TREX_PUBLISHED set to 1 when the TRex library is published (skips clone/replace)
-  SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
+  SKIP_BUILD     set to 0 to run a verification build after scaffolding; default 1 (skip)
 EOF
 }
 
@@ -199,7 +199,7 @@ fi
 
 echo "==> project created at $PROJ"
 
-if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+if [[ "${SKIP_BUILD:-1}" != "1" ]]; then
   echo "==> building project (make generate && go mod tidy && make binary)"
   if ( cd "$PROJ" && make generate && go mod tidy && make binary ); then
     echo "==> build OK"
@@ -211,10 +211,18 @@ fi
 cat <<EOF
 
 Next steps:
-  cd $PROJ
-  ./$NAME new-entity --kind HelloWorld --fields "message:string:required" \\
-    --project $NAME --repo $REPO \\
-    --library $LIB_MODULE \\
-    --module $REPO/$NAME --proto-package ${NAME//-/_}
-  make proto && make generate && go build ./...
+  1. Declare your entities in $PROJ/specs/entities.yaml
+     (see the TRex specs/codegen/entities.yaml for the same examples: Dinosaur,
+      Scientist, Fossil). Field syntax: name:type[:required|optional]
+  2. Generate the API code from that manifest:
+     cd $PROJ
+     make generate-entities       # writes plugins/*, protos, OpenAPI refs
+     make proto && make generate  # protobuf stubs + OpenAPI client
+     make binary                   # build the server binary (./$NAME)
+  3. Optional: build the client component (CLI + TUI):
+     make ctl                     # builds ./generated/ctl/${NAME}ctl
+  4. Run:
+     make db/setup                # start PostgreSQL
+     ./$NAME migrate
+     ./$NAME serve --enable-authz=false --enable-jwt=false
 EOF
