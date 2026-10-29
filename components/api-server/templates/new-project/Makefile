@@ -56,8 +56,7 @@ verify-entities: binary
 		--proto-package $(PROTO_PACKAGE)
 
 # Regenerate every entity declared in specs/entities.yaml in place.
-# Refresh go.sum afterwards so new generated imports (e.g. test deps) resolve,
-# and record the TRex source commit used for this generation.
+# Refresh go.sum afterwards so new generated imports (e.g. test deps) resolve.
 .PHONY: generate-entities
 generate-entities: binary
 	./$(BINARY_NAME) generate-entity --manifest specs/entities.yaml --regenerate \
@@ -67,12 +66,10 @@ generate-entities: binary
 		--module $(REPO)/$(BINARY_NAME) \
 		--proto-package $(PROTO_PACKAGE)
 	go mod tidy
-	@if [ -n "$(TREX_SRC)" ]; then git -C $(TREX_SRC) rev-parse HEAD > $(TREX_VERSION_FILE) 2>/dev/null || true; fi
 
-# Combined verification: entity conformance + ctl conformance + upstream check
-# + vet + formatting.
+# Combined verification: entity conformance + ctl conformance + vet + formatting.
 .PHONY: verify
-verify: verify-entities verify-ctl check-trex-version
+verify: verify-entities verify-ctl
 	go vet ./...
 	@test -z "$$(gofmt -l cmd pkg plugins)" || (echo "Unformatted files:"; gofmt -l cmd pkg plugins; exit 1)
 
@@ -82,21 +79,6 @@ verify: verify-entities verify-ctl check-trex-version
 # a local checkout and the targets below fail with this error.
 TREX_REPLACE := $(shell grep '^replace github.com/openshift-online/rh-trex-ai/components/api-server' go.mod | awk '{print $$4}')
 TREX_SRC := $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
-TREX_VERSION_FILE ?= specs/trex.version
-
-# Warn when the TRex source in use has changed since this project was
-# generated (recorded in specs/trex.version). Regenerate after updating.
-.PHONY: check-trex-version
-check-trex-version:
-	@if [ -n "$(TREX_SRC)" ] && [ -f $(TREX_VERSION_FILE) ]; then \
-		cur=$$(git -C $(TREX_SRC) rev-parse HEAD 2>/dev/null); \
-		rec=$$(cat $(TREX_VERSION_FILE)); \
-		if [ -n "$$cur" ] && [ "$$cur" != "$$rec" ]; then \
-			echo "WARNING: TRex source changed since generation (recorded $$rec, now $$cur)."; \
-			echo "         Run 'make verify-entities' and 'make generate-entities'."; \
-		fi; \
-	fi
-
 CTL_OUT ?= generated/ctl
 CTL_BINARY ?= $(BINARY_NAME)ctl
 
