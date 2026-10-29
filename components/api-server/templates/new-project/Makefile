@@ -65,9 +65,9 @@ generate-entities: binary
 		--module $(REPO)/$(BINARY_NAME) \
 		--proto-package $(PROTO_PACKAGE)
 
-# Combined verification: entity conformance + vet + formatting.
+# Combined verification: entity conformance + ctl conformance + vet + formatting.
 .PHONY: verify
-verify: verify-entities
+verify: verify-entities verify-ctl
 	go vet ./...
 	@test -z "$$(gofmt -l cmd pkg plugins)" || (echo "Unformatted files:"; gofmt -l cmd pkg plugins; exit 1)
 
@@ -107,6 +107,24 @@ ctl: build-ctl
 .PHONY: build-ctl
 build-ctl: generate-cli
 	cd $(CTL_OUT) && go mod tidy && go build -o $(CTL_BINARY) ./cmd/$(CTL_BINARY)
+
+# Verify that the generated ctl component matches what the generators produce
+# from the current OpenAPI spec. Regenerates into a temp dir and diffs sources
+# (build artifacts: go.sum, the binary, and generated dirs are ignored).
+.PHONY: verify-ctl
+verify-ctl:
+	@test -n "$(TREX_SRC)" || (echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1)
+	@tmp=$$(mktemp -d); \
+	$(MAKE) --no-print-directory generate-cli CTL_OUT="$$tmp" >/dev/null 2>&1 || { echo "error: could not regenerate ctl" >&2; rm -rf "$$tmp"; exit 1; }; \
+	( cd "$$tmp" && go mod tidy ) >/dev/null 2>&1; \
+	( cd $(abspath $(CTL_OUT)) && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -path './.git/*' | sort ) > "$$tmp/files.txt"; \
+	fail=0; \
+	while IFS= read -r rel; do \
+		[ -z "$$rel" ] && continue; \
+		if ! cmp -s $(abspath $(CTL_OUT))/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
+	done < "$$tmp/files.txt"; \
+	rm -rf "$$tmp"; \
+	if [ "$$fail" = 0 ]; then echo "OK: ctl component matches regenerated output"; else echo "Generated ctl out of sync:"; exit 1; fi
 
 .PHONY: test-integration
 test-integration: install

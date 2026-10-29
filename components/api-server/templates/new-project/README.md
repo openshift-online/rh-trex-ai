@@ -177,7 +177,7 @@ After upgrading the TRex library (for example bumping the module version or the 
 make proto && make generate
 ```
 
-`make verify` composes entity conformance with `go vet` and `gofmt` checks.
+`make verify` composes entity conformance, ctl component conformance (`verify-ctl`), `go vet` and `gofmt` checks.
 
 ## Development Workflow
 
