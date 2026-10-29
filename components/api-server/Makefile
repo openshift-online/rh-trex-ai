@@ -127,7 +127,7 @@ endif
 .PHONY: check-gopath
 
 # Verifies that source passes standard checks.
-verify: check-gopath verify-entities
+verify: check-gopath verify-entities verify-ctl
 	${GO} vet \
 		./cmd/... \
 		./pkg/...
@@ -293,6 +293,34 @@ build-ctl:
 	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' generated/ctl/go.mod
 	rm -f generated/ctl/go.mod.bak
 	cd generated/ctl && $(GO) mod tidy && $(GO) build -o trexctl ./cmd/trexctl
+
+# Verify that the generated trexctl component matches what the generators
+# produce from the current OpenAPI spec (sources only; build artifacts
+# ignored).
+.PHONY: verify-ctl
+verify-ctl:
+	@tmp=$$(mktemp -d); \
+	cd ../../scripts/cli-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out "$$tmp" \
+		--binary trexctl \
+		--module github.com/openshift-online/rh-trex-ai/components/api-server/generated/ctl \
+		--tui \
+		--api-prefix /api/rh-trex-ai/v1 \
+		--project rh-trex-ai >/dev/null 2>&1 && \
+	cd ../../scripts/tui-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out "$$tmp/data/generated/tui" >/dev/null 2>&1 && \
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' "$$tmp/go.mod" && rm -f "$$tmp/go.mod.bak" && \
+	( cd "$$tmp" && $(GO) mod tidy ) >/dev/null 2>&1 && \
+	( cd $(CURDIR)/generated/ctl && find . -type f ! -name go.sum ! -name trexctl ! -path './.git/*' | sort ) > "$$tmp/files.txt" && \
+	fail=0; \
+	while IFS= read -r rel; do \
+		[ -z "$$rel" ] && continue; \
+		if ! cmp -s $(CURDIR)/generated/ctl/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
+	done < "$$tmp/files.txt"; \
+	rm -rf "$$tmp"; \
+	if [ "$$fail" = 0 ]; then echo "OK: trexctl matches regenerated output"; else echo "Generated trexctl out of sync:"; exit 1; fi
 
 run: binary
 	./trex migrate
