@@ -189,6 +189,12 @@ func Run(opts Options) error {
 
 		runGofmt(outputPath)
 
+		if nm == "proto" {
+			if err := ensureCommonProto(filepath.Dir(outputPath), data); err != nil {
+				return err
+			}
+		}
+
 		if nm == "openapi-kind" {
 			mainPath := filepath.Join(opts.BaseDir, "openapi", "openapi.yaml")
 			if err := modifyOpenapi(mainPath, outputPath); err != nil {
