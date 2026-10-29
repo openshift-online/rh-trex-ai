@@ -73,6 +73,8 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	apiRouter.HandleFunc("/v1/openapi.html", openapiHandler.GetOpenAPIUI).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/v1/openapi", openapiHandler.GetOpenAPI).Methods(http.MethodGet)
 
+	apiRouter.HandleFunc("/v1/auth/config", loginConfigHandler(authConfig)).Methods(http.MethodGet)
+
 	apiV1Router := apiRouter.PathPrefix("/v1").Subrouter()
 
 	apiV1Router.Use(MetricsMiddleware)

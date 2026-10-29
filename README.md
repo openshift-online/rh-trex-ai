@@ -123,6 +123,28 @@ curl -H "Authorization: Bearer $OIDC_TOKEN" http://localhost:8000/api/rh-trex/v1
 
 Supports any OIDC provider. Default: Red Hat SSO. Configure signing keys via `--jwk-cert-url`. Resource servers should also set `--jwt-issuer` and `--jwt-audience` to reject signed tokens intended for another issuer or API.
 
+When the API has JWT enabled and `--jwt-issuer` configured, generated CLIs can
+log in with just the API URL:
+
+```bash
+trex-cli login --url https://api.example.com/api/rh-trex-ai/v1
+# On a machine without a browser:
+trex-cli login --url https://api.example.com/api/rh-trex-ai/v1 --no-browser
+```
+
+The CLI reads unauthenticated `GET <BasePath>/auth/config`, whose response is
+`{"issuer_url":"https://login.example.com/realms/example"}`, then uses the
+existing OIDC flow. This endpoint publishes `--jwt-issuer`, never the signing-key
+URL (which can be cluster-local). It returns 404 when JWT or its issuer is not
+configured. No additional server setting is required; the issuer must be
+reachable by the CLI user. Both server-root and full API URLs are accepted for
+automatic discovery. `--client-id` and `--scope` still override CLI defaults.
+
+Older servers remain usable with explicit `--issuer-url` or `--token-file`.
+Consumers need to update their API framework dependency and regenerate their
+CLI before using automatic discovery.
+
+
 ## Testing
 
 ```sh

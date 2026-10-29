@@ -184,8 +184,57 @@ func assertOIDCBehavior(t *testing.T, output, binary string) {
 				t.Fatalf("static login must clear %s: %#v", field, values)
 			}
 		}
-		if _, stderr, err := run(home, "login", "--url", api.URL); err == nil || !strings.Contains(stderr, "token is required") {
-			t.Fatalf("login without a token must fail with an error: err=%v stderr=%q", err, stderr)
+		if _, stderr, err := run(home, "login", "--url", api.URL); err == nil || !strings.Contains(stderr, "API login discovery failed") {
+			t.Fatalf("login against an API without discovery must fail with an error: err=%v stderr=%q", err, stderr)
+		}
+	})
+
+	t.Run("API URL discovers issuer and saves a usable server URL", func(t *testing.T) {
+		issuer := newFakeIssuer(t)
+		discovery := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/rh-trex-ai/v1/auth/config" {
+				if r.Header.Get("Authorization") != "" {
+					t.Error("discovery sent credentials")
+				}
+				_ = json.NewEncoder(w).Encode(map[string]string{"issuer_url": issuer.URL})
+				return
+			}
+			if r.URL.Path != "/api/rh-trex-ai/v1/dinosaurs/abc" {
+				t.Errorf("unexpected resource path %s", r.URL.Path)
+			}
+			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+				t.Error("resource request missing token")
+			}
+			_, _ = w.Write([]byte(`{"id":"abc","kind":"Dinosaur"}`))
+		}))
+		defer discovery.Close()
+		for _, suffix := range []string{"", "/api/rh-trex-ai/v1", "/api/rh-trex-ai/v1/"} {
+			home := t.TempDir()
+			writeConfigFile(t, home, map[string]any{"access_token": "old"})
+			if _, stderr, err := run(home, "login", "--url", discovery.URL+suffix, "--no-browser"); err != nil {
+				t.Fatalf("login: %v %s", err, stderr)
+			}
+			values := readConfigFile(t, home)
+			if values["issuer_url"] != issuer.URL || values["url"] != discovery.URL || values["client_id"] != "trex-cli" {
+				t.Fatalf("config = %v", values)
+			}
+			if _, stderr, err := run(home, "get", "dinosaur", "abc"); err != nil {
+				t.Fatalf("get after login: %v %s", err, stderr)
+			}
+		}
+	})
+
+	t.Run("discovery failure preserves saved session and explains overrides", func(t *testing.T) {
+		legacy := httptest.NewServer(http.NotFoundHandler())
+		defer legacy.Close()
+		home := t.TempDir()
+		writeConfigFile(t, home, map[string]any{"access_token": "old", "refresh_token": "old-refresh"})
+		if _, stderr, err := run(home, "login", "--url", legacy.URL); err == nil || !strings.Contains(stderr, "--issuer-url") || !strings.Contains(stderr, "--token-file") {
+			t.Fatalf("err=%v stderr=%s", err, stderr)
+		}
+		values := readConfigFile(t, home)
+		if values["access_token"] != "old" || values["refresh_token"] != "old-refresh" {
+			t.Fatalf("saved session changed: %v", values)
 		}
 	})
 

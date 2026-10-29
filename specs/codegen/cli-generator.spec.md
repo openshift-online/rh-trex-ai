@@ -98,9 +98,9 @@ For each top-level resource whose item view (the collection path plus one traili
 
 The generated CLI SHALL support login with a bearer token the user already has and with OpenID Connect, SHALL renew an OpenID Connect session automatically, SHALL revoke it on logout, and SHALL report the logged-in identity.
 
-`login` SHALL take the token path (`--token-file`, `--token`) exactly as before unless `--issuer-url` is given. A token login SHALL clear any saved OpenID Connect session fields. `--issuer-url` combined with a token flag SHALL be rejected. `login` SHALL return errors rather than exit the process.
+`login` SHALL take the token path when `--token-file` or `--token` is given. Without token flags or `--issuer-url`, it SHALL discover the issuer from the API before starting OIDC login. A token login SHALL clear any saved OpenID Connect session fields. `--issuer-url` combined with a token flag SHALL be rejected. `login` SHALL return errors rather than exit the process.
 
-With `--issuer-url` the CLI SHALL discover endpoints from `<issuer>/.well-known/openid-configuration`, SHALL reject a discovery document whose issuer differs, and SHALL accept a plain-HTTP issuer only for loopback hosts or with `--insecure`. It SHALL log in as a public client (`--client-id`, defaulting to the generator's `--oidc-client-id` option and otherwise to the binary name; the generator SHALL reject an option value that is not safe to write into source) requesting the scopes given by `--scope` (default `openid`). By default it SHALL use the authorization code flow with PKCE (S256) on a loopback redirect (`127.0.0.1`, an OS-assigned port, RFC 8252), SHALL print the authorization URL, and SHALL abort when the callback state does not match. With `--no-browser` it SHALL use the device authorization grant, honoring the polling interval and `slow_down`. It SHALL save the access token, refresh token, issuer URL, client ID and access token expiry in the configuration, SHALL write the file with mode `0600`, and SHALL NOT include token values in errors or logs.
+With an explicit or API-discovered issuer the CLI SHALL discover endpoints from `<issuer>/.well-known/openid-configuration`, SHALL reject a discovery document whose issuer differs, and SHALL accept a plain-HTTP issuer only for loopback hosts or with `--insecure`. It SHALL log in as a public client (`--client-id`, defaulting to the generator's `--oidc-client-id` option and otherwise to the binary name; the generator SHALL reject an option value that is not safe to write into source) requesting the scopes given by `--scope` (default `openid`). By default it SHALL use the authorization code flow with PKCE (S256) on a loopback redirect (`127.0.0.1`, an OS-assigned port, RFC 8252), SHALL print the authorization URL, and SHALL abort when the callback state does not match. With `--no-browser` it SHALL use the device authorization grant, honoring the polling interval and `slow_down`. It SHALL save the access token, refresh token, issuer URL, client ID and access token expiry in the configuration, SHALL write the file with mode `0600`, and SHALL NOT include token values in errors or logs.
 
 The default token provider SHALL, when the configuration holds a refresh token, issuer URL and client ID, renew the access token before a request when it is expired or within a small margin of expiry, using the JWT `exp` claim or, for opaque tokens, the saved expiry. It SHALL save the rotated refresh token, SHALL adopt a newer session already saved by another invocation instead of refreshing with a stale token, SHALL NOT refresh a token that is still fresh, and SHALL fail with a "session expired, run login" error and send no API request when the issuer rejects the refresh token, leaving the configuration unchanged. Saving SHALL go through the registered configuration store. The connection package SHALL export this default provider (`NewConfigTokenProvider`) so a project that builds its own connection, or hands a token provider to another client such as the TUI, reuses the same refresh behavior instead of copying it.
 
@@ -209,6 +209,35 @@ The CLI generator SHALL produce a standalone Go module with its own `go.mod`.
 - GIVEN the generated CLI code
 - WHEN `go build` is run in the CLI directory
 - THEN the CLI binary SHALL build without depending on the API server's module
+
+### Requirement: API URL Login Discovery
+
+With neither a token flag nor `--issuer-url`, `login --url URL` SHALL fetch
+`<API base path>/auth/config` without credentials and use its `issuer_url` for
+the existing browser/PKCE or `--no-browser` device flow. The generated client ID
+and explicit client ID/scope overrides SHALL continue to apply. An explicit
+issuer or token SHALL bypass API discovery.
+
+The URL MAY be the server root or end in the generated API prefix (with an
+optional trailing slash). Login SHALL save the server base URL without that
+API prefix so subsequent generated resource requests do not duplicate it.
+Discovery SHALL use a bounded response size, a timeout, and cancellation;
+SHALL reject redirects, malformed metadata, missing issuers, and URLs with
+userinfo, query strings, or fragments; and SHALL require HTTPS except for
+loopback development servers or explicit `--insecure`. Failure SHALL preserve
+saved credentials and suggest `--issuer-url` or `--token-file` for older servers.
+
+#### Scenario: Login with only the API URL
+- GIVEN an API advertises its public issuer at its `/auth/config` endpoint
+- WHEN a user runs `login --url https://api.example.com/api/rh-trex-ai/v1`
+- THEN the CLI SHALL discover the issuer and start browser login
+- AND save the authenticated session with `https://api.example.com` as its server URL
+
+#### Scenario: Discovery unavailable
+- GIVEN an older API returns 404 or invalid authentication metadata
+- WHEN a user logs in without an explicit issuer or token
+- THEN the CLI SHALL report discovery failure with override instructions
+- AND SHALL leave any existing session unchanged
 
 ## Design Decisions
 

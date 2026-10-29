@@ -190,3 +190,18 @@ API parity, CG-005, CG-006, STD-003, and STD-004 are fully covered. The remainin
 | 2026-08-04 | 94.3% (183/194) | Kept CG-006 fully covered while making the standard `binary` and `install` targets regenerate the embedded TUI descriptor, so one top-level build produces the unified CLI/TUI executable without a separate TUI step. | Codex |
 | 2026-08-05 | 94.3% (183/194) | Kept CG-006 fully covered by deferring missing-token enforcement to the configured server: `run-no-auth` now accepts anonymous TUI requests, supplied Bearer credentials retain origin protections, and authentication-enabled servers still surface their `401` response safely. | Codex |
 | 2026-09-25 | 94.4% (184/195) | Added and closed GAP-095 (API-002 gRPC Transport Security): gRPC-only TLS independent of shared `--enable-tls`, shared TLS precedence, fail-fast validation, certificate hot reload, and a TLS dial option for the control-plane watch client. | Claude |
+
+## Scoped reconciliation: API URL login (2026-10-29)
+
+Scope: SEC-001 Public Login Configuration and CG-002 API URL Login Discovery.
+The historical repository-wide coverage table above is not recomputed by this
+scoped pass.
+
+| Spec | Requirement | Status | Evidence |
+|------|-------------|--------|----------|
+| SEC-001 | Public Login Configuration | closed | `components/api-server/pkg/server/login_config.go`, public route and exact JWT exemption; `TestPublicLoginConfig` exercises both middleware layers without a database, public issuer vs internal JWK endpoint, disabled/unconfigured cases, and protected child paths. |
+| CG-002 | API URL Login Discovery | closed | Generated login/oidc templates; generated CLI acceptance tests cover discovery, URL normalization, subsequent resource calls, explicit login compatibility and session preservation; generated package tests cover invalid metadata, size limit, TLS, redirects, cancellation and unsafe URLs. |
+
+Initial gaps were the absent public metadata endpoint and issuer-required CLI
+flow. Both are implemented in this change; existing token and explicit-issuer
+flows remain available for older servers.

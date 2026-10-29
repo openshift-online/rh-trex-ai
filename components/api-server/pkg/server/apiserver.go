@@ -54,6 +54,7 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 			WithPublicPath(strings.TrimSuffix(trex.GetConfig().BasePath, "/v1")).
 			WithPublicPath(trex.GetConfig().BasePath).
 			WithPublicPath(trex.GetConfig().BasePath + "/openapi").
+			WithPublicPath(trex.GetConfig().BasePath + "/auth/config").
 			WithPublicPath(trex.GetConfig().BasePath + "/openapi.html").
 			WithPublicPath(trex.GetConfig().BasePath + "/errors").
 			Build()

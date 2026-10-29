@@ -178,6 +178,26 @@ The authentication system SHALL support multiple JWK certificate URLs for multi-
 - THEN the token SHALL be accepted on both HTTP and gRPC paths when any configured issuer and audience requirements match
 - AND neither source SHALL shadow or exclude the other
 
+### Requirement: Public Login Configuration
+
+The API SHALL serve unauthenticated `GET <BasePath>/auth/config` outside the
+JWT, authorization, and database transaction middleware. With JWT enabled and
+`--jwt-issuer` configured, it SHALL return JSON containing only `issuer_url`
+from that configuration. It SHALL NOT infer the issuer from the JWK URL, which
+may address an internal service, or expose confidential client credentials.
+With JWT disabled or no configured issuer, it SHALL return 404.
+
+#### Scenario: Public issuer with internal signing keys
+- GIVEN JWT is enabled with a public `--jwt-issuer` and a cluster-local JWK URL
+- WHEN an unauthenticated client requests `/auth/config` under the API base path
+- THEN the API SHALL return 200 with the configured public issuer only
+- AND no database connection SHALL be required
+
+#### Scenario: Discovery is not configured
+- GIVEN JWT is disabled or `--jwt-issuer` is empty
+- WHEN a client requests the login configuration
+- THEN the API SHALL return 404 without advertising an issuer
+
 ## Design Decisions
 
 | Decision | Rationale |

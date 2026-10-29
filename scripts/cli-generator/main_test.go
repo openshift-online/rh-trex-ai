@@ -221,6 +221,7 @@ func TestGeneratedCLIAcceptance(t *testing.T) {
 	writeTestFile(t, filepath.Join(output, "pkg", "connection", "proxy_test.go"), connectionProxyTest)
 	writeTestFile(t, filepath.Join(output, "pkg", "confirm", "confirm_test.go"), confirmTest)
 	writeTestFile(t, filepath.Join(output, "pkg", "oidc", "oidc_test.go"), oidcPackageTest)
+	writeTestFile(t, filepath.Join(output, "pkg", "oidc", "discovery_test.go"), apiDiscoveryTest)
 	writeTestFile(t, filepath.Join(output, "pkg", "connection", "provider_test.go"), configTokenProviderTest)
 	runCommand(t, output, "go", "mod", "tidy")
 	runCommand(t, output, "go", "test", "./...")
