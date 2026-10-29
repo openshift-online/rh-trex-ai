@@ -177,7 +177,7 @@ After upgrading the TRex library (for example bumping the module version or the 
 make proto && make generate
 ```
 
-`make verify` also runs `check-trex-version`: it compares `specs/trex.version` (the TRex source commit recorded when the project was generated) against the currently-required source and warns when upstream has moved, so you know to run `make verify-entities` / `make generate-entities`.
+`make verify` composes entity conformance, ctl component conformance (`verify-ctl`), `go vet` and `gofmt` checks.
 
 ## Development Workflow
 
