@@ -23,7 +23,7 @@
 #   TREX_REPO_URL   git URL of the TRex source (default: https://github.com/openshift-online/rh-trex-ai)
 #   TREX_BRANCH    branch/tag to fetch (default: remote's default branch)
 #   TREX_SRC       existing local TRex source checkout (skips cloning; used for replace)
-#   TREX_HOME      cache dir for the source clone (default: $HOME/.cache/trex)
+#   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
 #   TREX_PUBLISHED set to 1 when the TRex library is published to a module
 #                   proxy; skips cloning and replace entirely
 #   SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
@@ -43,7 +43,7 @@ Environment:
   TREX_REPO_URL   git URL of TRex source (default: https://github.com/openshift-online/rh-trex-ai)
   TREX_BRANCH    branch/tag to fetch (default: remote's default branch)
   TREX_SRC       existing local TRex source checkout (skips cloning)
-  TREX_HOME      cache dir for the source clone (default: $HOME/.cache/trex)
+  TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
   TREX_PUBLISHED set to 1 when the TRex library is published (skips clone/replace)
   SKIP_BUILD     set to 1 to skip make generate + go mod tidy + make binary
 EOF
@@ -76,7 +76,7 @@ done
 
 TREX_REPO_URL="${TREX_REPO_URL:-https://github.com/openshift-online/rh-trex-ai}"
 TREX_BRANCH="${TREX_BRANCH:-}"
-TREX_HOME="${TREX_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/trex}"
+TREX_HOME="${TREX_HOME:-${TMPDIR:-/tmp}/trex}"
 
 LIB_MODULE=github.com/openshift-online/rh-trex-ai/components/api-server
 
