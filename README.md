@@ -40,7 +40,8 @@ make db/setup
 make run-no-auth
 
 # In another terminal, browse and operate on API resources
-./generated/ctl/trexctl tui --server http://localhost:8000
+make ctl
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
@@ -50,38 +51,44 @@ REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost
 Scaffold a brand-new TRex-based microservice in a separate repository with one command:
 
 ```sh
-curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir]
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir] [component]
 ```
+
+Components (4th arg or `COMPONENT` env): `all` (default) | `api-server` | `ctl`.
 
 Examples:
 
 ```sh
-# Create ./my-service with module base github.com/myorg
+# Create ./my-service (api-server) with module base github.com/myorg
 curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg
 
 # Create in a specific parent directory
 curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/code
+
+# Generate only the ctl component into an existing project
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/code ctl
 ```
 
 What it does:
 
-1. Resolves the TRex source: uses `TREX_SRC` if set, else clones `TREX_REPO_URL` (cached in `$HOME/.trex/src`) — or skips both when `TREX_PUBLISHED=1`.
+1. Resolves the TRex source: uses `TREX_SRC` if set, else clones `TREX_REPO_URL` (cached in `$TMPDIR/trex`) — or skips both when `TREX_PUBLISHED=1`.
 2. Writes a minimal Go harness (a `go.mod` plus a small `main.go` that imports `pkg/cmd`), so the commands are inherited from the library — no separate CLI build.
 3. Runs the inherited `new-project` command, which scaffolds the project structure and substitutes all placeholders.
 4. Points the new project's `replace` directive at the TRex source used, so it builds immediately (removes it when published).
-5. Optionally runs `make generate && go mod tidy && make binary` to verify the scaffold builds.
+5. Does **not** build by default; set `SKIP_BUILD=0` to run a verification build.
 
 The scaffolded project is a complete Go service that imports the TRex library and inherits all server commands (`serve`, `migrate`, `new-entity`, `new-project`). Its client component (`<name>ctl`, generated CLI + TUI) is built with `make ctl`. It also ships a `specs/entities.yaml` manifest and `make verify-entities` / `make generate-entities` / `make verify-ctl` / `make generate-cli` targets, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
 
-Then add your first entity:
+Then add your first entity via the manifest:
 
 ```sh
 cd my-service
-./my-service new-entity --kind HelloWorld --fields "message:string:required" \
-  --project my-service --repo github.com/myorg \
-  --library github.com/openshift-online/rh-trex-ai/components/api-server \
-  --module github.com/myorg/my-service --proto-package my_service
-make proto && make generate && go build ./...
+# Declare entities in specs/entities.yaml (e.g. Dinosaur, Scientist, Fossil),
+# then:
+make generate-entities   # writes plugins/*, protos, OpenAPI refs
+make proto && make generate
+make binary               # build the server binary (./my-service)
+make ctl                  # build the client component (./client/my-servicectl)
 ```
 
 Environment variables (all optional):
@@ -91,9 +98,10 @@ Environment variables (all optional):
 | `TREX_REPO_URL` | `https://github.com/openshift-online/rh-trex-ai` | Git URL for the TRex source |
 | `TREX_BRANCH` | remote default branch | Branch/tag to fetch |
 | `TREX_SRC` | — | Use an existing local checkout (skips cloning) |
-| `TREX_HOME` | `$HOME/.trex` | Cache dir for the clone |
+| `TREX_HOME` | `$TMPDIR/trex` | Cache dir for the clone (temp, does not pollute the home disk) |
 | `TREX_PUBLISHED` | `0` | Set to `1` when the library is published (skips clone/replace) |
-| `SKIP_BUILD` | `0` | Set to `1` to skip the verification build |
+| `SKIP_BUILD` | `1` | Set to `0` to run a verification build after scaffolding |
+| `COMPONENT` | `all` | What to generate: `all`, `api-server`, `ctl` |
 
 ## Usage
 
@@ -108,7 +116,8 @@ grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 
 # Terminal UI (use --token-file when the server requires authentication)
-./generated/ctl/trexctl tui --server http://localhost:8000
+make ctl
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 ## Generate a New Entity
@@ -141,22 +150,22 @@ Build the CLI + TUI component (one binary) from the OpenAPI spec:
 
 ```sh
 make ctl
-./generated/ctl/trexctl --help
+./components/ctl/trexctl --help
 ```
 
 Use the generated `trexctl`:
 
 ```sh
 # Login
-trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+./components/ctl/trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
 
 # CRUD
-trexctl list dinosaurs
-trexctl create dinosaur --species Velociraptor
-trexctl get dinosaur <id>
+./components/ctl/trexctl list dinosaurs
+./components/ctl/trexctl create dinosaur --species Velociraptor
+./components/ctl/trexctl get dinosaur <id>
 
 # Terminal UI
-trexctl tui --server http://localhost:8000
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 ## Run With Authentication
@@ -188,8 +197,7 @@ make lint              # golangci-lint
 
 ```
 cmd/trex/              Server entrypoint (serve, migrate, generate-entity, new-project)
-components/ctl/         Client component (trexctl: CLI + TUI), own module
-components/ctl/         trexctl component (CLI + TUI), its own module
+components/ctl/         Client component (trexctl: CLI + TUI), its own module
 pkg/api/               Models and OpenAPI client
 pkg/handlers/          REST handlers
 pkg/services/          Business logic + event handlers
