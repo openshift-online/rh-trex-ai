@@ -31,13 +31,14 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir]
+Usage: curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir] [component]
 
 Creates a new TRex-based application in <dir>/<project-name>.
 
   <project-name>  required, e.g. my-service
   [repo-base]     module base path, default github.com/example
   [dir]           parent directory, default current directory
+  [component]     what to generate: all (default) | api-server | ctl
 
 Environment:
   TREX_REPO_URL   git URL of TRex source (default: https://github.com/openshift-online/rh-trex-ai)
@@ -46,6 +47,7 @@ Environment:
   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
   TREX_PUBLISHED set to 1 when the TRex library is published (skips clone/replace)
   SKIP_BUILD     set to 0 to run a verification build after scaffolding; default 1 (skip)
+  COMPONENT      same as [component]; may be set via env instead
 EOF
 }
 
@@ -57,6 +59,17 @@ fi
 NAME="${1:-}"
 REPO="${2:-github.com/example}"
 DIR="${3:-.}"
+COMPONENT="${4:-${COMPONENT:-all}}"
+
+# Normalize component selection: all (default) | api-server | ctl.
+case "$COMPONENT" in
+  all|api-server|ctl) ;;
+  *)
+    echo "error: invalid component '$COMPONENT' (expected: all, api-server, ctl)" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
 
 if [[ -z "$NAME" ]]; then
   echo "error: project name is required" >&2
@@ -175,7 +188,24 @@ EOF
 echo "==> preparing harness (go mod tidy)"
 ( cd "$WORK" && go mod tidy >/dev/null 2>&1 )
 
-echo "==> scaffolding $NAME"
+if [[ "$COMPONENT" == "ctl" ]]; then
+  # The ctl component is generated into an existing api-server project.
+  PROJ="$DIR/$NAME"
+  if [[ ! -f "$PROJ/openapi/openapi.yaml" ]]; then
+    echo "error: ctl component requires an existing project with openapi/openapi.yaml at $PROJ" >&2
+    exit 1
+  fi
+  if [[ ! -f "$PROJ/Makefile" ]]; then
+    echo "error: $PROJ does not look like an api-server project" >&2
+    exit 1
+  fi
+  echo "==> generating ctl component in $PROJ"
+  ( cd "$PROJ" && make ctl )
+  echo "==> ctl component generated at $PROJ/client/${NAME}ctl"
+  exit 0
+fi
+
+echo "==> scaffolding $NAME (api-server)"
 ( cd "$WORK" && go run . new-project "$NAME" --repo "$REPO" --dir "$DIR" )
 
 PROJ="$DIR/$NAME"
@@ -219,8 +249,10 @@ Next steps:
      make generate-entities       # writes plugins/*, protos, OpenAPI refs
      make proto && make generate  # protobuf stubs + OpenAPI client
      make binary                   # build the server binary (./$NAME)
-  3. Optional: build the client component (CLI + TUI):
-     make ctl                     # builds ./generated/ctl/${NAME}ctl
+  3. Generate the client component (CLI + TUI) — now or later:
+     make ctl                     # builds ./client/${NAME}ctl
+     # or, from outside, later: 
+     #   curl ... bootstrap.sh $NAME $REPO $DIR ctl
   4. Run:
      make db/setup                # start PostgreSQL
      ./$NAME migrate
