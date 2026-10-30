@@ -68,6 +68,7 @@ help:
 	@echo "TRex API Service"
 	@echo ""
 	@echo "make verify               verify source code"
+	@echo "make verify-entities      verify declared entities match generator output"
 	@echo "make lint                 run golangci-lint"
 	@echo "make binary               compile binaries"
 	@echo "make install              compile binaries and install in GOPATH bin"
@@ -126,7 +127,7 @@ endif
 .PHONY: check-gopath
 
 # Verifies that source passes standard checks.
-verify: check-gopath
+verify: check-gopath verify-entities verify-ctl
 	${GO} vet \
 		./cmd/... \
 		./pkg/...
@@ -142,6 +143,18 @@ verify: check-gopath
 			printf '\033[0m'; \
 		)
 .PHONY: verify
+
+# Verifies that entities declared in specs/codegen/entities.yaml match what the
+# generator would produce from the current templates.
+.PHONY: verify-entities
+verify-entities:
+	$(GO) run ./cmd/trex generate-entity --manifest ../../specs/codegen/entities.yaml --verify
+
+# Regenerates every entity declared in specs/codegen/entities.yaml in place
+# (idempotent: strips existing refs/imports first).
+.PHONY: generate-entities
+generate-entities:
+	$(GO) run ./cmd/trex generate-entity --manifest ../../specs/codegen/entities.yaml --regenerate
 
 # Runs our linter to verify that everything is following best practices
 # Requires golangci-lint to be installed @ $(go env GOPATH)/bin/golangci-lint
@@ -258,6 +271,59 @@ generate:
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/pkg/api/openapi ./pkg/api/openapi
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/data/generated/openapi/openapi.go ./data/generated/openapi/openapi.go
 .PHONY: generate
+
+# Build the trexctl component (CLI + TUI) as its own module under components/ctl.
+CTL_DIR := $(CURDIR)/../../components/ctl
+CTL_MODULE := github.com/openshift-online/rh-trex-ai/components/ctl
+
+.PHONY: ctl
+ctl: build-ctl
+
+.PHONY: build-ctl
+build-ctl:
+	cd ../../scripts/cli-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out $(CTL_DIR) \
+		--binary trexctl \
+		--module $(CTL_MODULE) \
+		--tui \
+		--api-prefix /api/rh-trex-ai/v1 \
+		--project rh-trex-ai
+	cd ../../scripts/tui-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out $(CTL_DIR)/data/generated/tui
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#../api-server#' $(CTL_DIR)/go.mod
+	rm -f $(CTL_DIR)/go.mod.bak
+	cd $(CTL_DIR) && $(GO) mod tidy && $(GO) build -o trexctl ./cmd/trexctl
+
+# Verify that the generated trexctl component matches what the generators
+# produce from the current OpenAPI spec (sources only; build artifacts
+# ignored).
+.PHONY: verify-ctl
+verify-ctl:
+	@tmp=$$(mktemp -d); \
+	cd ../../scripts/cli-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out "$$tmp" \
+		--binary trexctl \
+		--module $(CTL_MODULE) \
+		--tui \
+		--api-prefix /api/rh-trex-ai/v1 \
+		--project rh-trex-ai >/dev/null 2>&1 && \
+	cd ../../scripts/tui-generator && $(GO) run . \
+		--spec $(CURDIR)/openapi/openapi.yaml \
+		--out "$$tmp/data/generated/tui" >/dev/null 2>&1 && \
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' "$$tmp/go.mod" && rm -f "$$tmp/go.mod.bak" && \
+	( cd "$$tmp" && $(GO) mod tidy ) >/dev/null 2>&1 && \
+	sed -i.bak 's#$(CURDIR)#../api-server#' "$$tmp/go.mod" && rm -f "$$tmp/go.mod.bak" && \
+	( cd $(CTL_DIR) && find . -type f ! -name go.sum ! -name trexctl ! -name .gitignore ! -path './.git/*' | sort ) > "$$tmp/files.txt" && \
+	fail=0; \
+	while IFS= read -r rel; do \
+		[ -z "$$rel" ] && continue; \
+		if ! cmp -s $(CTL_DIR)/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
+	done < "$$tmp/files.txt"; \
+	rm -rf "$$tmp"; \
+	if [ "$$fail" = 0 ]; then echo "OK: trexctl matches regenerated output"; else echo "Generated trexctl out of sync:"; exit 1; fi
 
 run: binary
 	./trex migrate

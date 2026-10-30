@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package {{.ProtoPackage}}.v1;
 
-option go_package = "{{.Repo}}/{{.Project}}/pkg/api/grpc/{{.ProtoPackage}}/v1;{{.ProtoPackage}}_v1";
+option go_package = "{{.Module}}/pkg/api/grpc/{{.ProtoPackage}}/v1;{{.ProtoPackage}}_v1";
 
 import "{{.ProtoPackage}}/v1/common.proto";
 {{- range .Fields}}

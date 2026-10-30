@@ -10,9 +10,9 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 
 - REST + gRPC dual-protocol API with OpenAPI spec generation
 - Plugin-based entity architecture with auto-registration
-- Entity code generator (`go run ./scripts/generator.go --kind YourKind`)
-- CLI code generator (`scripts/cli-generator/`) — generates a typed CLI from your OpenAPI spec
-- Integrated Bubble Tea TUI (`trex tui`) generated from the OpenAPI spec
+- Entity code generator (`trex generate-entity` / `new-entity`) scaffolded into new apps
+- `trexctl` component (generated CLI + Bubble Tea TUI in one binary, under `components/ctl`) built with `make ctl`
+- CLI/TUI generators (`scripts/cli-generator/`, `scripts/tui-generator/`) produce it from your OpenAPI spec
 - PostgreSQL with GORM, migrations, and advisory locks
 - Event-driven controllers via PostgreSQL LISTEN/NOTIFY
 - JWT authentication with multi-issuer support (multiple JWK URLs + file)
@@ -40,10 +40,68 @@ make db/setup
 make run-no-auth
 
 # In another terminal, browse and operate on API resources
-./trex tui --server http://localhost:8000
+make ctl
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 REST API: `http://localhost:8000` | gRPC: `localhost:9000` | Metrics: `localhost:8080` | Health: `localhost:8083`
+
+## Start a New Application (Bootstrap)
+
+Scaffold a brand-new TRex-based microservice in a separate repository with one command:
+
+```sh
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- <project-name> [repo-base] [dir] [component]
+```
+
+Components (4th arg or `COMPONENT` env): `all` (default) | `api-server` | `ctl`.
+
+Examples:
+
+```sh
+# Create ./my-service (api-server) with module base github.com/myorg
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg
+
+# Create in a specific parent directory
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/code
+
+# Generate only the ctl component into an existing project
+curl -sSL <url>/scripts/bootstrap.sh | bash -s -- my-service github.com/myorg ~/code ctl
+```
+
+What it does:
+
+1. Resolves the TRex source: uses `TREX_SRC` if set, else clones `TREX_REPO_URL` (cached in `$TMPDIR/trex`) — or skips both when `TREX_PUBLISHED=1`.
+2. Writes a minimal Go harness (a `go.mod` plus a small `main.go` that imports `pkg/cmd`), so the commands are inherited from the library — no separate CLI build.
+3. Runs the inherited `new-project` command, which scaffolds the project structure and substitutes all placeholders.
+4. Points the new project's `replace` directive at the TRex source used, so it builds immediately (removes it when published).
+5. Does **not** build by default; set `SKIP_BUILD=0` to run a verification build.
+
+The scaffolded project is a complete Go service that imports the TRex library and inherits all server commands (`serve`, `migrate`, `new-entity`, `new-project`). Its client component (`<name>ctl`, generated CLI + TUI) is built with `make ctl`. It also ships a `specs/entities.yaml` manifest and `make verify-entities` / `make generate-entities` / `make verify-ctl` / `make generate-cli` targets, so generated code can be checked for conformance against the TRex templates — especially after upgrading the library (see the project README).
+
+Then add your first entity via the manifest:
+
+```sh
+cd my-service
+# Declare entities in specs/entities.yaml (e.g. Dinosaur, Scientist, Fossil),
+# then:
+make generate-entities   # writes plugins/*, protos, OpenAPI refs
+make proto && make generate
+make binary               # build the server binary (./my-service)
+make ctl                  # build the client component (./client/my-servicectl)
+```
+
+Environment variables (all optional):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TREX_REPO_URL` | `https://github.com/openshift-online/rh-trex-ai` | Git URL for the TRex source |
+| `TREX_BRANCH` | remote default branch | Branch/tag to fetch |
+| `TREX_SRC` | — | Use an existing local checkout (skips cloning) |
+| `TREX_HOME` | `$TMPDIR/trex` | Cache dir for the clone (temp, does not pollute the home disk) |
+| `TREX_PUBLISHED` | `0` | Set to `1` when the library is published (skips clone/replace) |
+| `SKIP_BUILD` | `1` | Set to `0` to run a verification build after scaffolding |
+| `COMPONENT` | `all` | What to generate: `all`, `api-server`, `ctl` |
 
 ## Usage
 
@@ -58,17 +116,18 @@ grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/ListDinosaurs
 grpcurl -plaintext localhost:9000 rh_trex.v1.DinosaurService/WatchDinosaurs
 
 # Terminal UI (use --token-file when the server requires authentication)
-./trex tui --server http://localhost:8000
+make ctl
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 ## Generate a New Entity
 
 ```sh
 # Basic
-go run ./scripts/generator.go --kind Rocket
+go run ./cmd/trex generate-entity --kind Rocket
 
 # With typed fields (nullable by default, :required for non-nullable)
-go run ./scripts/generator.go --kind Rocket \
+go run ./cmd/trex generate-entity --kind Rocket \
   --fields "name:string:required,fuel_type:string,max_speed:int,active:bool"
 ```
 
@@ -85,27 +144,28 @@ make db/teardown && make db/setup
 make run-no-auth
 ```
 
-## Generate a CLI
+## Generate the Client Component (`trexctl`)
 
-Generate a typed CLI from the OpenAPI spec:
+Build the CLI + TUI component (one binary) from the OpenAPI spec:
 
 ```sh
-cd scripts/cli-generator
-go run . --spec ../../openapi/openapi.yaml --out /tmp/trex-cli
-cd /tmp/trex-cli
-go build -o trex-cli ./cmd/trex-cli
+make ctl
+./components/ctl/trexctl --help
 ```
 
-Use the generated CLI:
+Use the generated `trexctl`:
 
 ```sh
 # Login
-trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+./components/ctl/trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
 
 # CRUD
-trex-cli list dinosaurs
-trex-cli create dinosaur --species Velociraptor
-trex-cli get dinosaur <id>
+./components/ctl/trexctl list dinosaurs
+./components/ctl/trexctl create dinosaur --species Velociraptor
+./components/ctl/trexctl get dinosaur <id>
+
+# Terminal UI
+./components/ctl/trexctl tui --server http://localhost:8000
 ```
 
 ## Run With Authentication
@@ -113,9 +173,10 @@ trex-cli get dinosaur <id>
 ```sh
 make run
 
-# Using the generated CLI
-trex-cli login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
-trex-cli list dinosaurs
+# Using the generated trexctl
+make ctl
+trexctl login --token-file /dev/stdin --url http://localhost:8000 <<< "$OIDC_TOKEN"
+trexctl list dinosaurs
 
 # Or with curl
 curl -H "Authorization: Bearer $OIDC_TOKEN" http://localhost:8000/api/rh-trex/v1/dinosaurs
@@ -157,8 +218,8 @@ make lint              # golangci-lint
 ## Architecture
 
 ```
-cmd/trex/              CLI entrypoint (serve, migrate, tui)
-data/generated/tui/    OpenAPI-derived embedded TUI descriptor
+cmd/trex/              Server entrypoint (serve, migrate, generate-entity, new-project)
+components/ctl/         Client component (trexctl: CLI + TUI), its own module
 pkg/api/               Models and OpenAPI client
 pkg/handlers/          REST handlers
 pkg/services/          Business logic + event handlers
@@ -169,8 +230,9 @@ pkg/server/            gRPC server, routing, event broker
 pkg/tui/               Shared descriptor-driven Bubble Tea runtime
 plugins/               Self-registering entity plugins
 proto/                 Protobuf definitions
-scripts/generator.go   Entity code generator
-scripts/cli-generator/ CLI code generator
+cmd/trex generate-entity   Entity code generator (in-app command)
+scripts/bootstrap.sh         One-command bootstrap for new apps (curl | bash)
+scripts/cli-generator/ CLI generator (emits the ctl component)
 scripts/tui-generator/ TUI descriptor generator
 specs/                 Formal requirements (SDD)
 skills/                Agent-executable procedures

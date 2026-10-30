@@ -1,0 +1,33 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+var root = &cobra.Command{
+	Use:           "trexctl",
+	Short:         "rh-trex-ai CLI",
+	Long:          "Command line tool for the rh-trex-ai API server.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+}
+
+func init() {
+	// The generated commands are registered by generated_commands.go, which is
+	// rewritten on every generation. Add, replace or remove commands after this call.
+	addGeneratedCommands(root)
+}
+
+func main() {
+	root.SetArgs(os.Args[1:])
+	err := root.Execute()
+	if err == nil {
+		os.Exit(0)
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+	os.Exit(1)
+}

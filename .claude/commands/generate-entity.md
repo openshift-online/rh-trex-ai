@@ -14,10 +14,10 @@ The fastest and most reliable approach is to use the automated generator:
 
 ```bash
 # Basic entity with default "species" field
-go run ./scripts/generator.go --kind Widget
+go run ./cmd/trex generate-entity --kind Widget
 
 # Entity with custom fields (snake_case field names)
-go run ./scripts/generator.go --kind Widget \
+go run ./cmd/trex generate-entity --kind Widget \
   --fields "name:string:required,description:string,count:int,active:bool"
 
 # After generation, rebuild OpenAPI client

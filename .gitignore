@@ -58,3 +58,7 @@ __pycache__/
 **/secrets/db.password
 
 .claude/settings.local.json
+
+# TRex api-server build artifact
+/components/api-server/trex
+

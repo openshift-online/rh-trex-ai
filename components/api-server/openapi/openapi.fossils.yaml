@@ -92,7 +92,7 @@ paths:
   # NEW ENDPOINT END
     get:
       operationId: getFossil
-      summary: Get an fossil by id
+      summary: Get a fossil by id
       security:
         - Bearer: []
       responses:
@@ -128,7 +128,7 @@ paths:
                 $ref: 'openapi.yaml#/components/schemas/Error'
     patch:
       operationId: updateFossil
-      summary: Update an fossil
+      summary: Update a fossil
       security:
         - Bearer: []
       requestBody:

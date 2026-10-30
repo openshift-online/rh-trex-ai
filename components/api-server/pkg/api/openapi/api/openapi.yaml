@@ -257,7 +257,7 @@ paths:
           description: Unexpected error occurred
       security:
       - Bearer: []
-      summary: Get an dinosaur by id
+      summary: Get a dinosaur by id
     patch:
       operationId: updateDinosaur
       parameters:
@@ -321,7 +321,7 @@ paths:
           description: Unexpected error updating dinosaur
       security:
       - Bearer: []
-      summary: Update an dinosaur
+      summary: Update a dinosaur
   /api/rh-trex-ai/v1/fossils:
     get:
       operationId: listFossils
@@ -568,7 +568,7 @@ paths:
           description: Unexpected error occurred
       security:
       - Bearer: []
-      summary: Get an fossil by id
+      summary: Get a fossil by id
     patch:
       operationId: updateFossil
       parameters:
@@ -632,7 +632,7 @@ paths:
           description: Unexpected error updating fossil
       security:
       - Bearer: []
-      summary: Update an fossil
+      summary: Update a fossil
   /api/rh-trex-ai/v1/scientists:
     get:
       operationId: listScientists
@@ -879,7 +879,7 @@ paths:
           description: Unexpected error occurred
       security:
       - Bearer: []
-      summary: Get an scientist by id
+      summary: Get a scientist by id
     patch:
       operationId: updateScientist
       parameters:
@@ -943,7 +943,7 @@ paths:
           description: Unexpected error updating scientist
       security:
       - Bearer: []
-      summary: Update an scientist
+      summary: Update a scientist
 components:
   parameters:
     id:
