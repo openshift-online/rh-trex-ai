@@ -272,27 +272,29 @@ generate:
 	$(container_tool) cp $(OPENAPI_IMAGE_ID):/local/data/generated/openapi/openapi.go ./data/generated/openapi/openapi.go
 .PHONY: generate
 
-# Build the trexctl component: generated CLI + TUI in a single binary.
+# Build the trexctl component (CLI + TUI) as its own module under components/ctl.
+CTL_DIR := $(CURDIR)/../../components/ctl
+CTL_MODULE := github.com/openshift-online/rh-trex-ai/components/ctl
+
 .PHONY: ctl
 ctl: build-ctl
 
 .PHONY: build-ctl
 build-ctl:
-	rm -rf generated/ctl
 	cd ../../scripts/cli-generator && $(GO) run . \
 		--spec $(CURDIR)/openapi/openapi.yaml \
-		--out $(CURDIR)/generated/ctl \
+		--out $(CTL_DIR) \
 		--binary trexctl \
-		--module github.com/openshift-online/rh-trex-ai/components/api-server/generated/ctl \
+		--module $(CTL_MODULE) \
 		--tui \
 		--api-prefix /api/rh-trex-ai/v1 \
 		--project rh-trex-ai
 	cd ../../scripts/tui-generator && $(GO) run . \
 		--spec $(CURDIR)/openapi/openapi.yaml \
-		--out $(CURDIR)/generated/ctl/data/generated/tui
-	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' generated/ctl/go.mod
-	rm -f generated/ctl/go.mod.bak
-	cd generated/ctl && $(GO) mod tidy && $(GO) build -o trexctl ./cmd/trexctl
+		--out $(CTL_DIR)/data/generated/tui
+	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#../api-server#' $(CTL_DIR)/go.mod
+	rm -f $(CTL_DIR)/go.mod.bak
+	cd $(CTL_DIR) && $(GO) mod tidy && $(GO) build -o trexctl ./cmd/trexctl
 
 # Verify that the generated trexctl component matches what the generators
 # produce from the current OpenAPI spec (sources only; build artifacts
@@ -304,7 +306,7 @@ verify-ctl:
 		--spec $(CURDIR)/openapi/openapi.yaml \
 		--out "$$tmp" \
 		--binary trexctl \
-		--module github.com/openshift-online/rh-trex-ai/components/api-server/generated/ctl \
+		--module $(CTL_MODULE) \
 		--tui \
 		--api-prefix /api/rh-trex-ai/v1 \
 		--project rh-trex-ai >/dev/null 2>&1 && \
@@ -313,11 +315,12 @@ verify-ctl:
 		--out "$$tmp/data/generated/tui" >/dev/null 2>&1 && \
 	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(CURDIR)#' "$$tmp/go.mod" && rm -f "$$tmp/go.mod.bak" && \
 	( cd "$$tmp" && $(GO) mod tidy ) >/dev/null 2>&1 && \
-	( cd $(CURDIR)/generated/ctl && find . -type f ! -name go.sum ! -name trexctl ! -path './.git/*' | sort ) > "$$tmp/files.txt" && \
+	sed -i.bak 's#$(CURDIR)#../api-server#' "$$tmp/go.mod" && rm -f "$$tmp/go.mod.bak" && \
+	( cd $(CTL_DIR) && find . -type f ! -name go.sum ! -name trexctl ! -name .gitignore ! -path './.git/*' | sort ) > "$$tmp/files.txt" && \
 	fail=0; \
 	while IFS= read -r rel; do \
 		[ -z "$$rel" ] && continue; \
-		if ! cmp -s $(CURDIR)/generated/ctl/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
+		if ! cmp -s $(CTL_DIR)/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
 	done < "$$tmp/files.txt"; \
 	rm -rf "$$tmp"; \
 	if [ "$$fail" = 0 ]; then echo "OK: trexctl matches regenerated output"; else echo "Generated trexctl out of sync:"; exit 1; fi

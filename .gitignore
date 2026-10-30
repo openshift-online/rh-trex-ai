@@ -62,5 +62,3 @@ __pycache__/
 # TRex api-server build artifact
 /components/api-server/trex
 
-# TRex api-server generated components (trexctl)
-/components/api-server/generated/
