@@ -11,7 +11,7 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 - REST + gRPC dual-protocol API with OpenAPI spec generation
 - Plugin-based entity architecture with auto-registration
 - Entity code generator (`trex generate-entity` / `new-entity`) scaffolded into new apps
-- `trexctl` component (generated CLI + Bubble Tea TUI in one binary) built with `make ctl`
+- `trexctl` component (generated CLI + Bubble Tea TUI in one binary, under `components/ctl`) built with `make ctl`
 - CLI/TUI generators (`scripts/cli-generator/`, `scripts/tui-generator/`) produce it from your OpenAPI spec
 - PostgreSQL with GORM, migrations, and advisory locks
 - Event-driven controllers via PostgreSQL LISTEN/NOTIFY
@@ -188,7 +188,8 @@ make lint              # golangci-lint
 
 ```
 cmd/trex/              Server entrypoint (serve, migrate, generate-entity, new-project)
-generated/ctl/         Generated trexctl component (CLI + TUI)
+components/ctl/         Client component (trexctl: CLI + TUI), own module
+components/ctl/         trexctl component (CLI + TUI), its own module
 pkg/api/               Models and OpenAPI client
 pkg/handlers/          REST handlers
 pkg/services/          Business logic + event handlers

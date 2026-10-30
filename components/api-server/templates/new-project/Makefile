@@ -79,11 +79,12 @@ verify: verify-entities verify-ctl
 # a local checkout and the targets below fail with this error.
 TREX_REPLACE := $(shell grep '^replace github.com/openshift-online/rh-trex-ai/components/api-server' go.mod | awk '{print $$4}')
 TREX_SRC := $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
-CTL_OUT ?= generated/ctl
+CTL_OUT ?= client/$(BINARY_NAME)ctl
 CTL_BINARY ?= $(BINARY_NAME)ctl
 
 # Generate the <name>ctl component: the Cobra CLI plus the TUI command,
-# sourced from the TRex library's cli-generator and tui-generator.
+# sourced from the TRex library's cli-generator and tui-generator. It is its
+# own Go module under client/, separate from the server module.
 .PHONY: generate-cli
 generate-cli:
 	@test -n "$(TREX_SRC)" || (echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1)
@@ -101,6 +102,7 @@ generate-cli:
 		--out $(abspath $(CTL_OUT)/data/generated/tui)
 	sed -i.bak 's#../path/to/rh-trex-ai/components/api-server#$(TREX_SRC)/components/api-server#' $(CTL_OUT)/go.mod
 	rm -f $(CTL_OUT)/go.mod.bak
+	printf '/$(CTL_BINARY)\n' > $(CTL_OUT)/.gitignore
 
 # Build the <name>ctl binary (CLI + TUI).
 .PHONY: ctl
@@ -112,14 +114,14 @@ build-ctl: generate-cli
 
 # Verify that the generated ctl component matches what the generators produce
 # from the current OpenAPI spec. Regenerates into a temp dir and diffs sources
-# (build artifacts: go.sum, the binary, and generated dirs are ignored).
+# (build artifacts: go.sum, the binary, .gitignore are ignored).
 .PHONY: verify-ctl
 verify-ctl:
 	@test -n "$(TREX_SRC)" || (echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1)
 	@tmp=$$(mktemp -d); \
 	$(MAKE) --no-print-directory generate-cli CTL_OUT="$$tmp" >/dev/null 2>&1 || { echo "error: could not regenerate ctl" >&2; rm -rf "$$tmp"; exit 1; }; \
 	( cd "$$tmp" && go mod tidy ) >/dev/null 2>&1; \
-	( cd $(abspath $(CTL_OUT)) && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -path './.git/*' | sort ) > "$$tmp/files.txt"; \
+	( cd $(abspath $(CTL_OUT)) && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -name .gitignore ! -path './.git/*' | sort ) > "$$tmp/files.txt"; \
 	fail=0; \
 	while IFS= read -r rel; do \
 		[ -z "$$rel" ] && continue; \

@@ -26,16 +26,19 @@ container_tool ?= podman
 build-all:
 	cd components/api-server && $(MAKE) binary
 	cd components/control-plane && $(GO) build ./...
+	cd components/ctl && $(GO) build ./cmd/trexctl
 
 .PHONY: lint
 lint:
 	cd components/api-server && $(MAKE) lint
 	cd components/control-plane && $(GO) fmt ./... && $(GO) vet ./...
+	cd components/ctl && $(GO) vet ./...
 
 .PHONY: verify
 verify:
 	cd components/api-server && $(MAKE) verify
 	cd components/control-plane && $(GO) vet ./...
+	cd components/ctl && $(GO) vet ./...
 
 .PHONY: test
 test:
