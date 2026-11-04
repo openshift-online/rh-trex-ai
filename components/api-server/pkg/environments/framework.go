@@ -133,9 +133,6 @@ func SetConfigDefaults(flags *pflag.FlagSet, defaults map[string]string) error {
 		if f == nil {
 			return fmt.Errorf("error setting flag %s: no such flag", name)
 		}
-		if f.Deprecated != "" {
-			slog.Warn("Environment sets a deprecated flag; remove it from Flags()", "flag", name, "reason", f.Deprecated)
-		}
 		if err := f.Value.Set(value); err != nil {
 			return fmt.Errorf("error setting flag %s: %w", name, err)
 		}
