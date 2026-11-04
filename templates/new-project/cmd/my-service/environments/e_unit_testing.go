@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"github.com/openshift-online/rh-trex-ai/pkg/authz"
 	"os"
 
 	"github.com/openshift-online/rh-trex-ai/pkg/config"
@@ -36,6 +37,10 @@ func (e *UnitTestingEnvImpl) OverrideHandlers(h *pkgenv.Handlers) error {
 
 func (e *UnitTestingEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 	return nil
+}
+
+func (e *UnitTestingEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, error) {
+	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
 }
 
 func (e *UnitTestingEnvImpl) Flags() map[string]string {

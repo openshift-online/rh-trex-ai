@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
@@ -25,6 +26,9 @@ type Env struct {
 	Clients  Clients
 	Database Database
 	Config   *config.ApplicationConfig
+	// Authorizer is the policy for every REST route and gRPC method.
+	// It is set by OverrideAuthorizer and is never nil after Initialize.
+	Authorizer authz.Authorizer
 }
 
 type ApplicationConfig struct {
@@ -91,4 +95,8 @@ type EnvironmentImpl interface {
 	OverrideDatabase(s *Database) error
 	OverrideHandlers(c *Handlers) error
 	OverrideClients(c *Clients) error
+	// OverrideAuthorizer returns the authorization policy. It runs after
+	// OverrideServices, so the policy can use registered services. It must
+	// not return nil.
+	OverrideAuthorizer(env *Env) (authz.Authorizer, error)
 }

@@ -3,13 +3,12 @@ package fossils
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api"
 	pb "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/presenters"
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/controllers"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
@@ -48,18 +47,16 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("fossils", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("fossils", func(apiRouter *pkgserver.APIRouter, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		fossilHandler := NewFossilHandler(Service(envServices))
 
-		fossilsRouter := apiV1Router.PathPrefix("/fossils").Subrouter()
+		fossilsRouter := apiRouter.Resource("fossils").PathPrefix("/fossils").Subrouter()
 		fossilsRouter.HandleFunc("", fossilHandler.List).Methods(http.MethodGet)
 		fossilsRouter.HandleFunc("/{id}", fossilHandler.Get).Methods(http.MethodGet)
 		fossilsRouter.HandleFunc("", fossilHandler.Create).Methods(http.MethodPost)
 		fossilsRouter.HandleFunc("/{id}", fossilHandler.Patch).Methods(http.MethodPatch)
 		fossilsRouter.HandleFunc("/{id}", fossilHandler.Delete).Methods(http.MethodDelete)
-		fossilsRouter.Use(authMiddleware.AuthenticateAccountJWT)
-		fossilsRouter.Use(authzMiddleware.AuthorizeApi)
 	})
 
 	pkgserver.RegisterController("Fossils", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
@@ -85,7 +82,7 @@ func init() {
 			return nil
 		}
 		pb.RegisterFossilServiceServer(grpcServer, NewFossilGRPCHandler(fossilService, brokerFunc))
-	})
+	}, authz.CRUDResources(pb.FossilService_ServiceDesc.ServiceName, "fossils", "Fossil", "Fossils"))
 
 	presenters.RegisterPath(Fossil{}, "fossils")
 	presenters.RegisterPath(&Fossil{}, "fossils")

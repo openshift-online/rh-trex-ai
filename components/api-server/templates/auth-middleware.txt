@@ -71,18 +71,9 @@ func Configure{{.Kind}}Authentication(env *environments.Env) (func(http.Handler)
 //     // Register authentication configuration
 //     httpAuth, unaryAuth, streamAuth := Configure{{.Kind}}Authentication(env())
 //     
-//     // Use in route registration
-//     pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
-//         if httpAuth != nil {
-//             // Use bearer token auth instead of JWT
-//             apiV1Router.Use(httpAuth)
-//         } else {
-//             // Fallback to JWT auth
-//             apiV1Router.Use(authMiddleware.AuthenticateAccountJWT)
-//         }
-//         
-//         // ... register routes ...
-//     })
+//     // Authentication and authorization are applied by TRex to every route
+//     // declared with apiRouter.Resource(kind). Only bearer token auth needs
+//     // wiring here, through the pre-auth gRPC interceptors below.
 //     
 //     // Use in gRPC registration
 //     pkgserver.RegisterGRPCService("{{.KindLowerPlural}}", func(grpcServer *grpc.Server, services pkgserver.ServicesInterface) {

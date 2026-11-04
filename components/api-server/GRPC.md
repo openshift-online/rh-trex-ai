@@ -347,24 +347,19 @@ import (
 
 type GRPCServiceRegistrationFunc func(grpcServer *grpc.Server, services ServicesInterface)
 
-var grpcServiceRegistry = make(map[string]GRPCServiceRegistrationFunc)
+// RegisterGRPCService registers a service and the resource (kind and action)
+// of each of its methods. Methods missing from resources are denied by
+// authorization (specs/security/authorization.spec.md).
+func RegisterGRPCService(name string, registrationFunc GRPCServiceRegistrationFunc, resources authz.GRPCResources)
 
-func RegisterGRPCService(name string, registrationFunc GRPCServiceRegistrationFunc) {
-    grpcServiceRegistry[name] = registrationFunc
-}
-
-func LoadDiscoveredGRPCServices(grpcServer *grpc.Server, services ServicesInterface) {
-    for _, registrationFunc := range grpcServiceRegistry {
-        registrationFunc(grpcServer, services)
-    }
-}
+func LoadDiscoveredGRPCServices(grpcServer *grpc.Server, services ServicesInterface)
 ```
 
 This mirrors the existing pattern exactly:
 
 | REST | gRPC |
 |------|------|
-| `RegisterRoutes(name, func)` | `RegisterGRPCService(name, func)` |
+| `RegisterRoutes(name, func)` | `RegisterGRPCService(name, func, resources)` |
 | `LoadDiscoveredRoutes(router, services, ...)` | `LoadDiscoveredGRPCServices(grpcServer, services)` |
 | `RouteRegistrationFunc` | `GRPCServiceRegistrationFunc` |
 
@@ -480,7 +475,7 @@ func (s *grpcAPIServer) Stop() error {
 | `RequestLoggingMiddleware` | `LoggingUnaryInterceptor` | Log method, duration, status code |
 | `MetricsMiddleware` | `MetricsUnaryInterceptor` | Prometheus counters/histograms |
 | `AuthenticateAccountJWT` | `AuthUnaryInterceptor` | Extract JWT from metadata, validate, set username in context |
-| `AuthorizeApi` | (inside `AuthUnaryInterceptor`) | Check permissions via OCM |
+| `authz.HTTPMiddleware` (per `APIRouter.Resource`) | `authz.UnaryInterceptor` / `authz.StreamInterceptor` | Ask `Env.Authorizer` for a decision (same policy on both transports) |
 | `TransactionMiddleware` | `TransactionUnaryInterceptor` | Wrap calls in DB transaction via `db.NewContext` / `db.Resolve` |
 | (panic recovery) | `RecoveryUnaryInterceptor` | Recover from panics, log to sentry, return `codes.Internal` |
 
@@ -571,17 +566,8 @@ func AuthUnaryInterceptor(env *environments.Env) grpc.UnaryServerInterceptor {
 
         ctx = auth.SetUsernameContext(ctx, username)
 
-        // Authorization check via OCM (if enabled)
-        if env.Config.Server.EnableAuthz && env.Clients.OCM != nil {
-            allowed, err := env.Clients.OCM.Authorization.AccessReview(
-                ctx, username, "get", "Dinosaur", "", "", "")
-            if err != nil {
-                return nil, status.Error(codes.Internal, "authorization check failed")
-            }
-            if !allowed {
-                return nil, status.Error(codes.PermissionDenied, "access denied")
-            }
-        }
+        // Authorization is not done here. authz.UnaryInterceptor runs next
+        // and asks Env.Authorizer (see specs/security/authorization.spec.md).
 
         return handler(ctx, req)
     }
@@ -1047,7 +1033,7 @@ func init() {
         envServices := services.(*environments.Services)
         dinoService := Service(envServices)
         pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinoService))
-    })
+    }, authz.CRUDResources(pb.DinosaurService_ServiceDesc.ServiceName, "dinosaurs", "Dinosaur", "Dinosaurs"))
 }
 ```
 
