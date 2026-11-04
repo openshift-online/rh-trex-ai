@@ -79,7 +79,7 @@ The `GenericDao` SHALL provide composable query building for list/search operati
   3. `OrderBy(field)` adds sorting
   4. `Joins(sql)` adds table joins
   5. `Preload(relation)` eager-loads associations
-  6. `Count(model, &total)` gets total count before pagination
+  6. `Count(model, &total) error` gets total count before pagination and returns any query error
   7. `Fetch(offset, limit, &results)` retrieves the page
 - THEN each method SHALL chain onto the GORM session without side effects on previous calls
 
@@ -105,13 +105,20 @@ Each entity SHALL have a mock DAO implementation in `plugins/{kind}/mock_dao.go`
 
 ### Requirement: Error Handling
 
-DAO methods SHALL return raw GORM/database errors. Error translation to `ServiceError` types SHALL occur in the service layer.
+DAO methods SHALL return raw GORM/database errors, including `Count`. Error translation to `ServiceError` types SHALL occur in the service layer, which SHALL NOT silently swallow a failed query.
 
 #### Scenario: Record not found
 - GIVEN a `Get` call for a non-existent ID
 - WHEN GORM returns `gorm.ErrRecordNotFound`
 - THEN the DAO SHALL propagate this error to the caller
 - AND the service layer SHALL translate it to `errors.NotFound`
+
+#### Scenario: Count failure surfaces its root cause
+- GIVEN a generic list request whose `Count` query fails (e.g. an unknown search column)
+- WHEN the DAO executes the COUNT
+- THEN `Count` SHALL return the database error rather than discarding it
+- AND the service layer SHALL surface it rather than swallowing it
+- AND a later statement SHALL NOT mask the root cause with "current transaction is aborted" (SQLSTATE 25P02)
 
 ## Design Decisions
 
@@ -121,4 +128,5 @@ DAO methods SHALL return raw GORM/database errors. Error translation to `Service
 | Session factory pointer (`*db.SessionFactory`) | Allows late initialization during environment setup |
 | Generic DAO for search queries | Avoids duplicating pagination/filtering logic across entity DAOs |
 | `Count` preserves WHERE and JOIN clauses | Accurate total count for paginated responses |
+| `Count` returns its query error | A failing COUNT aborts the request transaction; surfacing the error exposes the real root cause instead of a downstream SQLSTATE 25P02 |
 | Separate `mock_dao.go` per plugin | Co-located with real DAO; easy to discover and maintain |
