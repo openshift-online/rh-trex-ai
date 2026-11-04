@@ -219,7 +219,12 @@ func (s *sqlGenericService) addJoins(listCtx *listContext, d *dao.GenericDao) {
 func (s *sqlGenericService) loadList(listCtx *listContext, d *dao.GenericDao) *errors.ServiceError {
 	args := listCtx.args
 
-	(*d).Count(listCtx.resourceList, &listCtx.pagingMeta.Total)
+	// Surface the COUNT error instead of swallowing it. If COUNT fails it aborts
+	// the request transaction, so the later Fetch would otherwise report only
+	// "transaction is aborted" (SQLSTATE 25P02) and hide the real root cause.
+	if err := (*d).Count(listCtx.resourceList, &listCtx.pagingMeta.Total); err != nil {
+		return errors.GeneralError("Unable to count resources: %s", err)
+	}
 
 	// Set resourceList to be an empty slice with zero capacity. Real space will be allocated by g2.Find()
 	if err := zeroSlice(listCtx.resourceList, 0); err != nil {

@@ -3,7 +3,7 @@ package logging
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -29,7 +29,15 @@ func (f *JSONLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 
 	log, err := json.Marshal(jsonlog)
 	if err != nil {
-		return "", err
+		// A field may not be JSON-serializable: an otel-wrapped request body can
+		// carry a non-serializable value (e.g. a func(int64)). Emit the record with
+		// a placeholder for the offending field instead of dropping the whole log
+		// line, so request/response detail needed to debug is not lost.
+		jsonlog.Body = unserializablePlaceholder(err)
+		log, err = json.Marshal(jsonlog)
+		if err != nil {
+			return "", err
+		}
 	}
 	return string(log[:]), nil
 }
@@ -50,12 +58,18 @@ func (f *JSONLogFormatter) FormatResponseLog(info *ResponseInfo) (string, error)
 	return string(log[:]), nil
 }
 
+// unserializablePlaceholder renders a stand-in for a field that failed JSON
+// marshaling, preserving the root error so it still reaches the log.
+func unserializablePlaceholder(err error) string {
+	return fmt.Sprintf("[unserializable: %s]", err)
+}
+
 type jsonRequestLog struct {
-	Method     string        `json:"request_method"`
-	RequestURI string        `json:"request_url"`
-	Header     http.Header   `json:"request_header,omitempty"`
-	Body       io.ReadCloser `json:"request_body,omitempty"`
-	RemoteAddr string        `json:"request_remote_ip,omitempty"`
+	Method     string      `json:"request_method"`
+	RequestURI string      `json:"request_url"`
+	Header     http.Header `json:"request_header,omitempty"`
+	Body       any         `json:"request_body,omitempty"`
+	RemoteAddr string      `json:"request_remote_ip,omitempty"`
 }
 
 type jsonResponseLog struct {
