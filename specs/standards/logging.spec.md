@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** STD-005
 **Related:** [gRPC Conventions](../api/grpc-conventions.spec.md), [Secrets Management](../security/secrets-management.spec.md)
-**Implements:** `pkg/logger/`, `pkg/config/logging.go`, `pkg/cmd/root.go`, `pkg/environments/framework.go`
+**Implements:** `pkg/logger/`, `pkg/config/logging.go`, `pkg/cmd/root.go`, `pkg/environments/framework.go`, `pkg/server/logging/`
 
 ---
 
@@ -70,6 +70,18 @@ Request and response details logged at debug level SHALL NOT include credential 
 - GIVEN `--log-level=debug`
 - WHEN a request with an `Authorization` header is logged
 - THEN the logged header value SHALL be `REDACTED`
+
+### Requirement: Request Body Not Logged
+
+The request log SHALL NOT include the request body, because it may hold credentials. At debug level it SHALL include the body length (`request_content_length`) when the client declared one. Formatting the request log SHALL NOT read or replace the request body, and SHALL succeed whatever type wraps the body (for example an OpenTelemetry body wrapper).
+
+#### Scenario: Debug request with a body
+- GIVEN `--log-level=debug`
+- AND a middleware that wraps the request body in a type `encoding/json` cannot marshal
+- WHEN a request with a non-empty body is logged
+- THEN the log entry SHALL be valid JSON with `request_content_length` set to the body length
+- AND it SHALL NOT contain the body content
+- AND the handler SHALL still read the full body
 
 ### Requirement: GORM Logs Through slog
 

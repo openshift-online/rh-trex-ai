@@ -3,7 +3,6 @@ package logging
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 )
@@ -24,7 +23,12 @@ func (f *JSONLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 	}
 	if slog.Default().Enabled(r.Context(), slog.LevelDebug) {
 		jsonlog.Header = redactHeaders(r.Header)
-		jsonlog.Body = r.Body
+		// The body is never logged: it may hold credentials, and reading it
+		// here would consume it before the handler. Log its length instead.
+		// ContentLength is -1 when unknown, so only a declared length is kept.
+		if r.ContentLength > 0 {
+			jsonlog.ContentLength = r.ContentLength
+		}
 	}
 
 	log, err := json.Marshal(jsonlog)
@@ -51,11 +55,11 @@ func (f *JSONLogFormatter) FormatResponseLog(info *ResponseInfo) (string, error)
 }
 
 type jsonRequestLog struct {
-	Method     string        `json:"request_method"`
-	RequestURI string        `json:"request_url"`
-	Header     http.Header   `json:"request_header,omitempty"`
-	Body       io.ReadCloser `json:"request_body,omitempty"`
-	RemoteAddr string        `json:"request_remote_ip,omitempty"`
+	Method        string      `json:"request_method"`
+	RequestURI    string      `json:"request_url"`
+	Header        http.Header `json:"request_header,omitempty"`
+	ContentLength int64       `json:"request_content_length,omitempty"`
+	RemoteAddr    string      `json:"request_remote_ip,omitempty"`
 }
 
 type jsonResponseLog struct {
