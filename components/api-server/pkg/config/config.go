@@ -53,7 +53,6 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.HealthCheck.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
 	c.Logging.AddFlags(flagset)
-	addRemovedFlags(flagset)
 }
 
 func (c *ApplicationConfig) ReadFiles() []string {
