@@ -3,13 +3,12 @@ package scientists
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api"
 	pb "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/presenters"
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/controllers"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
@@ -48,18 +47,16 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("scientists", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("scientists", func(apiRouter *pkgserver.APIRouter, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		scientistHandler := NewScientistHandler(Service(envServices))
 
-		scientistsRouter := apiV1Router.PathPrefix("/scientists").Subrouter()
+		scientistsRouter := apiRouter.Resource("scientists").PathPrefix("/scientists").Subrouter()
 		scientistsRouter.HandleFunc("", scientistHandler.List).Methods(http.MethodGet)
 		scientistsRouter.HandleFunc("/{id}", scientistHandler.Get).Methods(http.MethodGet)
 		scientistsRouter.HandleFunc("", scientistHandler.Create).Methods(http.MethodPost)
 		scientistsRouter.HandleFunc("/{id}", scientistHandler.Patch).Methods(http.MethodPatch)
 		scientistsRouter.HandleFunc("/{id}", scientistHandler.Delete).Methods(http.MethodDelete)
-		scientistsRouter.Use(authMiddleware.AuthenticateAccountJWT)
-		scientistsRouter.Use(authzMiddleware.AuthorizeApi)
 	})
 
 	pkgserver.RegisterController("Scientists", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
@@ -85,7 +82,7 @@ func init() {
 			return nil
 		}
 		pb.RegisterScientistServiceServer(grpcServer, NewScientistGRPCHandler(scientistService, brokerFunc))
-	})
+	}, authz.CRUDResources(pb.ScientistService_ServiceDesc.ServiceName, "scientists", "Scientist", "Scientists"))
 
 	presenters.RegisterPath(Scientist{}, "scientists")
 	presenters.RegisterPath(&Scientist{}, "scientists")

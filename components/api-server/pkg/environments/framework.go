@@ -94,6 +94,16 @@ func (e *Env) Initialize() error {
 		return fmt.Errorf("failed to configure Services: %w", err)
 	}
 
+	authorizer, err := envImpl.OverrideAuthorizer(e)
+	if err != nil {
+		return fmt.Errorf("failed to configure Authorizer: %w", err)
+	}
+	if authorizer == nil {
+		return fmt.Errorf("failed to configure Authorizer: environment %q returned nil", e.Name)
+	}
+	e.Authorizer = authorizer
+	slog.Info("Authorization policy", "authorizer", fmt.Sprintf("%T", authorizer))
+
 	seedErr := e.Seed()
 	if seedErr != nil {
 		return seedErr

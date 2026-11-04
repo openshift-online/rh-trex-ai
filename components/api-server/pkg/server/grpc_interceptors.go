@@ -123,7 +123,8 @@ func AuthUnaryInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPro
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		authConfig := env.Config.GetAuthConfig()
 		if !authConfig.EnableJWT {
-			return handler(ctx, req)
+			// No verified identity: use the local development identity, as REST does.
+			return handler(auth.SetUsernameContext(ctx, devUsername), req)
 		}
 
 		if info.FullMethod == "/grpc.health.v1.Health/Check" ||
@@ -131,12 +132,12 @@ func AuthUnaryInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPro
 			return handler(ctx, req)
 		}
 
-		username, err := authenticateGRPCRequest(ctx, keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
+		username, token, err := authenticateGRPCToken(ctx, keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
 		if err != nil {
 			return nil, err
 		}
 
-		ctx = auth.SetUsernameContext(ctx, username)
+		ctx = withVerifiedToken(auth.SetUsernameContext(ctx, username), token)
 
 		return handler(ctx, req)
 	}
@@ -189,7 +190,8 @@ func AuthStreamInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPr
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		authConfig := env.Config.GetAuthConfig()
 		if !authConfig.EnableJWT {
-			return handler(srv, ss)
+			ctx := auth.SetUsernameContext(ss.Context(), devUsername)
+			return handler(srv, &wrappedServerStream{ServerStream: ss, ctx: ctx})
 		}
 
 		if info.FullMethod == "/grpc.health.v1.Health/Check" ||
@@ -197,47 +199,62 @@ func AuthStreamInterceptor(env *environments.Env, keyProvider *grpcutil.JWKKeyPr
 			return handler(srv, ss)
 		}
 
-		username, err := authenticateGRPCRequest(ss.Context(), keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
+		username, token, err := authenticateGRPCToken(ss.Context(), keyProvider, authConfig.JWTIssuer, authConfig.JWTAudience)
 		if err != nil {
 			return err
 		}
 
-		ctx := auth.SetUsernameContext(ss.Context(), username)
+		ctx := withVerifiedToken(auth.SetUsernameContext(ss.Context(), username), token)
 		wrapped := &wrappedServerStream{ServerStream: ss, ctx: ctx}
 
 		return handler(srv, wrapped)
 	}
 }
 
+// devUsername is the identity used when JWT authentication is disabled. It
+// matches auth.MiddlewareMock on REST.
+const devUsername = "dev-user"
+
+// withVerifiedToken stores the verified token so authorization can read its
+// claims, as the REST JWT handler does.
+func withVerifiedToken(ctx context.Context, token *jwt.Token) context.Context {
+	return context.WithValue(ctx, auth.ContextAuthKey, token)
+}
+
 func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyProvider, expectedIssuer, expectedAudience string) (string, error) {
+	username, _, err := authenticateGRPCToken(ctx, keyProvider, expectedIssuer, expectedAudience)
+	return username, err
+}
+
+func authenticateGRPCToken(ctx context.Context, keyProvider *grpcutil.JWKKeyProvider, expectedIssuer, expectedAudience string) (string, *jwt.Token, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", status.Error(codes.Unauthenticated, "missing metadata")
+		return "", nil, status.Error(codes.Unauthenticated, "missing metadata")
 	}
 
 	authHeader := md.Get("authorization")
 	if len(authHeader) == 0 {
-		return "", status.Error(codes.Unauthenticated, "missing authorization token")
+		return "", nil, status.Error(codes.Unauthenticated, "missing authorization token")
 	}
 
 	tokenStr := strings.TrimPrefix(authHeader[0], "Bearer ")
 	tokenStr = strings.TrimPrefix(tokenStr, "bearer ")
 
 	if keyProvider == nil {
-		return "", status.Error(codes.Unauthenticated, "jwt key provider is not configured")
+		return "", nil, status.Error(codes.Unauthenticated, "jwt key provider is not configured")
 	}
 
 	jwtToken, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, keyProvider.KeyFunc)
 	if err != nil {
-		return "", status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
+		return "", nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 	}
 	if err := auth.ValidateJWTClaims(jwtToken, expectedIssuer, expectedAudience); err != nil {
-		return "", status.Errorf(codes.Unauthenticated, "invalid token claims: %v", err)
+		return "", nil, status.Errorf(codes.Unauthenticated, "invalid token claims: %v", err)
 	}
 
 	claims, ok := jwtToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", status.Error(codes.Unauthenticated, "invalid token claims")
+		return "", nil, status.Error(codes.Unauthenticated, "invalid token claims")
 	}
 
 	username, _ := claims["username"].(string)
@@ -248,8 +265,8 @@ func authenticateGRPCRequest(ctx context.Context, keyProvider *grpcutil.JWKKeyPr
 		username, _ = claims["sub"].(string)
 	}
 	if username == "" {
-		return "", status.Error(codes.Unauthenticated, "token missing username claim")
+		return "", nil, status.Error(codes.Unauthenticated, "token missing username claim")
 	}
 
-	return username, nil
+	return username, jwtToken, nil
 }

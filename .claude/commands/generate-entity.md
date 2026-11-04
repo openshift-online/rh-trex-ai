@@ -157,18 +157,17 @@ func init() {
         return NewServiceLocator(env.(*environments.Env))
     })
 
-    server.RegisterRoutes("widgets", func(apiV1Router *mux.Router, services server.ServicesInterface, authMiddleware auth.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+    server.RegisterRoutes("widgets", func(apiRouter *server.APIRouter, services server.ServicesInterface) {
         envServices := services.(*environments.Services)
         widgetHandler := NewWidgetHandler(Service(envServices), generic.Service(envServices))
 
-        widgetsRouter := apiV1Router.PathPrefix("/widgets").Subrouter()
+        widgetsRouter := apiRouter.Resource("widgets").PathPrefix("/widgets").Subrouter()
         widgetsRouter.HandleFunc("", widgetHandler.List).Methods(http.MethodGet)
         widgetsRouter.HandleFunc("/{id}", widgetHandler.Get).Methods(http.MethodGet)
         widgetsRouter.HandleFunc("", widgetHandler.Create).Methods(http.MethodPost)
         widgetsRouter.HandleFunc("/{id}", widgetHandler.Patch).Methods(http.MethodPatch)
         widgetsRouter.HandleFunc("/{id}", widgetHandler.Delete).Methods(http.MethodDelete)
-        widgetsRouter.Use(authMiddleware.AuthenticateAccountJWT)
-        widgetsRouter.Use(authzMiddleware.AuthorizeApi)
+        // TRex authenticates and authorizes every route declared with Resource.
     })
 
     server.RegisterController("Widgets", func(manager *controllers.KindControllerManager, services *environments.Services) {

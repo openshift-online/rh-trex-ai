@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -31,27 +30,12 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 		Check(err, "Unable to create HTTP auth middleware")
 	}
 
-	// For backward compatibility, also create JWT middleware for plugins that expect it
-	var authMiddleware environments.JWTMiddleware
-	if authConfig.EnableJWT {
-		var err error
-		middleware, err := auth.NewAuthMiddleware()
-		if err != nil {
-			Check(err, "Unable to create JWT middleware")
-		}
-		authMiddleware = middleware
-	} else {
-		authMiddleware = &auth.MiddlewareMock{}
-	}
-	if authMiddleware == nil {
-		Check(fmt.Errorf("auth middleware is nil"), "Unable to create auth middleware: missing middleware")
-	}
-
-	var authzMiddleware auth.AuthorizationMiddleware
-	if authConfig.EnableAuthz {
-		authzMiddleware = auth.NewAuthzMiddleware(authConfig)
-	} else {
-		authzMiddleware = auth.NewAuthzMiddlewareMock()
+	// Without JWT there is no verified identity. Use the local development
+	// identity so policies such as RequireIdentity still see a subject.
+	if !authConfig.EnableJWT {
+		devIdentity := (&auth.MiddlewareMock{}).AuthenticateAccountJWT
+		authn := httpAuthMiddleware
+		httpAuthMiddleware = func(next http.Handler) http.Handler { return authn(devIdentity(next)) }
 	}
 
 	mainRouter := mux.NewRouter()
@@ -79,10 +63,7 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	apiV1Router.Use(MetricsMiddleware)
 
-	// Apply authentication middleware if configured
-	if httpAuthMiddleware != nil {
-		apiV1Router.Use(httpAuthMiddleware)
-	}
+	apiV1Router.Use(httpAuthMiddleware)
 
 	apiV1Router.Use(
 		func(next http.Handler) http.Handler {
@@ -91,14 +72,14 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 	)
 	apiV1Router.Use(gorillahandlers.CompressHandler)
 
-	LoadDiscoveredRoutes(apiV1Router, services, authMiddleware, authzMiddleware)
+	// Authorization is attached per declared resource by APIRouter, after
+	// the authentication above.
+	LoadDiscoveredRoutes(apiV1Router, services, env.Authorizer)
 
-	LoadDiscoveredPrefixedRoutes(apiRouter, services, authMiddleware, authzMiddleware,
+	LoadDiscoveredPrefixedRoutes(apiRouter, services, env.Authorizer,
 		func(r *mux.Router) {
 			r.Use(MetricsMiddleware)
-			if httpAuthMiddleware != nil {
-				r.Use(httpAuthMiddleware)
-			}
+			r.Use(httpAuthMiddleware)
 			r.Use(func(next http.Handler) http.Handler {
 				return db.TransactionMiddleware(next, env.Database.SessionFactory)
 			})
