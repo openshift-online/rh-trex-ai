@@ -46,11 +46,8 @@ func (e *IntegrationTestingEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 func (e *IntegrationTestingEnvImpl) Flags() map[string]string {
 	return map[string]string{
 		"log-level":            "info",
-		"api-base-url":         "https://api.integration.openshift.com",
 		"enable-https":         "false",
 		"enable-metrics-https": "false",
 		"enable-authz":         "true",
-		"debug":                "false",
-		"enable-mock":          "true",
 	}
 }

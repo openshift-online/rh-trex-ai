@@ -15,7 +15,7 @@ Define the secrets management practices ensuring credentials are never exposed i
 
 ### Requirement: File-Based Secret Loading
 
-All secrets (database credentials, OCM tokens, Sentry keys) SHALL be loaded from files, not environment variables or command-line arguments.
+All secrets (database credentials, TLS keys, Sentry keys) SHALL be loaded from files, not environment variables or command-line arguments.
 
 #### Scenario: Database credential loading
 - GIVEN configuration flags `--db-host-file`, `--db-name-file`, `--db-user-file`, `--db-password-file`, `--db-port-file`
@@ -60,6 +60,21 @@ Default secret file paths SHALL work for local development without requiring pro
 - GIVEN default configuration with `secrets/db.host` containing "localhost"
 - WHEN `make run` is executed
 - THEN the server SHALL connect to the local PostgreSQL container using file-based credentials
+
+### Requirement: No Upstream API Client Credentials
+
+The server SHALL NOT read upstream API client credentials (the former OCM/AMS client's `secrets/api-service.*` files) in any environment.
+The removed flags `--enable-mock`, `--debug`, `--api-client-id-file`, `--api-client-secret-file`, `--self-token-file`, `--api-base-url` and `--api-token-url` SHALL remain accepted as hidden, deprecated no-ops until a later release.
+
+#### Scenario: Production start without API client secrets
+- GIVEN the `production` environment and no `secrets/api-service.clientId` or `secrets/api-service.clientSecret` file
+- WHEN the server starts
+- THEN it SHALL start without a configuration-file error
+
+#### Scenario: Old flags still set
+- GIVEN a command line, or an environment `Flags()` map, that sets `enable-mock` or `debug`
+- WHEN the server starts
+- THEN it SHALL start, ignore the value, and log a deprecation warning
 
 ## Design Decisions
 
