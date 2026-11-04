@@ -64,17 +64,11 @@ Default secret file paths SHALL work for local development without requiring pro
 ### Requirement: No Upstream API Client Credentials
 
 The server SHALL NOT read upstream API client credentials (the former OCM/AMS client's `secrets/api-service.*` files) in any environment.
-The old API client flags `--enable-mock`, `--debug`, `--api-client-id-file`, `--api-client-secret-file`, `--self-token-file`, `--api-base-url` and `--api-token-url` are removed. An environment or command line that still sets one SHALL fail at startup with a "no such flag" error.
 
 #### Scenario: Production start without API client secrets
 - GIVEN the `production` environment and no `secrets/api-service.clientId` or `secrets/api-service.clientSecret` file
 - WHEN the server starts
 - THEN it SHALL start without a configuration-file error
-
-#### Scenario: Old flags still set
-- GIVEN a command line, or an environment `Flags()` map, that sets `enable-mock` or `debug`
-- WHEN the server starts
-- THEN it SHALL fail at startup with a "no such flag" error
 
 ## Design Decisions
 
