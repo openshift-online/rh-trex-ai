@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** SEC-002
 **Related:** [Authentication](authentication.spec.md)
-**Implements:** `pkg/auth/authz_middleware.go`, `pkg/client/apiclient/`
+**Implements:** `pkg/auth/authz_middleware.go`
 
 ---
 

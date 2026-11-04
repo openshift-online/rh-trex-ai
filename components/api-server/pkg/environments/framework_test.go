@@ -57,4 +57,11 @@ func TestSetConfigDefaults(t *testing.T) {
 	if err := SetConfigDefaults(fs, map[string]string{"missing": "x"}); err == nil {
 		t.Error("want an error for an unknown flag")
 	}
+
+	// A deprecated flag is still applied, with a warning instead of an error.
+	fs.Bool("enable-mock", false, "")
+	_ = fs.MarkDeprecated("enable-mock", "removed")
+	if err := SetConfigDefaults(fs, map[string]string{"enable-mock": "true"}); err != nil {
+		t.Errorf("deprecated flag: %v", err)
+	}
 }

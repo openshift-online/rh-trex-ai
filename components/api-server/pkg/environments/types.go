@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/client/apiclient"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
@@ -74,16 +73,15 @@ func (s *Services) InitRegistry() {
 	s.serviceRegistry = make(map[string]interface{})
 }
 
-type Clients struct {
-	APIClient *apiclient.Client
-}
+// Clients holds the external clients a service needs. TRex ships none; an
+// environment fills in its own fields from OverrideClients.
+type Clients struct{}
 
 type ConfigDefaults struct {
-	Server    map[string]interface{}
-	Metrics   map[string]interface{}
-	Database  map[string]interface{}
-	APIClient map[string]interface{}
-	Options   map[string]interface{}
+	Server   map[string]interface{}
+	Metrics  map[string]interface{}
+	Database map[string]interface{}
+	Options  map[string]interface{}
 }
 
 type EnvironmentImpl interface {
