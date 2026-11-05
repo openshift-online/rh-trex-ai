@@ -23,6 +23,10 @@ import (
 const (
 	JwkKID = "uhctestkey"
 	JwkAlg = "RS256"
+
+	// TestJWTIssuer is the "iss" claim of tokens minted by the test helpers.
+	// It is a placeholder: tests do not set --jwt-issuer, so it is not checked.
+	TestJWTIssuer = "https://sso.trex.test/auth/realms/test"
 )
 
 type BaseHelper struct {
@@ -109,7 +113,7 @@ func (h *BaseHelper) StartJWKCertServerMock() (jwkURL string, teardown func() er
 }
 
 func (h *BaseHelper) StartJWKServerMock() (certURL string, tokenURL string, teardown func() error) {
-	certURL, tokenURL, teardown = mocks.NewJWKServerMock(h.T, h.JWTPrivateKey, h.JWTCA, JwkKID, JwkAlg, h.AppConfig.APIClient.TokenURL)
+	certURL, tokenURL, teardown = mocks.NewJWKServerMock(h.T, h.JWTPrivateKey, h.JWTCA, JwkKID, JwkAlg, TestJWTIssuer)
 	h.AppConfig.Auth.JwkCertURLs = []string{certURL}
 	return certURL, tokenURL, teardown
 }
@@ -191,7 +195,7 @@ func (h *BaseHelper) ResetDB() error {
 
 func (h *BaseHelper) CreateJWTString(account *TestAccount) string {
 	claims := jwt.MapClaims{
-		"iss":        h.AppConfig.APIClient.TokenURL,
+		"iss":        TestJWTIssuer,
 		"username":   strings.ToLower(account.Username),
 		"first_name": account.FirstName,
 		"last_name":  account.LastName,

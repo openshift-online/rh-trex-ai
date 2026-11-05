@@ -3,9 +3,11 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
+	"github.com/spf13/pflag"
 )
 
 func TestConfigReadStringFile(t *testing.T) {
@@ -97,4 +99,21 @@ func TestApplicationConfigValidateReportsEveryFailure(t *testing.T) {
 	Expect(messages[0]).To(HavePrefix("GRPC configuration error for grpc-tls-cert-file/grpc-tls-key-file"))
 	Expect(messages[1]).To(HavePrefix("Auth configuration error for bearer-token"))
 	Expect(messages[2]).To(HavePrefix("TLS configuration error for tls-cert-file/tls-key-file"))
+}
+
+// The production environment once crash-looped when API client files were missing.
+func TestReadFilesNoAPIClientSecrets(t *testing.T) {
+	SetProjectRootDir(t.TempDir())
+	t.Cleanup(func() { SetProjectRootDir("") })
+	c := NewApplicationConfig()
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	c.AddFlags(fs)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range c.ReadFiles() {
+		if strings.Contains(msg, "api-service") || strings.HasPrefix(msg, "APIClient ") {
+			t.Errorf("unexpected API client file read: %s", msg)
+		}
+	}
 }

@@ -3,13 +3,12 @@ package dinosaurs
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api"
 	pb "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/grpc/rh_trex/v1"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api/presenters"
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/controllers"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
@@ -48,18 +47,16 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("dinosaurs", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("dinosaurs", func(apiRouter *pkgserver.APIRouter, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		dinosaurHandler := NewDinosaurHandler(Service(envServices))
 
-		dinosaursRouter := apiV1Router.PathPrefix("/dinosaurs").Subrouter()
+		dinosaursRouter := apiRouter.Resource("dinosaurs").PathPrefix("/dinosaurs").Subrouter()
 		dinosaursRouter.HandleFunc("", dinosaurHandler.List).Methods(http.MethodGet)
 		dinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Get).Methods(http.MethodGet)
 		dinosaursRouter.HandleFunc("", dinosaurHandler.Create).Methods(http.MethodPost)
 		dinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Patch).Methods(http.MethodPatch)
 		dinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Delete).Methods(http.MethodDelete)
-		dinosaursRouter.Use(authMiddleware.AuthenticateAccountJWT)
-		dinosaursRouter.Use(authzMiddleware.AuthorizeApi)
 	})
 
 	pkgserver.RegisterController("Dinosaurs", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
@@ -85,7 +82,7 @@ func init() {
 			return nil
 		}
 		pb.RegisterDinosaurServiceServer(grpcServer, NewDinosaurGRPCHandler(dinosaurService, brokerFunc))
-	})
+	}, authz.CRUDResources(pb.DinosaurService_ServiceDesc.ServiceName, "dinosaurs", "Dinosaur", "Dinosaurs"))
 
 	presenters.RegisterPath(Dinosaur{}, "dinosaurs")
 	presenters.RegisterPath(&Dinosaur{}, "dinosaurs")

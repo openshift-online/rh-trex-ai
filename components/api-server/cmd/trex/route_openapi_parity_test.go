@@ -11,7 +11,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
 
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/server"
 )
@@ -68,8 +68,7 @@ func registeredApplicationRoutes(t *testing.T) map[applicationRoute]struct{} {
 	server.LoadDiscoveredRoutes(
 		apiRouter,
 		&environments.Services{},
-		&auth.MiddlewareMock{},
-		auth.NewAuthzMiddlewareMock(),
+		authz.AllowAll(),
 	)
 
 	routes := make(map[applicationRoute]struct{})

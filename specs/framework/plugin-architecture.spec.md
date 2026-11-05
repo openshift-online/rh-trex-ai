@@ -32,9 +32,9 @@ Each plugin SHALL register its components via a single `init()` function in `plu
 - WHEN the package is imported via blank import (`_ "repo/plugins/widgets"`)
 - THEN the following registrations SHALL occur:
   - Service locator via `registry.RegisterService(name, locatorFunc)`
-  - Routes via `pkgserver.RegisterRoutes(name, routeFunc)`
+  - Routes via `pkgserver.RegisterRoutes(name, routeFunc)`, declared on `apiRouter.Resource(kind)` or `apiRouter.Public()` (see [Authorization](../security/authorization.spec.md))
   - Controllers via `pkgserver.RegisterController(name, controllerFunc)`
-  - gRPC services via `pkgserver.RegisterGRPCService(name, grpcFunc)`
+  - gRPC services via `pkgserver.RegisterGRPCService(name, grpcFunc, resources)`, with a method table for authorization
   - Presenters via `presenters.RegisterPath()` and `presenters.RegisterKind()`
   - Migration via `db.RegisterMigration(migration())`
 

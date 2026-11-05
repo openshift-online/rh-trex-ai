@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/server/grpcutil"
 )
@@ -82,6 +83,23 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 		RegisterPreAuthGRPCStreamInterceptor(bearerStream)
 	}
 
+	// Authorization runs right after authentication, with the same policy as
+	// REST. Methods with no declared resource are denied.
+	resources, err := grpcResources()
+	if err != nil {
+		slog.Error("Unable to build gRPC authorization table", "error", err)
+		os.Exit(1)
+	}
+	lookup := func(method string) (authz.GRPCResource, bool) {
+		res, ok := resources[method]
+		return res, ok
+	}
+	bypass := append([]string{
+		"/grpc.health.v1.Health/",
+		"/grpc.reflection.v1alpha.ServerReflection/",
+		"/grpc.reflection.v1.ServerReflection/",
+	}, authConfig.BypassMethods...)
+
 	// Build interceptor chains with pre-auth interceptors running BEFORE JWT auth
 	unaryChain := []grpc.UnaryServerInterceptor{
 		RecoveryUnaryInterceptor(),
@@ -92,6 +110,7 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 	// Add pre-auth interceptors before JWT auth
 	unaryChain = append(unaryChain, preAuthUnaryInterceptors...)
 	unaryChain = append(unaryChain, AuthUnaryInterceptor(env, keyProvider))
+	unaryChain = append(unaryChain, authz.UnaryInterceptor(env.Authorizer, lookup, bypass))
 	// Add post-auth interceptors after JWT auth (caller identity available in context)
 	unaryChain = append(unaryChain, postAuthUnaryInterceptors...)
 
@@ -103,6 +122,7 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 	// Add pre-auth interceptors before JWT auth
 	streamChain = append(streamChain, preAuthStreamInterceptors...)
 	streamChain = append(streamChain, AuthStreamInterceptor(env, keyProvider))
+	streamChain = append(streamChain, authz.StreamInterceptor(env.Authorizer, lookup, bypass))
 	// Add post-auth interceptors after JWT auth (caller identity available in context)
 	streamChain = append(streamChain, postAuthStreamInterceptors...)
 

@@ -9,17 +9,27 @@ import (
 var _ dao.GenericDao = &genericDaoMock{}
 
 type genericDaoMock struct {
-	preload string
-	orderBy string
-	joins   string
-	group   string
-	wheres  []dao.Where
-	model   interface{}
+	preload  string
+	orderBy  string
+	joins    string
+	group    string
+	wheres   []dao.Where
+	model    interface{}
+	countErr error
 }
 
 func NewGenericDao() *genericDaoMock {
 	return &genericDaoMock{
 		wheres: []dao.Where{},
+	}
+}
+
+// NewGenericDaoWithCountError returns a mock whose Count fails with err, for
+// exercising the error-surfacing path in the service layer.
+func NewGenericDaoWithCountError(err error) *genericDaoMock {
+	return &genericDaoMock{
+		wheres:   []dao.Where{},
+		countErr: err,
 	}
 }
 
@@ -30,8 +40,9 @@ func (g *genericDaoMock) Fetch(offset int, limit int, resourceList interface{}) 
 
 func (g *genericDaoMock) GetInstanceDao(ctx context.Context, model interface{}) dao.GenericDao {
 	return &genericDaoMock{
-		model:  model,
-		wheres: []dao.Where{},
+		model:    model,
+		wheres:   []dao.Where{},
+		countErr: g.countErr,
 	}
 }
 
@@ -55,9 +66,13 @@ func (g *genericDaoMock) Where(where dao.Where) {
 	g.wheres = append(g.wheres, where)
 }
 
-func (g *genericDaoMock) Count(model interface{}, total *int64) {
+func (g *genericDaoMock) Count(model interface{}, total *int64) error {
+	if g.countErr != nil {
+		return g.countErr
+	}
 	// Mock implementation - sets count to 0
 	*total = 0
+	return nil
 }
 
 func (g *genericDaoMock) Validate(resourceList interface{}) error {

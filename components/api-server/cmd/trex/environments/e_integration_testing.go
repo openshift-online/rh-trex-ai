@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"os"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
@@ -43,14 +44,15 @@ func (e *IntegrationTestingEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 	return nil
 }
 
+func (e *IntegrationTestingEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, error) {
+	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
+}
+
 func (e *IntegrationTestingEnvImpl) Flags() map[string]string {
 	return map[string]string{
 		"log-level":            "info",
-		"api-base-url":         "https://api.integration.openshift.com",
 		"enable-https":         "false",
 		"enable-metrics-https": "false",
 		"enable-authz":         "true",
-		"debug":                "false",
-		"enable-mock":          "true",
 	}
 }

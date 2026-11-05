@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db/db_session"
 	pkgenv "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
@@ -33,10 +34,12 @@ func (e *ProductionEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 	return nil
 }
 
+func (e *ProductionEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, error) {
+	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
+}
+
 func (e *ProductionEnvImpl) Flags() map[string]string {
 	return map[string]string{
-		"log-level":   "info",
-		"debug":       "false",
-		"enable-mock": "false",
+		"log-level": "info",
 	}
 }

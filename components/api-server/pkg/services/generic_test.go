@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	e "errors"
 	"testing"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/dao"
+	daomocks "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/dao/mocks"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 	dbmocks "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db/mocks"
 
@@ -23,6 +25,20 @@ type testModel struct {
 }
 
 func (testModel) TableName() string { return "dinosaurs" }
+
+// TestListSurfacesCountError verifies that when the COUNT query fails, the List
+// path returns the real root cause instead of swallowing it (which would let a
+// later statement surface only "transaction is aborted", SQLSTATE 25P02).
+func TestListSurfacesCountError(t *testing.T) {
+	RegisterTestingT(t)
+	rootErr := e.New(`ERROR: column "bogus" does not exist (SQLSTATE 42703)`)
+	svc := NewGenericService(daomocks.NewGenericDaoWithCountError(rootErr))
+
+	var list []testModel
+	_, serviceErr := svc.List(context.Background(), "", &ListArguments{Page: 1, Size: 10}, &list)
+	Expect(serviceErr).To(HaveOccurred())
+	Expect(serviceErr.Error()).To(ContainSubstring("42703"))
+}
 
 func TestSQLTranslation(t *testing.T) {
 	RegisterTestingT(t)

@@ -3,7 +3,6 @@ package {{.KindLowerPlural}}
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"{{.Library}}/pkg/environments"
@@ -11,7 +10,7 @@ import (
 	pkgserver "{{.Library}}/pkg/server"
 	"{{.Library}}/pkg/api"
 	"{{.Library}}/pkg/api/presenters"
-	"{{.Library}}/pkg/auth"
+	"{{.Library}}/pkg/authz"
 	"{{.Library}}/pkg/controllers"
 	"{{.Library}}/pkg/db"
 	"{{.Library}}/plugins/events"
@@ -48,18 +47,16 @@ func init() {
 		return NewServiceLocator(env.(*environments.Env))
 	})
 
-	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiV1Router *mux.Router, services pkgserver.ServicesInterface, authMiddleware environments.JWTMiddleware, authzMiddleware auth.AuthorizationMiddleware) {
+	pkgserver.RegisterRoutes("{{.KindLowerPlural}}", func(apiRouter *pkgserver.APIRouter, services pkgserver.ServicesInterface) {
 		envServices := services.(*environments.Services)
 		{{.KindLowerSingular}}Handler := New{{.Kind}}Handler(Service(envServices))
 
-		{{.KindLowerPlural}}Router := apiV1Router.PathPrefix("/{{.KindSnakeCasePlural}}").Subrouter()
+		{{.KindLowerPlural}}Router := apiRouter.Resource("{{.KindSnakeCasePlural}}").PathPrefix("/{{.KindSnakeCasePlural}}").Subrouter()
 		{{.KindLowerPlural}}Router.HandleFunc("", {{.KindLowerSingular}}Handler.List).Methods(http.MethodGet)
 		{{.KindLowerPlural}}Router.HandleFunc("/{id}", {{.KindLowerSingular}}Handler.Get).Methods(http.MethodGet)
 		{{.KindLowerPlural}}Router.HandleFunc("", {{.KindLowerSingular}}Handler.Create).Methods(http.MethodPost)
 		{{.KindLowerPlural}}Router.HandleFunc("/{id}", {{.KindLowerSingular}}Handler.Patch).Methods(http.MethodPatch)
 		{{.KindLowerPlural}}Router.HandleFunc("/{id}", {{.KindLowerSingular}}Handler.Delete).Methods(http.MethodDelete)
-		{{.KindLowerPlural}}Router.Use(authMiddleware.AuthenticateAccountJWT)
-		{{.KindLowerPlural}}Router.Use(authzMiddleware.AuthorizeApi)
 	})
 
 	pkgserver.RegisterController("{{.KindPlural}}", func(manager *controllers.KindControllerManager, services pkgserver.ServicesInterface) {
@@ -85,7 +82,7 @@ func init() {
 			return nil
 		}
 		pb.Register{{.Kind}}ServiceServer(grpcServer, New{{.Kind}}GRPCHandler({{.KindLowerSingular}}Service, brokerFunc))
-	})
+	}, authz.CRUDResources(pb.{{.Kind}}Service_ServiceDesc.ServiceName, "{{.KindSnakeCasePlural}}", "{{.Kind}}", "{{.KindPlural}}"))
 
 	presenters.RegisterPath({{.Kind}}{}, "{{.KindSnakeCasePlural}}")
 	presenters.RegisterPath(&{{.Kind}}{}, "{{.KindSnakeCasePlural}}")

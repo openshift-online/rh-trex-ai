@@ -114,10 +114,6 @@ ifndef TEST_SUMMARY_FORMAT
 	TEST_SUMMARY_FORMAT=short-verbose
 endif
 
-ifndef API_BASE_URL
-	API_BASE_URL:="https://api.integration.openshift.com"
-endif
-
 # Checks if a GOPATH is set, or emits an error message
 check-gopath:
 ifndef GOPATH
@@ -314,10 +310,7 @@ cmds:
 		--param="VERSION=$(version)" \
 		--param="AUTHZ_RULES=$$AUTHZ_RULES" \
 		--param="JWKS_URL=$(jwks_url)" \
-		--param="API_SERVICE_CLIENT_ID=$(CLIENT_ID)" \
-		--param="API_SERVICE_CLIENT_SECRET=$(CLIENT_SECRET)" \
 		--param="TOKEN=$(token)" \
-		--param="API_BASE_URL=$(API_BASE_URL)" \
 		--param="ENVOY_IMAGE=$(envoy_image)" \
 		--param="ENABLE_JQS="false \
 	> "templates/$*-template.json"

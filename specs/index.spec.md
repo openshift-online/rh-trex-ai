@@ -22,7 +22,7 @@ This file is the machine-readable registry of all specifications governing the r
 | DA-001 | DAO Pattern | data | Active | FW-004 | `data/dao-pattern.spec.md` |
 | DA-002 | Migration Pattern | data | Active | DA-001 | `data/migration-pattern.spec.md` |
 | SEC-001 | Authentication | security | Active | API-001, API-002 | `security/authentication.spec.md` |
-| SEC-002 | Authorization | security | Active | SEC-001 | `security/authorization.spec.md` |
+| SEC-002 | Authorization | security | Active | SEC-001, API-001, API-002 | `security/authorization.spec.md` |
 | SEC-003 | Secrets Management | security | Active | — | `security/secrets-management.spec.md` |
 | CG-001 | Entity Generator | codegen | Active | FW-001, FW-002, DA-002, API-001, API-002 | `codegen/entity-generator.spec.md` |
 | CG-005 | OpenAPI Intermediate Representation | codegen | Active | API-001, STD-003, STD-004 | `codegen/openapi-ir.spec.md` |

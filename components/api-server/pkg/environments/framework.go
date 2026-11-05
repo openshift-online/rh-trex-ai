@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/client/apiclient"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/errors"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/registry"
@@ -86,10 +85,6 @@ func (e *Env) Initialize() error {
 		return fmt.Errorf("failed to configure Database: %w", err)
 	}
 
-	err := e.LoadClients()
-	if err != nil {
-		return err
-	}
 	if err := envImpl.OverrideClients(&e.Clients); err != nil {
 		return fmt.Errorf("failed to configure Clients: %w", err)
 	}
@@ -98,6 +93,16 @@ func (e *Env) Initialize() error {
 	if err := envImpl.OverrideServices(&e.Services); err != nil {
 		return fmt.Errorf("failed to configure Services: %w", err)
 	}
+
+	authorizer, err := envImpl.OverrideAuthorizer(e)
+	if err != nil {
+		return fmt.Errorf("failed to configure Authorizer: %w", err)
+	}
+	if authorizer == nil {
+		return fmt.Errorf("failed to configure Authorizer: environment %q returned nil", e.Name)
+	}
+	e.Authorizer = authorizer
+	slog.Info("Authorization policy", "authorizer", fmt.Sprintf("%T", authorizer))
 
 	seedErr := e.Seed()
 	if seedErr != nil {
@@ -121,38 +126,12 @@ func (e *Env) LoadServices() {
 	registry.LoadDiscoveredServices(&e.Services, e)
 }
 
-func (e *Env) LoadClients() error {
-	var err error
-
-	apiClientConfig := apiclient.Config{
-		BaseURL:      e.Config.APIClient.BaseURL,
-		ClientID:     e.Config.APIClient.ClientID,
-		ClientSecret: e.Config.APIClient.ClientSecret,
-		SelfToken:    e.Config.APIClient.SelfToken,
-		TokenURL:     e.Config.APIClient.TokenURL,
-		Debug:        e.Config.APIClient.Debug,
-	}
-
-	if e.Config.APIClient.EnableMock {
-		slog.Info("Using mock authz client")
-		e.Clients.APIClient, err = apiclient.NewClientMock(apiClientConfig)
-	} else {
-		e.Clients.APIClient, err = apiclient.NewClient(apiClientConfig)
-	}
-	if err != nil {
-		return fmt.Errorf("unable to create API authz client: %w", err)
-	}
-
-	return nil
-}
-
 func (e *Env) Teardown() {
 	if e.Database.SessionFactory != nil {
 		if err := e.Database.SessionFactory.Close(); err != nil {
 			slog.Error("Error closing database session factory", "error", err)
 		}
 	}
-	e.Clients.APIClient.Close()
 }
 
 // SetConfigDefaults applies an environment's flag values as new defaults.
