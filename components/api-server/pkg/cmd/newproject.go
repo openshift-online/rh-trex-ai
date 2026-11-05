@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -50,12 +51,16 @@ func NewProjectCommand() *cobra.Command {
 	return cmd
 }
 
+// projectNamePattern keeps names usable as a binary name, a directory name and
+// (after toSnake) a protobuf package and database name.
+var projectNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+
 func validateProjectName(name string) error {
 	if name == "" {
 		return fmt.Errorf("project name must not be empty")
 	}
-	if strings.ContainsAny(name, " /\\") {
-		return fmt.Errorf("project name %q must not contain spaces or path separators", name)
+	if !projectNamePattern.MatchString(name) {
+		return fmt.Errorf("project name %q must start with a letter and contain only letters, digits, '-' and '_'", name)
 	}
 	return nil
 }
@@ -125,10 +130,17 @@ func scaffoldProject(name, repo, dir string) error {
 	return nil
 }
 
+// toSnake turns a project name into snake_case for protobuf packages and
+// database names, where '-' is not allowed: "my-service" and "MyService" both
+// become "my_service".
 func toSnake(s string) string {
 	var b strings.Builder
 	for i, r := range s {
-		if i > 0 && r >= 'A' && r <= 'Z' {
+		if r == '-' {
+			b.WriteByte('_')
+			continue
+		}
+		if i > 0 && r >= 'A' && r <= 'Z' && s[i-1] != '-' && s[i-1] != '_' {
 			b.WriteByte('_')
 		}
 		b.WriteRune(r)

@@ -26,6 +26,7 @@
 #   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
 #   TREX_PUBLISHED set to 1 when the TRex library is published to a module
 #                   proxy; skips cloning and replace entirely
+#   TREX_VERSION   library version to use when TREX_PUBLISHED=1 (default: latest)
 #   SKIP_BUILD     set to 0 to run a verification build (make generate + tidy + binary) after scaffolding; default 1 (skip)
 set -euo pipefail
 
@@ -46,6 +47,7 @@ Environment:
   TREX_SRC       existing local TRex source checkout (skips cloning)
   TREX_HOME      cache dir for the source clone (default: $TMPDIR/trex (does not pollute the home disk))
   TREX_PUBLISHED set to 1 when the TRex library is published (skips clone/replace)
+  TREX_VERSION   library version when TREX_PUBLISHED=1 (default: latest)
   SKIP_BUILD     set to 0 to run a verification build after scaffolding; default 1 (skip)
   COMPONENT      same as [component]; may be set via env instead
 EOF
@@ -160,9 +162,22 @@ go 1.24.2
 
 toolchain go1.24.9
 
-require $LIB_MODULE v0.0.0-00010101000000-000000000000
 EOF
 fi
+
+# run_logged runs a command quietly, and prints its output only if it fails,
+# so a failure under set -e is never silent.
+run_logged() {
+  local log
+  log="$(mktemp)"
+  if ! "$@" >"$log" 2>&1; then
+    echo "error: '$*' failed:" >&2
+    cat "$log" >&2
+    rm -f "$log"
+    exit 1
+  fi
+  rm -f "$log"
+}
 
 cat > "$WORK/main.go" <<'EOF'
 package main
@@ -185,8 +200,15 @@ func main() {
 }
 EOF
 
+if [[ -z "$SRC" ]]; then
+  # Published mode: resolve a real version from the module proxy. The
+  # template's zero pseudo-version only works together with a replace.
+  echo "==> resolving $LIB_MODULE@${TREX_VERSION:-latest}"
+  ( cd "$WORK" && run_logged go get "$LIB_MODULE@${TREX_VERSION:-latest}" )
+fi
+
 echo "==> preparing harness (go mod tidy)"
-( cd "$WORK" && go mod tidy >/dev/null 2>&1 )
+( cd "$WORK" && run_logged go mod tidy )
 
 if [[ "$COMPONENT" == "ctl" ]]; then
   # The ctl component is generated into an existing api-server project.
@@ -225,6 +247,10 @@ if [[ -n "$SRC" ]]; then
 else
   sed -i.bak "/^replace $LIB_MODULE =>/d" "$PROJ/go.mod"
   rm -f "$PROJ/go.mod.bak"
+  # Without the replace, require the version the harness resolved instead of
+  # the template's zero pseudo-version.
+  LIB_VERSION="$(cd "$WORK" && go list -m -f '{{.Version}}' "$LIB_MODULE")"
+  ( cd "$PROJ" && go mod edit -require="$LIB_MODULE@$LIB_VERSION" )
 fi
 
 echo "==> project created at $PROJ"

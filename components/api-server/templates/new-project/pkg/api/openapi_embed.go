@@ -3,33 +3,19 @@
 package api
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
+	"embed"
+	"io/fs"
 )
 
-// projectRoot returns the module root (the directory containing openapi/).
-func projectRoot() string {
-	_, filename, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(filename), "../..")
-}
+// The spec is compiled into the binary, so the service finds it wherever it
+// runs (container image, another host, a -trimpath build). The file is the
+// bundled spec written by `make generate`; `make binary` runs that first when
+// pkg/api/openapi is missing.
+//
+//go:embed openapi/api/openapi.yaml
+var openapiFS embed.FS
 
-// GetOpenAPISpec returns the OpenAPI spec for this service. It prefers the
-// generated client copy (pkg/api/openapi/api/openapi.yaml, produced by
-// `make generate`) and falls back to the source spec at openapi/openapi.yaml.
+// GetOpenAPISpec returns the OpenAPI spec embedded in the binary.
 func GetOpenAPISpec() ([]byte, error) {
-	root := projectRoot()
-
-	paths := []string{
-		filepath.Join(root, "pkg", "api", "openapi", "api", "openapi.yaml"),
-		filepath.Join(root, "openapi", "openapi.yaml"),
-	}
-	for _, p := range paths {
-		if data, err := os.ReadFile(p); err == nil {
-			return data, nil
-		}
-	}
-
-	return nil, fmt.Errorf("openapi spec not found (run make generate or check openapi/openapi.yaml)")
+	return fs.ReadFile(openapiFS, "openapi/api/openapi.yaml")
 }

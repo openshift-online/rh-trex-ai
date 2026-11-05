@@ -55,6 +55,18 @@ func runGenerateEntity(cmd *cobra.Command, opts generator.Options) error {
 	}
 
 	if manifestPath == "" {
+		// --verify and --regenerate only make sense against a manifest.
+		// Without this check they would fall through to a normal
+		// generation run that writes files and exits 0.
+		for _, name := range []string{"verify", "regenerate"} {
+			set, err := cmd.Flags().GetBool(name)
+			if err != nil {
+				return err
+			}
+			if set {
+				return fmt.Errorf("--%s requires --manifest", name)
+			}
+		}
 		return generator.Run(opts)
 	}
 

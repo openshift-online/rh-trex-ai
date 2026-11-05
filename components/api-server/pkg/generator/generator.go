@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -110,8 +111,28 @@ func TemplateFuncs() template.FuncMap {
 	}
 }
 
+// kindPattern is the shape a kind (and an explicit plural) must have. The name
+// becomes a Go type, a package directory and a URL segment, so only an
+// exported Go identifier made of ASCII letters and digits is accepted.
+var kindPattern = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+
+// ValidateKind reports whether kind and plural (when set) are usable names.
+func ValidateKind(kind, plural string) error {
+	if !kindPattern.MatchString(kind) {
+		return fmt.Errorf("invalid kind %q: must start with an uppercase letter and contain only letters and digits (e.g. Asteroid)", kind)
+	}
+	if plural != "" && !kindPattern.MatchString(plural) {
+		return fmt.Errorf("invalid plural %q: must start with an uppercase letter and contain only letters and digits (e.g. Geese)", plural)
+	}
+	return nil
+}
+
 // Run generates a new entity from the embedded templates.
 func Run(opts Options) error {
+	if err := ValidateKind(opts.Kind, opts.Plural); err != nil {
+		return err
+	}
+
 	parsedFields, err := parseFields(opts.Fields)
 	if err != nil {
 		return fmt.Errorf("parsing fields: %w", err)

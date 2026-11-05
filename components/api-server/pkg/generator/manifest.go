@@ -57,6 +57,9 @@ func LoadManifest(path string) (*Manifest, error) {
 		if e.Kind == "" {
 			return nil, fmt.Errorf("manifest %s contains an entity without a kind", path)
 		}
+		if err := ValidateKind(e.Kind, e.Plural); err != nil {
+			return nil, fmt.Errorf("manifest %s: %w", path, err)
+		}
 	}
 
 	return &m, nil

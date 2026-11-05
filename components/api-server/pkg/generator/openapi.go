@@ -76,10 +76,19 @@ func readBetweenLines(path, startLine, endLine string) []string {
 	return totalMatches
 }
 
+// writeAfterLine inserts lineToWrite just before matchingLine. It is a no-op
+// when lineToWrite is already present, so running the generator again for the
+// same kind does not duplicate $ref entries in openapi.yaml.
 func writeAfterLine(path, matchingLine, lineToWrite string) error {
 	input, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+	if bytes.Contains(input, []byte(lineToWrite+"\n")) {
+		return nil
+	}
+	if !bytes.Contains(input, []byte(matchingLine)) {
+		return fmt.Errorf("marker %q not found in %s; cannot add the new entity to it", strings.TrimSpace(matchingLine), path)
 	}
 	output := bytes.ReplaceAll(input, []byte(matchingLine), []byte(lineToWrite+"\n"+matchingLine))
 	return os.WriteFile(path, output, 0666)
