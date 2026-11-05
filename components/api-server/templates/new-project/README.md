@@ -121,13 +121,8 @@ The service will be available at `http://localhost:8000`.
 
 ### Terminal UI
 
-In another terminal, browse and operate on resources exposed by the service's OpenAPI specification:
-
-```bash
-./my-service tui --server http://localhost:8000
-```
-
-Use `--token-file` when the server requires authentication.
+The terminal UI is part of the client component (`my-servicectl tui`), not the
+server binary. See [Generate the Client Component](#generate-the-client-component-namectl).
 
 ## API Endpoints
 
@@ -143,16 +138,18 @@ Generate and build the CLI + TUI component (one binary) from the project's OpenA
 
 ```bash
 make ctl
-./generated/ctl/my-servicectl --help
+./client/my-servicectl/my-servicectl --help
 ```
 
-The component includes all CRUD commands plus a terminal UI:
+The component includes all CRUD commands plus a terminal UI. The terminal UI
+reuses the saved login (URL and token):
 
 ```bash
+cd client/my-servicectl
 ./my-servicectl login --token-file /dev/stdin --url http://localhost:8000
 ./my-servicectl list <resource>
 ./my-servicectl create <resource> --<field> <value>
-./my-servicectl tui --server http://localhost:8000
+./my-servicectl tui
 ```
 
 After adding entities, regenerate the OpenAPI client first so the component includes them:

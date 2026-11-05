@@ -151,7 +151,9 @@ func Run(opts Options) error {
 
 		kindLowerSingular := strings.ToLower(string(opts.Kind[0])) + opts.Kind[1:]
 		kindPlural := pluralize(opts.Kind, opts.Plural)
-		kindPluralLower := pluralize(kindLowerSingular, "")
+		// Derive the lowercase plural from kindPlural so an explicit --plural
+		// (Goose/Geese) names the package and directory too, not only URLs.
+		kindPluralLower := lowerFirst(kindPlural)
 		kindPluralSnake := toSnakeCase(kindPlural)
 
 		protoPackage := opts.ProtoPackage

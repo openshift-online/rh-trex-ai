@@ -13,7 +13,8 @@ Create a new Go microservice project that imports rh-trex-ai as a framework libr
 The `trex new-project` command scaffolds a complete application from the embedded
 template (`components/api-server/templates/new-project/`) and substitutes all
 placeholders automatically. The scaffolded project's binary inherits all TRex
-commands (`serve`, `migrate`, `tui`, `new-entity`, `new-project`).
+commands (`serve`, `migrate`, `new-entity`, `new-project`). The terminal UI is
+in the `<name>ctl` client component (`make ctl`).
 
 ## User Input
 ```text

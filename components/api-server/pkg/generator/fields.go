@@ -214,3 +214,11 @@ func article(s string) string {
 		return "a"
 	}
 }
+
+// lowerFirst lowercases the first letter of s: "Geese" becomes "geese".
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
+}

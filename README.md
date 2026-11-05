@@ -98,8 +98,9 @@ Environment variables (all optional):
 | `TREX_REPO_URL` | `https://github.com/openshift-online/rh-trex-ai` | Git URL for the TRex source |
 | `TREX_BRANCH` | remote default branch | Branch/tag to fetch |
 | `TREX_SRC` | — | Use an existing local checkout (skips cloning) |
-| `TREX_HOME` | `$TMPDIR/trex` | Cache dir for the clone (temp, does not pollute the home disk) |
+| `TREX_HOME` | `$TMPDIR/trex` | Cache dir for the clones, one per origin + branch, refreshed on each run (temp, does not pollute the home disk) |
 | `TREX_PUBLISHED` | `0` | Set to `1` when the library is published (skips clone/replace) |
+| `TREX_VERSION` | `latest` | Library version to use when `TREX_PUBLISHED=1` |
 | `SKIP_BUILD` | `1` | Set to `0` to run a verification build after scaffolding |
 | `COMPONENT` | `all` | What to generate: `all`, `api-server`, `ctl` |
 

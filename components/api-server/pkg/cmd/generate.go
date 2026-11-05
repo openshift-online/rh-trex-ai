@@ -133,15 +133,7 @@ func runGenerateEntity(cmd *cobra.Command, opts generator.Options) error {
 	}
 
 	for _, e := range m.Entities {
-		entityOpts := opts
-		entityOpts.Kind = e.Kind
-		entityOpts.Fields = e.Fields
-		entityOpts.Plural = e.Plural
-		entityOpts.ProtoPackage = e.ProtoPackage
-		if entityOpts.ProtoPackage == "" {
-			entityOpts.ProtoPackage = m.ProtoPackage
-		}
-		entityOpts.RunMake = false
+		entityOpts := generator.EntityOptions(opts, m, e)
 		if err := generator.Run(entityOpts); err != nil {
 			return fmt.Errorf("generating %s: %w", e.Kind, err)
 		}

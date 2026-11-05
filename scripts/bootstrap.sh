@@ -95,37 +95,33 @@ TREX_HOME="${TREX_HOME:-${TMPDIR:-/tmp}/trex}"
 
 LIB_MODULE=github.com/openshift-online/rh-trex-ai/components/api-server
 
-# A customized origin/branch means the user explicitly asked for a specific
-# source; never reuse a possibly-stale cache for it.
-CUSTOM_ORIGIN=0
-if [[ "$TREX_REPO_URL" != "https://github.com/openshift-online/rh-trex-ai" ]] || [[ -n "$TREX_BRANCH" ]]; then
-  CUSTOM_ORIGIN=1
-fi
-
 # Resolve the TRex source used for the `replace` directive.
 SRC=""
 if [[ "${TREX_PUBLISHED:-0}" != "1" ]]; then
   if [[ -n "${TREX_SRC:-}" ]]; then
     SRC="$TREX_SRC"
   else
-    SRC="$TREX_HOME/src"
-    if [[ -n "$TREX_BRANCH" ]]; then
-      SRC="$TREX_HOME/src-$TREX_BRANCH"
-    fi
-    if [[ "$CUSTOM_ORIGIN" == "1" && -d "$SRC" ]]; then
-      echo "==> refreshing TRex source cache for custom origin/branch"
-      rm -rf "$SRC"
-    fi
-    if [[ ! -d "$SRC/components/api-server" ]]; then
-      echo "==> fetching TRex source ($TREX_REPO_URL)"
+    # One cache directory per origin + branch, so a fork or another branch
+    # never overwrites (or gets reused as) the default source.
+    CACHE_KEY="$(printf '%s#%s' "$TREX_REPO_URL" "$TREX_BRANCH" | cksum | cut -d' ' -f1)"
+    SRC="$TREX_HOME/src-$CACHE_KEY"
+    if [[ -d "$SRC/.git" ]]; then
+      # Refresh the cache to the latest commit of its branch. When offline,
+      # keep using what is there.
+      echo "==> refreshing TRex source cache at $SRC"
+      if git -C "$SRC" fetch --quiet --depth 1 origin "${TREX_BRANCH:-HEAD}" 2>/dev/null; then
+        git -C "$SRC" reset --quiet --hard FETCH_HEAD
+      else
+        echo "warning: could not fetch $TREX_REPO_URL; using the cached source as is" >&2
+      fi
+    else
+      echo "==> fetching TRex source ($TREX_REPO_URL${TREX_BRANCH:+ @ $TREX_BRANCH})"
       mkdir -p "$TREX_HOME"
       if [[ -n "$TREX_BRANCH" ]]; then
         git clone --depth 1 --branch "$TREX_BRANCH" "$TREX_REPO_URL" "$SRC"
       else
         git clone --depth 1 "$TREX_REPO_URL" "$SRC"
       fi
-    else
-      echo "==> reusing TRex source at $SRC"
     fi
   fi
   SRC="$(cd "$SRC" && pwd)"
@@ -222,7 +218,9 @@ if [[ "$COMPONENT" == "ctl" ]]; then
     exit 1
   fi
   echo "==> generating ctl component in $PROJ"
-  ( cd "$PROJ" && make ctl )
+  # Pass the source resolved above, so ctl also works when the project's
+  # go.mod has no replace line (published mode).
+  ( cd "$PROJ" && make ctl ${SRC:+TREX_SRC="$SRC"} )
   echo "==> ctl component generated at $PROJ/client/${NAME}ctl"
   exit 0
 fi

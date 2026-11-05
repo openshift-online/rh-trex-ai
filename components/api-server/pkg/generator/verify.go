@@ -25,7 +25,7 @@ func ComputeNaming(kind, plural string) Naming {
 		Kind:                kind,
 		KindPlural:          kindPlural,
 		KindLowerSingular:   kindLowerSingular,
-		KindLowerPlural:     pluralize(kindLowerSingular, ""),
+		KindLowerPlural:     lowerFirst(kindPlural),
 		KindSnakeCasePlural: toSnakeCase(kindPlural),
 	}
 }
@@ -77,19 +77,8 @@ func Verify(opts Options, m *Manifest, repoRoot string) ([]string, error) {
 	}
 
 	for _, e := range m.Entities {
-		entityOpts := opts
+		entityOpts := EntityOptions(opts, m, e)
 		entityOpts.BaseDir = baseDir
-		entityOpts.Kind = e.Kind
-		entityOpts.Fields = e.Fields
-		entityOpts.Plural = e.Plural
-		entityOpts.ProtoPackage = e.ProtoPackage
-		if entityOpts.ProtoPackage == "" {
-			entityOpts.ProtoPackage = m.ProtoPackage
-		}
-		if entityOpts.ProtoPackage == "" {
-			entityOpts.ProtoPackage = resolveProtoPackage(opts.Project)
-		}
-		entityOpts.RunMake = false
 		entityOpts.Quiet = true
 
 		if err := Run(entityOpts); err != nil {
@@ -99,13 +88,7 @@ func Verify(opts Options, m *Manifest, repoRoot string) ([]string, error) {
 
 	var drift []string
 	for _, e := range m.Entities {
-		protoPackage := e.ProtoPackage
-		if protoPackage == "" {
-			protoPackage = m.ProtoPackage
-		}
-		if protoPackage == "" {
-			protoPackage = resolveProtoPackage(opts.Project)
-		}
+		protoPackage := EntityOptions(opts, m, e).ProtoPackage
 		n := ComputeNaming(e.Kind, e.Plural)
 		for _, rel := range entityOutputPaths(n, protoPackage) {
 			if m.ignores(rel) {

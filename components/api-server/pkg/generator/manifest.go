@@ -39,6 +39,29 @@ func (m *Manifest) ignores(rel string) bool {
 	return false
 }
 
+// EntityOptions returns the options to generate entity e of manifest m, based
+// on the command-line options opts. The protobuf package is, in order: the
+// entity's proto_package, the --proto-package flag, the manifest's
+// proto_package, then the snake_case project name.
+func EntityOptions(opts Options, m *Manifest, e EntitySpec) Options {
+	entityOpts := opts
+	entityOpts.Kind = e.Kind
+	entityOpts.Fields = e.Fields
+	entityOpts.Plural = e.Plural
+	entityOpts.ProtoPackage = e.ProtoPackage
+	if entityOpts.ProtoPackage == "" {
+		entityOpts.ProtoPackage = opts.ProtoPackage
+	}
+	if entityOpts.ProtoPackage == "" {
+		entityOpts.ProtoPackage = m.ProtoPackage
+	}
+	if entityOpts.ProtoPackage == "" {
+		entityOpts.ProtoPackage = resolveProtoPackage(opts.Project)
+	}
+	entityOpts.RunMake = false
+	return entityOpts
+}
+
 // LoadManifest reads a YAML manifest from disk.
 func LoadManifest(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)

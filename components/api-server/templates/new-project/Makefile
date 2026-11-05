@@ -13,7 +13,8 @@ git_sha:=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 git_dirty:=$(shell git diff --quiet 2>/dev/null || echo "-modified")
 build_version:=$(git_sha)$(git_dirty)
 build_time:=$(shell date -u '+%Y-%m-%d %H:%M:%S UTC')
-ldflags=-X github.com/example/my-service/pkg/api.Version=$(build_version) -X 'github.com/example/my-service/pkg/api.BuildTime=$(build_time)'
+# The served version lives in the TRex library's pkg/api, so stamp it there.
+ldflags=-X $(LIB_MODULE)/pkg/api.Version=$(build_version) -X '$(LIB_MODULE)/pkg/api.BuildTime=$(build_time)'
 
 .PHONY: ensure-deps
 ensure-deps:
@@ -76,9 +77,10 @@ verify: verify-entities verify-ctl
 # TRex source root: derived from the replace directive in go.mod (the parent
 # directory of the components/api-server module path). Empty when the library
 # is resolved via a proxy (published); then the generators cannot be run from
-# a local checkout and the targets below fail with this error.
+# a local checkout and the targets below fail with this error. Set TREX_SRC
+# in the environment or on the make command line to override it.
 TREX_REPLACE := $(shell grep '^replace github.com/openshift-online/rh-trex-ai/components/api-server' go.mod | awk '{print $$4}')
-TREX_SRC := $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
+TREX_SRC ?= $(if $(TREX_REPLACE),$(patsubst %/components/api-server,%,$(TREX_REPLACE)),)
 CTL_OUT ?= client/$(BINARY_NAME)ctl
 CTL_BINARY ?= $(BINARY_NAME)ctl
 
@@ -113,21 +115,27 @@ build-ctl: generate-cli
 	cd $(CTL_OUT) && go mod tidy && go build -o $(CTL_BINARY) ./cmd/$(CTL_BINARY)
 
 # Verify that the generated ctl component matches what the generators produce
-# from the current OpenAPI spec. Regenerates into a temp dir and diffs sources
-# (build artifacts: go.sum, the binary, .gitignore are ignored).
+# from the current OpenAPI spec. Regenerates into a temp dir and compares the
+# source files on both sides, so missing and extra files count as drift
+# (build artifacts: go.sum, the binary, .gitignore are ignored). A project
+# without a ctl component skips the check and says so.
 .PHONY: verify-ctl
 verify-ctl:
-	@test -n "$(TREX_SRC)" || (echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1)
-	@tmp=$$(mktemp -d); \
-	$(MAKE) --no-print-directory generate-cli CTL_OUT="$$tmp" >/dev/null 2>&1 || { echo "error: could not regenerate ctl" >&2; rm -rf "$$tmp"; exit 1; }; \
-	( cd "$$tmp" && go mod tidy ) >/dev/null 2>&1; \
-	( cd $(abspath $(CTL_OUT)) && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -name .gitignore ! -path './.git/*' | sort ) > "$$tmp/files.txt"; \
+	@if [ ! -d "$(CTL_OUT)" ]; then echo "SKIP: no ctl component at $(CTL_OUT) (run make ctl to add one)"; exit 0; fi; \
+	test -n "$(TREX_SRC)" || { echo "error: TRex source not found (set TREX_SRC or the go.mod replace path)" >&2; exit 1; }; \
+	tmp=$$(mktemp -d); \
+	if ! $(MAKE) --no-print-directory generate-cli CTL_OUT="$$tmp" >"$$tmp.log" 2>&1; then echo "error: could not regenerate ctl:" >&2; cat "$$tmp.log" >&2; rm -rf "$$tmp" "$$tmp.log"; exit 1; fi; \
+	if ! ( cd "$$tmp" && go mod tidy ) >"$$tmp.log" 2>&1; then echo "error: go mod tidy failed for the regenerated ctl:" >&2; cat "$$tmp.log" >&2; rm -rf "$$tmp" "$$tmp.log"; exit 1; fi; \
+	{ ( cd $(abspath $(CTL_OUT)) && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -name .gitignore ! -path './.git/*' ); \
+	  ( cd "$$tmp" && find . -type f ! -name go.sum ! -name '$(CTL_BINARY)' ! -name .gitignore ); } | sort -u > "$$tmp.files"; \
 	fail=0; \
 	while IFS= read -r rel; do \
 		[ -z "$$rel" ] && continue; \
-		if ! cmp -s $(abspath $(CTL_OUT))/$$rel "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
-	done < "$$tmp/files.txt"; \
-	rm -rf "$$tmp"; \
+		if [ ! -f "$(abspath $(CTL_OUT))/$$rel" ]; then echo "  missing: $$rel"; fail=1; \
+		elif [ ! -f "$$tmp/$$rel" ]; then echo "  extra: $$rel"; fail=1; \
+		elif ! cmp -s "$(abspath $(CTL_OUT))/$$rel" "$$tmp/$$rel"; then echo "  differs: $$rel"; fail=1; fi; \
+	done < "$$tmp.files"; \
+	rm -rf "$$tmp" "$$tmp.log" "$$tmp.files"; \
 	if [ "$$fail" = 0 ]; then echo "OK: ctl component matches regenerated output"; else echo "Generated ctl out of sync:"; exit 1; fi
 
 .PHONY: test-integration

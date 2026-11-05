@@ -43,19 +43,8 @@ func Regenerate(opts Options, m *Manifest, repoRoot string) error {
 	}
 
 	for _, e := range m.Entities {
-		entityOpts := opts
+		entityOpts := EntityOptions(opts, m, e)
 		entityOpts.BaseDir = repoRoot
-		entityOpts.Kind = e.Kind
-		entityOpts.Fields = e.Fields
-		entityOpts.Plural = e.Plural
-		entityOpts.ProtoPackage = e.ProtoPackage
-		if entityOpts.ProtoPackage == "" {
-			entityOpts.ProtoPackage = m.ProtoPackage
-		}
-		if entityOpts.ProtoPackage == "" {
-			entityOpts.ProtoPackage = resolveProtoPackage(opts.Project)
-		}
-		entityOpts.RunMake = false
 		if err := Run(entityOpts); err != nil {
 			return fmt.Errorf("regenerating %s: %w", e.Kind, err)
 		}

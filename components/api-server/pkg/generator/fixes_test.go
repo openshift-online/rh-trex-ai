@@ -79,3 +79,51 @@ func TestRunFailsWhenOpenAPIMarkerMissing(t *testing.T) {
 		t.Fatalf("Run without the marker = %v, want a missing-marker error", err)
 	}
 }
+
+func TestExplicitPluralNamesPackageAndDirectory(t *testing.T) {
+	root := seedRepo(t)
+	opts := verifyOptions(root)
+	opts.Kind = "Goose"
+	opts.Plural = "Geese"
+	opts.Fields = "name:string"
+	if err := Run(opts); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	model, err := os.ReadFile(filepath.Join(root, "plugins", "geese", "model.go"))
+	if err != nil {
+		t.Fatalf("expected plugins/geese/model.go: %v", err)
+	}
+	if !strings.Contains(string(model), "package geese") {
+		t.Errorf("model.go has the wrong package:\n%s", model)
+	}
+	if _, err := os.Stat(filepath.Join(root, "openapi", "openapi.geese.yaml")); err != nil {
+		t.Errorf("expected openapi/openapi.geese.yaml: %v", err)
+	}
+	if n := ComputeNaming("Goose", "Geese"); n.KindLowerPlural != "geese" {
+		t.Errorf("ComputeNaming KindLowerPlural = %q, want geese", n.KindLowerPlural)
+	}
+}
+
+func TestEntityOptionsProtoPackagePrecedence(t *testing.T) {
+	base := Options{Project: "my-svc"}
+	tests := []struct {
+		name   string
+		flag   string
+		m      string
+		entity string
+		want   string
+	}{
+		{"entity wins", "flag_pkg", "manifest_pkg", "entity_pkg", "entity_pkg"},
+		{"flag beats manifest", "flag_pkg", "manifest_pkg", "", "flag_pkg"},
+		{"manifest when no flag", "", "manifest_pkg", "", "manifest_pkg"},
+		{"derived from project", "", "", "", "my_svc"},
+	}
+	for _, tt := range tests {
+		opts := base
+		opts.ProtoPackage = tt.flag
+		got := EntityOptions(opts, &Manifest{ProtoPackage: tt.m}, EntitySpec{Kind: "Gizmo", ProtoPackage: tt.entity})
+		if got.ProtoPackage != tt.want {
+			t.Errorf("%s: ProtoPackage = %q, want %q", tt.name, got.ProtoPackage, tt.want)
+		}
+	}
+}

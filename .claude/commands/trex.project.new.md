@@ -50,7 +50,7 @@ Ask the user for:
 
 The scaffolded project includes:
 - `go.mod` with TRex library dependencies (replace placeholder for local dev)
-- `cmd/<name>/main.go` wired with `serve`, `migrate`, `tui`, `generate-entity`/`new-entity`, and `new-project`
+- `cmd/<name>/main.go` wired with `serve`, `migrate`, `generate-entity`/`new-entity`, and `new-project` (the terminal UI lives in the `<name>ctl` client component: `make ctl`)
 - `pkg/api/` — OpenAPI spec loader
 - `proto/<snake>/v1/common.proto` + buf config
 - `Makefile` with build, proto, generate, db, and test targets
