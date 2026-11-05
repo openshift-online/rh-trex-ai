@@ -23,9 +23,25 @@ $ARGUMENTS
 
 2. **Determine next version**:
    - List existing tags: `git tag -l --sort=-v:refname | head -1`
-   - Current convention is `v0.0.X` (patch-only bumps)
-   - If user specifies a version (e.g., `v0.1.0`), use that
-   - Otherwise auto-increment the patch number from the latest tag
+   - If the user specifies a version (e.g., `v0.1.0`), use that.
+   - Otherwise, detect whether there are breaking changes since the last tag by
+     scanning the changelog for conventional-commit breaking markers (a `!`
+     before the `:` in the subject, or a `BREAKING CHANGE:` footer):
+     ```bash
+     last=$(git tag -l --sort=-v:refname | head -1)
+     if git log "$last"..HEAD --format='%s%n%b' \
+          | grep -qE '(^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE:)'; then
+       echo breaking
+     else
+       echo normal
+     fi
+     ```
+   - **If breaking changes are present:** bump MINOR and reset PATCH to `0`
+     (pre-1.0: `v0.0.X` → `v0.1.0`; post-1.0: `vA.B.X` → `vA.(B+1).0`). A breaking
+     change shipped as a patch silently breaks downstream pins.
+   - **Otherwise:** auto-increment the PATCH from the latest tag (`v0.0.X` → `v0.0.(X+1)`).
+   - Always report the detected bump type (breaking vs normal) with the commits
+     that triggered it, and let the user override the proposed version.
 
 3. **Show changelog since last tag**:
    ```bash
@@ -58,8 +74,10 @@ $ARGUMENTS
 ## Version Conventions
 
 - Tags follow semver: `vMAJOR.MINOR.PATCH`
-- Current pattern: `v0.0.X` (pre-1.0, patch increments)
-- Breaking changes should bump MINOR at minimum
+- Current pattern: `v0.0.X` (pre-1.0, patch increments) for non-breaking releases
+- Breaking changes bump MINOR at minimum, detected automatically from
+  conventional-commit markers (`type!: ...` subject or `BREAKING CHANGE:` footer)
+  in the changelog since the last tag (see step 2)
 - Tags are annotated with a message summarizing changes
 
 ## Prerequisites
