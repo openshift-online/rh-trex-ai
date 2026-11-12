@@ -24,6 +24,7 @@ type ApplicationConfig struct {
 	HealthCheck *HealthCheckConfig `json:"health_check"`
 	Database    *DatabaseConfig    `json:"database"`
 	Logging     *LoggingConfig     `json:"logging"`
+	Audit       *AuditConfig       `json:"audit"`
 }
 
 func NewApplicationConfig() *ApplicationConfig {
@@ -36,6 +37,7 @@ func NewApplicationConfig() *ApplicationConfig {
 		HealthCheck: NewHealthCheckConfig(),
 		Database:    NewDatabaseConfig(),
 		Logging:     NewLoggingConfig(),
+		Audit:       NewAuditConfig(),
 	}
 }
 
@@ -53,9 +55,17 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.HealthCheck.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
 	c.Logging.AddFlags(flagset)
+	if c.Audit == nil {
+		// Programs that build ApplicationConfig as a literal predate audit.
+		c.Audit = NewAuditConfig()
+	}
+	c.Audit.AddFlags(flagset)
 }
 
 func (c *ApplicationConfig) ReadFiles() []string {
+	if c.Audit == nil {
+		c.Audit = NewAuditConfig()
+	}
 	readFiles := []struct {
 		f    func() error
 		name string
@@ -67,6 +77,7 @@ func (c *ApplicationConfig) ReadFiles() []string {
 		{c.Database.ReadFiles, "Database"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},
+		{c.Audit.ReadFiles, "Audit"},
 	}
 	var messages []string
 	for _, rf := range readFiles {
@@ -83,6 +94,9 @@ func (c *ApplicationConfig) ReadFiles() []string {
 // caller can report every problem at once instead of the first one. An empty
 // result means the configuration is consistent.
 func (c *ApplicationConfig) Validate() []string {
+	if c.Audit == nil {
+		c.Audit = NewAuditConfig()
+	}
 	validators := []struct {
 		f    func() error
 		name string
@@ -90,6 +104,7 @@ func (c *ApplicationConfig) Validate() []string {
 		{c.GRPC.Validate, "GRPC"},
 		{c.Auth.Validate, "Auth"},
 		{c.TLS.Validate, "TLS"},
+		{c.Audit.Validate, "Audit"},
 	}
 	var messages []string
 	for _, v := range validators {

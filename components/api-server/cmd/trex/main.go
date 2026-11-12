@@ -32,6 +32,7 @@ func newRootCommand() *cobra.Command {
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("rh-trex"),
 		pkgcmd.NewServeCommand(api.GetOpenAPISpec),
+		pkgcmd.NewAuditCommand("rh-trex"),
 		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 	)
 	return rootCmd

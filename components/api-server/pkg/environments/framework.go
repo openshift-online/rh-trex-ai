@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/errors"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/registry"
@@ -83,6 +84,21 @@ func (e *Env) Initialize() error {
 
 	if err := envImpl.OverrideDatabase(&e.Database); err != nil {
 		return fmt.Errorf("failed to configure Database: %w", err)
+	}
+
+	auditService, err := audit.New(e.Database.SessionFactory, e.Config.Audit)
+	if err != nil {
+		return fmt.Errorf("failed to configure audit: %w", err)
+	}
+	e.Audit = auditService
+	audit.SetDefault(auditService)
+	switch {
+	case !e.Config.Audit.Enabled:
+		slog.Warn("Audit logging is disabled (--enable-audit=false); no audit trail will be recorded")
+	case e.Config.Audit.HMACKey() == nil:
+		slog.Warn("No --audit-hmac-key-file configured; the audit hash chain detects accidental damage but not a forger who can recompute hashes")
+	default:
+		slog.Info("Audit logging enabled", "key_id", auditService.KeyID(), "sink", e.Config.Audit.Sink)
 	}
 
 	if err := envImpl.OverrideClients(&e.Clients); err != nil {

@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/gorilla/mux"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 )
 
@@ -21,17 +22,31 @@ type APIRouter struct {
 	router     *mux.Router
 	surface    string
 	authorizer authz.Authorizer
+	audit      *audit.Service
 	declared   map[*mux.Route]bool
 }
 
+// RouteOption configures an APIRouter.
+type RouteOption func(*APIRouter)
+
+// WithAudit records audit events for every declared route (SEC-004). TRex
+// passes it for the main and prefixed surfaces.
+func WithAudit(s *audit.Service) RouteOption {
+	return func(r *APIRouter) { r.audit = s }
+}
+
 // NewAPIRouter wraps router for one surface.
-func NewAPIRouter(router *mux.Router, surface string, authorizer authz.Authorizer) *APIRouter {
-	return &APIRouter{
+func NewAPIRouter(router *mux.Router, surface string, authorizer authz.Authorizer, opts ...RouteOption) *APIRouter {
+	r := &APIRouter{
 		router:     router,
 		surface:    surface,
 		authorizer: authorizer,
 		declared:   make(map[*mux.Route]bool),
 	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 // Resource returns a subrouter for one kind. Every request on it is
@@ -40,6 +55,7 @@ func (r *APIRouter) Resource(kind string) *mux.Router {
 	route := r.router.NewRoute()
 	sub := route.Subrouter()
 	sub.Use(authz.HTTPMiddleware(r.authorizer, r.surface, kind))
+	sub.Use(r.audit.HTTPRecord)
 	r.declared[route] = true
 	return sub
 }
@@ -49,7 +65,8 @@ func (r *APIRouter) Resource(kind string) *mux.Router {
 func (r *APIRouter) Public() *mux.Router {
 	route := r.router.NewRoute()
 	sub := route.Subrouter()
-	sub.Use(authz.HTTPPublicMiddleware(r.authorizer))
+	sub.Use(authz.HTTPPublicSurfaceMiddleware(r.authorizer, r.surface))
+	sub.Use(r.audit.HTTPRecord)
 	r.declared[route] = true
 	return sub
 }
@@ -79,8 +96,8 @@ func RegisterRoutes(name string, registrationFunc RouteRegistrationFunc) {
 }
 
 // LoadDiscoveredRoutes registers every plugin's routes on the /v1 router.
-func LoadDiscoveredRoutes(apiV1Router *mux.Router, services ServicesInterface, authorizer authz.Authorizer) {
-	r := NewAPIRouter(apiV1Router, authz.SurfaceV1, authorizer)
+func LoadDiscoveredRoutes(apiV1Router *mux.Router, services ServicesInterface, authorizer authz.Authorizer, opts ...RouteOption) {
+	r := NewAPIRouter(apiV1Router, authz.SurfaceV1, authorizer, opts...)
 	for _, registrationFunc := range routeRegistry {
 		registrationFunc(r, services)
 	}
@@ -112,11 +129,12 @@ func LoadDiscoveredPrefixedRoutes(
 	services ServicesInterface,
 	authorizer authz.Authorizer,
 	applyMiddleware func(*mux.Router),
+	opts ...RouteOption,
 ) {
 	for prefix, registry := range prefixedRouteRegistry {
 		prefixRouter := apiRouter.PathPrefix("/" + prefix).Subrouter()
 		applyMiddleware(prefixRouter)
-		r := NewAPIRouter(prefixRouter, prefix, authorizer)
+		r := NewAPIRouter(prefixRouter, prefix, authorizer, opts...)
 		for _, registrationFunc := range registry {
 			registrationFunc(r, services)
 		}

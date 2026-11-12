@@ -19,10 +19,6 @@ func HTTPMiddleware(a Authorizer, surface, kind string) func(http.Handler) http.
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx, subject, err := prepare(r.Context(), a)
-			if err != nil {
-				writeUnavailable(ctx, w, err)
-				return
-			}
 			id, parent := pathVars(r)
 			req := Request{
 				Subject:  subject,
@@ -30,11 +26,17 @@ func HTTPMiddleware(a Authorizer, surface, kind string) func(http.Handler) http.
 				Resource: Resource{Surface: surface, Kind: kind, ID: id, Parent: parent},
 				HTTP:     r,
 			}
+			observeRequest(ctx, req, false)
+			if err != nil {
+				writeUnavailable(ctx, w, err)
+				return
+			}
 			d, err := a.Authorize(ctx, req)
 			if err != nil {
 				writeUnavailable(ctx, w, err)
 				return
 			}
+			observeDecision(ctx, d)
 			if !d.Allowed {
 				writeDenied(ctx, w, d)
 				return
@@ -44,12 +46,24 @@ func HTTPMiddleware(a Authorizer, surface, kind string) func(http.Handler) http.
 	}
 }
 
-// HTTPPublicMiddleware runs the optional enricher but no decision. TRex
-// attaches it to the subrouter returned by APIRouter.Public.
+// HTTPPublicMiddleware runs the optional enricher but no decision.
+// Deprecated: use HTTPPublicSurfaceMiddleware, which also records the surface.
 func HTTPPublicMiddleware(a Authorizer) func(http.Handler) http.Handler {
+	return HTTPPublicSurfaceMiddleware(a, "")
+}
+
+// HTTPPublicSurfaceMiddleware runs the optional enricher but no decision. TRex
+// attaches it to the subrouter returned by APIRouter.Public.
+func HTTPPublicSurfaceMiddleware(a Authorizer, surface string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, _, err := prepare(r.Context(), a)
+			ctx, subject, err := prepare(r.Context(), a)
+			id, parent := pathVars(r)
+			observeRequest(ctx, Request{
+				Subject:  subject,
+				Action:   httpAction(r.Method, id != ""),
+				Resource: Resource{Surface: surface, ID: id, Parent: parent},
+			}, true)
 			if err != nil {
 				writeUnavailable(ctx, w, err)
 				return
@@ -63,6 +77,12 @@ func HTTPPublicMiddleware(a Authorizer) func(http.Handler) http.Handler {
 func UndeclaredHandler(path string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "Route has no declared resource kind; denying", "route", path)
+		id, parent := pathVars(r)
+		observeUndeclared(r.Context(), Request{
+			Subject:  subjectFromAuth(r.Context()),
+			Action:   httpAction(r.Method, id != ""),
+			Resource: Resource{ID: id, Parent: parent},
+		})
 		writeError(r.Context(), w, errors.Forbidden("route has no declared resource kind"), http.StatusForbidden)
 	})
 }
@@ -117,6 +137,7 @@ func writeDenied(ctx context.Context, w http.ResponseWriter, d Decision) {
 
 func writeUnavailable(ctx context.Context, w http.ResponseWriter, err error) {
 	slog.ErrorContext(ctx, "Authorization could not decide", "error", err)
+	observeError(ctx, err)
 	writeError(ctx, w, errors.GeneralError("authorization unavailable"), http.StatusServiceUnavailable)
 }
 

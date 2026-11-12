@@ -63,6 +63,10 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	apiV1Router.Use(MetricsMiddleware)
 
+	// The outer audit hook runs before authentication so it also records
+	// authentication failures (SEC-004).
+	apiV1Router.Use(env.Audit.HTTPBegin)
+
 	apiV1Router.Use(httpAuthMiddleware)
 
 	apiV1Router.Use(
@@ -74,17 +78,19 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	// Authorization is attached per declared resource by APIRouter, after
 	// the authentication above.
-	LoadDiscoveredRoutes(apiV1Router, services, env.Authorizer)
+	LoadDiscoveredRoutes(apiV1Router, services, env.Authorizer, WithAudit(env.Audit))
 
 	LoadDiscoveredPrefixedRoutes(apiRouter, services, env.Authorizer,
 		func(r *mux.Router) {
 			r.Use(MetricsMiddleware)
+			r.Use(env.Audit.HTTPBegin)
 			r.Use(httpAuthMiddleware)
 			r.Use(func(next http.Handler) http.Handler {
 				return db.TransactionMiddleware(next, env.Database.SessionFactory)
 			})
 			r.Use(gorillahandlers.CompressHandler)
 		},
+		WithAudit(env.Audit),
 	)
 
 	return mainRouter

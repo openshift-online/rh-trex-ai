@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
@@ -29,6 +30,9 @@ type Env struct {
 	// Authorizer is the policy for every REST route and gRPC method.
 	// It is set by OverrideAuthorizer and is never nil after Initialize.
 	Authorizer authz.Authorizer
+	// Audit records, seals, and exports the audit trail (SEC-004). It is
+	// set by Initialize and is never nil afterwards; it may be disabled.
+	Audit *audit.Service
 }
 
 type ApplicationConfig struct {

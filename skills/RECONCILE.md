@@ -27,7 +27,7 @@ Reconciliation MUST proceed in this order to respect dependencies:
 - **Layer 3:** DA-001, API-001, API-002
 - **Layer 4:** DA-002, SEC-001, STD-002
 - **Layer 5:** SEC-002, STD-003
-- **Layer 6:** CG-001, CG-005
+- **Layer 6:** CG-001, CG-005, SEC-004
 - **Layer 7:** CG-002, CG-003, CG-004, CG-006
 
 ## Gap Table
@@ -128,6 +128,7 @@ Reconciliation MUST proceed in this order to respect dependencies:
 | GAP-052 | STD-003 | Untrusted Pull Request Isolation | closed | major | Fixed: `.github/workflows/trex-pr-ci.yml` runs fork code on `pull_request` with only `contents: read`, no persisted checkout credentials, immutable action SHAs, draft-transition coverage, and no secrets. |
 | GAP-053 | STD-003 | Privilege-Separated Review Comments | closed | major | Fixed: `.github/workflows/trex-auto-review.yml` consumes completed CI through `workflow_run`, verifies the current open PR/head SHA via GitHub APIs, treats patches as data, and creates or updates one marker-owned comment without checking out or executing fork content. |
 | GAP-054 | STD-003 | Workflow Trust-Boundary Verification | closed | major | Fixed: `scripts/test_trex_review_workflows.py` validates triggers, exact permissions, immutable pins, valid expression operators, and prohibited privileged operations, with unsafe mutation cases. |
+| GAP-096 | SEC-004 | Audit Logging (all 12 requirements) | closed | blocker | Added with the spec: `pkg/audit` records framework REST/gRPC events at the authorization hook points, writes success events in the request transaction (fail closed), stores them in the trigger-guarded append-only `trex_audit_events`, seals an HMAC-SHA256 hash chain under an advisory lock, exports JSON lines at least once with a per-sink cursor, and verifies with `audit verify`. Unit tests in `pkg/audit`, `pkg/config`; integration tests in `test/integration/audit_test.go`. |
 | GAP-095 | API-002 | gRPC Transport Security | closed | major | Fixed: `--grpc-enable-tls` was inert unless the shared `--enable-tls` was also on. `pkg/server/grpc_tls.go` now serves gRPC-only TLS (TLS 1.2+, ALPN `h2`, fail-fast on bad files, hot reload on renewal, keep previous pair on a bad renewal) with shared TLS taking precedence; `GRPCConfig.Validate()` names the missing flag; the control plane dials TLS with `TREX_GRPC_TLS`. Covered by `pkg/server/grpc_tls_test.go`, `pkg/config/grpc_test.go`, and control-plane `internal/config` and `internal/grpcclient` tests. |
 
 ### Gap Execution Plan
@@ -205,3 +206,26 @@ scoped pass.
 Initial gaps were the absent public metadata endpoint and issuer-required CLI
 flow. Both are implemented in this change; existing token and explicit-issuer
 flows remain available for older servers.
+
+## Scoped reconciliation: Audit logging (2026-11-12)
+
+Scope: SEC-004 Audit Logging. The historical repository-wide coverage table
+above is not recomputed by this scoped pass.
+
+| Spec | Requirement | Status | Evidence |
+|------|-------------|--------|----------|
+| SEC-004 | Audit Event Record | closed | `pkg/audit/event.go`, `record.go` (UTF-8/NUL sanitizing, bounded fields); `TestHostileBytesAreStorable`, `TestAuditHostileBytesStillRecorded`, `TestHTTPEventHasNoCredentials`, `TestAuditRESTRequests` (no query, body, or token in stored rows) |
+| SEC-004 | Framework-Recorded Requests | closed | `HTTPBegin`/`HTTPRecord`/`HTTPAuthentication`, `UnaryBegin`/`UnaryRecord`/`StreamBegin` wired in `routes.go`, `routebuilder.go`, `apiserver.go`, `grpc_server.go`; `pkg/authz/observation.go`; `TestHTTPDenials`, `TestHTTPUnauthenticated`, `TestHTTPReads`, `TestHTTPUndeclaredRoute`, `TestGRPCOutcomes`, `TestAuditRESTRequests`, `TestAuditGRPCRequests` |
+| SEC-004 | Success Records Commit With the Change | closed | In-transaction insert before the handler; out-of-transaction writes after the connection is released (`TestAuditUnauthenticatedGRPCBurstDoesNotExhaustPool`, which fails with the hook inside the transaction); `TestHTTPAuditWriteFailureRefusesRequest`, `TestGRPCAuditWriteFailureRefusesCall`, `TestHTTPHandlerFailureRecordsFailure`, `TestAuditRESTRequests` (rolled-back PATCH leaves only the failure event) |
+| SEC-004 | Application Events | closed | `audit.Record`; `TestApplicationEventDefaults`, `TestAuditRecordFollowsRequestTransaction` |
+| SEC-004 | Append-Only Storage | closed | `pkg/audit/migration.go` guard trigger (seal must extend the chain); `TestAuditTableIsAppendOnly`, `TestAuditForgedSealRejected` |
+| SEC-004 | Tamper-Evident Hash Chain | closed | `pkg/audit/sealer.go`, `record.go`; `TestCanonicalEncoding`, `TestComputeHash`, `TestAuditSealExportVerify`, `TestAuditConcurrentSealing` |
+| SEC-004 | Keyed Hashing Secret | closed | `pkg/config/audit.go`, startup warning in `environments/framework.go`; `TestAuditConfigHMACKey` |
+| SEC-004 | SIEM Export | closed | `pkg/audit/sink.go`, `sealer.go` export after seal commit with cursor; `TestExportLine`, `TestAuditSealExportVerify`, `TestAuditSinkFailureDoesNotStopSealing` |
+| SEC-004 | Chain Verification Command | closed | `pkg/cmd/audit.go`, registered in `cmd/trex/main.go` and `templates/new-project`; `TestAuditSealExportVerify` (edit, gap, wrong key, truncated tail) |
+| SEC-004 | Configuration and Defaults | closed | `pkg/config/audit.go`; `TestAuditConfigDefaults`, `TestAuditConfigValidate`, `TestDisabledServiceRecordsNothing` |
+| SEC-004 | Audit Metrics | closed | `pkg/audit/service.go` collectors, updated by `Record` and `SealOnce` |
+| SEC-004 | Test Database Reset | closed | `pkg/db/db_session/testcontainer.go`; every integration test resets after audit rows are written |
+
+No gaps remain open. Retention, signed checkpoints, and a read API are out of
+scope by design (see the spec's design decisions).

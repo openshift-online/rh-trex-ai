@@ -61,6 +61,8 @@ func NewDefaultAPIServer(env *environments.Env, specData []byte) Server {
 		Check(err, "Unable to create JWT authentication handler")
 
 		mainHandler = jwtHandler(mainHandler)
+		// Record requests the JWT handler refuses before routing (SEC-004).
+		mainHandler = env.Audit.HTTPAuthentication(strings.TrimSuffix(trex.GetConfig().BasePath, "/v1") + "/")(mainHandler)
 	}
 
 	corsOrigins := trex.GetCORSOrigins()

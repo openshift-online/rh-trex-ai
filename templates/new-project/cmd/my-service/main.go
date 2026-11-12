@@ -17,6 +17,7 @@ func main() {
 	rootCmd.AddCommand(
 		pkgcmd.NewMigrateCommand("my-service"),
 		pkgcmd.NewServeCommand(localapi.GetOpenAPISpec),
+		pkgcmd.NewAuditCommand("my-service"),
 		pkgcmd.NewTUICommand(generatedtui.GetDescriptor),
 	)
 

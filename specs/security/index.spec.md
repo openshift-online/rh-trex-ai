@@ -12,3 +12,4 @@
 | SEC-001 | [Authentication](authentication.spec.md) | JWT/OIDC, JWK key management, multi-issuer, bearer tokens |
 | SEC-002 | [Authorization](authorization.spec.md) | Framework-owned `Authorizer` for REST and gRPC; environment selects the policy |
 | SEC-003 | [Secrets Management](secrets-management.spec.md) | File-based secrets, no logging, TLS configuration |
+| SEC-004 | [Audit Logging](audit-logging.spec.md) | Framework-recorded audit trail, append-only storage, tamper-evident hash chain, SIEM export, verification |
