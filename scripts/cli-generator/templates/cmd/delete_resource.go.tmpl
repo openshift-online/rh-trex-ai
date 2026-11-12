@@ -58,13 +58,13 @@ func run(cmd *cobra.Command, argv []string) error {
 
 	resp, err := conn.Delete(urls.{{.Resource.Name}}Path(id))
 	if err != nil {
-		return fmt.Errorf("can't delete {{.Resource.NameLower}}: %v", err)
+		return fmt.Errorf("can't delete {{.Resource.NameLower}}: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("can't read response: %v", err)
+		return fmt.Errorf("can't read response: %w", err)
 	}
 
 	switch resp.StatusCode {

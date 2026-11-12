@@ -28,6 +28,7 @@ const (
 	KeyActions          BindingID = "actions"
 	KeyColumnsLeft      BindingID = "columns-left"
 	KeyColumnsRight     BindingID = "columns-right"
+	KeyColumnsWide      BindingID = "columns-wide"
 	KeyChoicePrevious   BindingID = "choice-previous"
 	KeyChoiceNext       BindingID = "choice-next"
 	KeyScrollUp         BindingID = "scroll-up"
@@ -89,6 +90,7 @@ func DefaultKeyRegistry() KeyRegistry {
 		{KeyActions, key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "actions")), false, 110, 70},
 		{KeyColumnsLeft, key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "columns left")), false, 120, 65},
 		{KeyColumnsRight, key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "columns right")), false, 130, 65},
+		{KeyColumnsWide, key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "wide columns")), false, 131, 52},
 		{KeyChoicePrevious, key.NewBinding(key.WithKeys("left"), key.WithHelp("←", "previous choice")), false, 131, 70},
 		{KeyChoiceNext, key.NewBinding(key.WithKeys("right"), key.WithHelp("→", "next choice")), false, 132, 70},
 		{KeyScrollUp, key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")), false, 133, 70},

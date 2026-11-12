@@ -38,7 +38,7 @@ func TestContentWidthsAreSemanticAndStable(t *testing.T) {
 		{Cells: []string{"7", "agent-123", "short", "e\u0301"}},
 		{Cells: []string{"42", "agent-123456789", "a considerably longer explanation", "界🙂"}},
 	}
-	layout := calculateColumnLayout(view, rows, 96, 0)
+	layout := calculateColumnLayout(view, rows, 96, 0, false)
 	if len(layout.Visible) != len(view.Columns) || layout.LeftHidden != 0 || layout.RightHidden != 0 {
 		t.Fatalf("fitting layout = %#v", layout)
 	}
@@ -49,7 +49,7 @@ func TestContentWidthsAreSemanticAndStable(t *testing.T) {
 		t.Fatalf("identifier width %d should be smaller than text width %d", layout.Widths[1], layout.Widths[2])
 	}
 
-	repeated := calculateColumnLayout(view, rows, 96, 0)
+	repeated := calculateColumnLayout(view, rows, 96, 0, false)
 	if !reflect.DeepEqual(layout.Widths, repeated.Widths) {
 		t.Fatalf("same unfiltered rows changed widths: %v != %v", layout.Widths, repeated.Widths)
 	}
@@ -60,7 +60,7 @@ func TestFillWidthSingleColumnReachesTableEdge(t *testing.T) {
 		FillWidth: true,
 		Columns:   []Column{{Property: "resource", Label: "RESOURCE", Type: "string"}},
 	}
-	layout := calculateColumnLayout(view, []Row{{Cells: []string{"Dinosaurs"}}}, 96, 0)
+	layout := calculateColumnLayout(view, []Row{{Cells: []string{"Dinosaurs"}}}, 96, 0, false)
 	if got := columnsDisplayWidth(layout.Widths, 0, len(layout.Widths)); got != 96 {
 		t.Fatalf("fill-width table uses %d cells, want 96", got)
 	}
@@ -76,7 +76,7 @@ func TestPriorityControlsCompressionWithoutRemovingColumns(t *testing.T) {
 		{Property: "medium", Label: "MEDIUM", Priority: 50, Type: "string"},
 	}}
 	rows := []Row{{Cells: []string{strings.Repeat("l", 20), strings.Repeat("h", 20), strings.Repeat("m", 20)}}}
-	layout := calculateColumnLayout(view, rows, 36, 0)
+	layout := calculateColumnLayout(view, rows, 36, 0, false)
 	if !reflect.DeepEqual(layout.Visible, []int{0, 1, 2}) {
 		t.Fatalf("compressed columns = %v, want every declaration", layout.Visible)
 	}
@@ -94,19 +94,19 @@ func TestHorizontalLayoutReportsReachableOverflow(t *testing.T) {
 		{Property: "e", Label: "E", Type: "integer"},
 		{Property: "f", Label: "F", Type: "integer"},
 	}}
-	left := calculateColumnLayout(view, nil, 20, 0)
+	left := calculateColumnLayout(view, nil, 20, 0, false)
 	if !reflect.DeepEqual(left.Visible, []int{0, 1, 2}) || left.LeftHidden != 0 || left.RightHidden != 3 {
 		t.Fatalf("left layout = %#v", left)
 	}
-	middle := calculateColumnLayout(view, nil, 20, 1)
+	middle := calculateColumnLayout(view, nil, 20, 1, false)
 	if !reflect.DeepEqual(middle.Visible, []int{1, 2, 3}) || middle.LeftHidden != 1 || middle.RightHidden != 2 {
 		t.Fatalf("middle layout = %#v", middle)
 	}
-	right := calculateColumnLayout(view, nil, 20, 3)
+	right := calculateColumnLayout(view, nil, 20, 3, false)
 	if !reflect.DeepEqual(right.Visible, []int{3, 4, 5}) || right.LeftHidden != 3 || right.RightHidden != 0 {
 		t.Fatalf("right layout = %#v", right)
 	}
-	resized := calculateColumnLayout(view, nil, 40, right.Offset)
+	resized := calculateColumnLayout(view, nil, 40, right.Offset, false)
 	if !reflect.DeepEqual(resized.Visible, []int{0, 1, 2, 3, 4, 5}) || resized.Offset != 0 {
 		t.Fatalf("resized layout = %#v", resized)
 	}
@@ -155,5 +155,27 @@ func TestTableTruncatesAtDisplayWidthAndKeepsFullDetailValue(t *testing.T) {
 	}
 	if detail := renderDetail(item); !strings.Contains(detail, value) {
 		t.Fatalf("detail lost complete cell value: %q", detail)
+	}
+}
+
+func TestWideColumnsShowFullContent(t *testing.T) {
+	view := View{Columns: []Column{
+		{Property: "id", Label: "ID", Priority: 90, Type: "string", Format: "uuid"},
+		{Property: "description", Label: "DESCRIPTION", Priority: 10, Type: "string"},
+	}}
+	long := strings.Repeat("x", 80)
+	rows := []Row{{Cells: []string{"abc", long}}}
+
+	bounded := calculateColumnLayout(view, rows, 200, 0, false)
+	if bounded.Widths[1] != tableColumnTextMaximum {
+		t.Fatalf("bounded width = %d, want %d", bounded.Widths[1], tableColumnTextMaximum)
+	}
+	wide := calculateColumnLayout(view, rows, 200, 0, true)
+	if wide.Widths[1] != len(long) {
+		t.Fatalf("wide widths = %v, want description %d", wide.Widths, len(long))
+	}
+	narrow := calculateColumnLayout(view, rows, 40, 0, true)
+	if narrow.Widths[1] != 40-tableColumnGutterWidth || narrow.LeftHidden+narrow.RightHidden == 0 {
+		t.Fatalf("wide layout must cap at terminal width and scroll: %#v", narrow)
 	}
 }

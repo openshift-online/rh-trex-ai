@@ -405,9 +405,9 @@ func (model *Model) applicableKeysForMode(activeMode mode) []BindingID {
 	case modeRaw:
 		keys = []BindingID{KeyCancel, KeyHelp, KeyQuit}
 	case modeCatalog:
-		keys = []BindingID{KeyCommand, KeyFilter, KeyNavigate, KeySortNext, KeySortDirection, KeyHelp, KeyQuit}
+		keys = []BindingID{KeyCommand, KeyFilter, KeyNavigate, KeySortNext, KeySortDirection, KeyColumnsWide, KeyHelp, KeyQuit}
 	default:
-		keys = []BindingID{KeyCommand, KeyFilter, KeyNavigate, KeyDetail, KeyActions, KeySortNext, KeySortDirection, KeyCancel, KeyHelp, KeyQuit}
+		keys = []BindingID{KeyCommand, KeyFilter, KeyNavigate, KeyDetail, KeyActions, KeySortNext, KeySortDirection, KeyColumnsWide, KeyCancel, KeyHelp, KeyQuit}
 	}
 	if activeMode != modeHelp && activeMode != modeAlertDetails && activeMode != modeErrorDialog {
 		if _, present := model.shell.Alerts.Active(); present {
@@ -585,6 +585,16 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	switch {
+	case model.shell.Keys.Matches(key, KeyColumnsWide):
+		if view := model.currentView(); view != nil && len(view.Columns) > 0 {
+			model.ToggleWideColumns()
+			if len(model.frames) > 0 {
+				model.frames[len(model.frames)-1].ColumnOffset = 0
+			}
+			model.configureTableColumns(*view)
+			model.applyFilter()
+		}
+		return model, nil
 	case model.shell.Keys.Matches(key, KeyFilter):
 		model.previousMode = model.mode
 		model.mode = modeFilter
