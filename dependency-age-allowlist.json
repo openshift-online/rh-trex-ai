@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "kind": "go",
+    "name": "github.com/testcontainers/testcontainers-go",
+    "version": "v0.45.0",
+    "reason": "First testcontainers-go release that pulls moby/go-archive v0.3.x (fix for CVE-2026-17106). Downstream consumers cannot upgrade past v0.41.0 until rh-trex-ai builds against it. Remove this entry once v0.45.0 is older than 14 days (after 2026-11-19).",
+    "compensatingVerification": "Test-only dependency (PostgreSQL testcontainer helper). Built, vetted and exercised by the unit and integration suites against a real PostgreSQL container."
+  },
+  {
+    "kind": "go",
+    "name": "github.com/testcontainers/testcontainers-go/modules/postgres",
+    "version": "v0.45.0",
+    "reason": "Must match testcontainers-go v0.45.0 (see that entry). Remove once v0.45.0 is older than 14 days (after 2026-11-19).",
+    "compensatingVerification": "Test-only dependency. Exercised by the integration suite against a real PostgreSQL container."
+  }
+]

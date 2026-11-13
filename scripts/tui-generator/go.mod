@@ -1,8 +1,6 @@
 module github.com/openshift-online/rh-trex-ai/scripts/tui-generator
 
-go 1.24.2
-
-toolchain go1.24.9
+go 1.26.0
 
 require github.com/openshift-online/rh-trex-ai/scripts/openapi-ir v0.0.0
 
@@ -43,8 +41,8 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

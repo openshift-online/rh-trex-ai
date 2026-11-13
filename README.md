@@ -25,7 +25,7 @@ A production-ready REST and gRPC API template for bootstrapping new Go microserv
 ## Quick Start
 
 ```sh
-# Prerequisites: Go 1.24+, Docker, buf (for protobuf)
+# Prerequisites: Go 1.26+, Docker, buf (for protobuf)
 # See PREREQUISITES.md for details
 
 # Build
