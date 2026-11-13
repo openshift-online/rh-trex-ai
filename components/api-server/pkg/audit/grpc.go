@@ -47,7 +47,7 @@ func (s *Service) UnaryRecord() grpc.UnaryServerInterceptor {
 		}
 		obs := authz.ObservationFromContext(ctx)
 		st := stateFrom(ctx)
-		if obs == nil || obs.Request == nil || st == nil || !s.recordsAllowed(obs.Request.Action) {
+		if obs == nil || obs.Request == nil || st == nil || !s.recordsAllowed(obs.Request.Action, obs.Request.Resource.Kind) {
 			return handler(ctx, req)
 		}
 		e := grpcEvent(ctx, info.FullMethod, obs.Request, OutcomeSuccess, "", codes.OK)
@@ -108,9 +108,9 @@ func (s *Service) finishGRPC(ctx context.Context, method string, obs *authz.Obse
 		if code == codes.Unauthenticated {
 			e := grpcEvent(ctx, method, nil, OutcomeUnauthenticated, "authentication failed", code)
 			e.Action = "unknown"
-			s.recordDetached(ctx, e)
+			s.streamOnly(ctx, e)
 		}
-	case !s.recordsAllowed(req.Action):
+	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case code != codes.OK && (!stream || code != codes.Canceled):
 		if reason == "" && st.insertFailed {
 			reason = "audit write failed"

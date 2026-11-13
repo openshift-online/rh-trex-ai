@@ -100,7 +100,7 @@ func (s *Service) HTTPAuthentication(pathPrefix string) func(http.Handler) http.
 			}
 			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
 			e.Action = httpAction(r.Method)
-			s.recordDetached(r.Context(), e)
+			s.streamOnly(r.Context(), e)
 		})
 	}
 }
@@ -117,7 +117,7 @@ func (s *Service) HTTPRecord(next http.Handler) http.Handler {
 		ctx := r.Context()
 		obs := authz.ObservationFromContext(ctx)
 		st := stateFrom(ctx)
-		if obs == nil || obs.Request == nil || st == nil || !s.recordsAllowed(obs.Request.Action) {
+		if obs == nil || obs.Request == nil || st == nil || !s.recordsAllowed(obs.Request.Action, obs.Request.Resource.Kind) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -155,7 +155,7 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 		if status == http.StatusUnauthorized {
 			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
 			e.Action = httpAction(r.Method)
-			s.recordDetached(ctx, e)
+			s.streamOnly(ctx, e)
 		} else if status >= http.StatusBadRequest && !isRead(httpAction(r.Method)) {
 			e := httpEvent(r, nil, OutcomeFailure, "request failed before authorization", status)
 			e.Action = httpAction(r.Method)
@@ -163,7 +163,7 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 		}
 	case status >= http.StatusBadRequest || reason != "":
 		// The request transaction rolled back, taking any success event with it.
-		if !s.recordsAllowed(req.Action) {
+		if !s.recordsAllowed(req.Action, req.Resource.Kind) {
 			return
 		}
 		if reason == "" && st.insertFailed {

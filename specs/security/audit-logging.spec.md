@@ -68,8 +68,13 @@ NOT attach audit middleware or interceptors. TRex SHALL record:
 1. Every request whose action is not `get`, `list`, or `watch`, whatever its outcome.
 2. Every request that authorization denies, including denials reported as not found (`HideExistence`) and requests to undeclared routes or methods. Outcome `denied`.
 3. Every request whose authorizer or subject enricher returns an error. Outcome `error`.
-4. Every request that fails authentication (REST `401`, gRPC `codes.Unauthenticated`) on an authenticated surface. Outcome `unauthenticated`, `actor.type="anonymous"`.
-5. Allowed `get`, `list`, and `watch` requests only when `--audit-reads=true`.
+4. Every request that fails authentication (REST `401`, gRPC `codes.Unauthenticated`) on an authenticated surface. Outcome `unauthenticated`, `actor.type="anonymous"`. These events are stream-only (see "Unauthenticated Events Are Stream-Only").
+5. Allowed `get`, `list`, and `watch` requests only on kinds registered with `audit.RecordReads(kind...)`, or on every kind when `--audit-reads=true`.
+
+Reads are opt-in per kind because most reads (for example listing gateways)
+carry little audit value, while some (for example reading secrets) carry a
+lot. A plugin SHALL opt a kind in from its `init()`; the registration applies
+to REST and gRPC alike, because both carry the kind.
 
 Routes outside the authenticated surfaces (OpenAPI, `/auth/config`, metadata,
 health, metrics), gRPC bypass methods, and REST requests that match no route or
@@ -101,12 +106,19 @@ success.
 #### Scenario: Authentication failure
 - GIVEN JWT authentication is enabled
 - WHEN a request to `/api/rh-trex-ai/v1/dinosaurs` carries no valid token
-- THEN an event SHALL be stored with `outcome="unauthenticated"` and `actor.type="anonymous"`
+- THEN an event with `outcome="unauthenticated"` and `actor.type="anonymous"` SHALL be written to the export sink
+- AND no row SHALL be stored
 
 #### Scenario: Allowed read not recorded by default
-- GIVEN `--audit-reads=false`
+- GIVEN `--audit-reads=false` and no `RecordReads("dinosaurs")`
 - WHEN an allowed `GET /api/rh-trex-ai/v1/dinosaurs` succeeds
 - THEN no event SHALL be stored
+
+#### Scenario: Reads of an opted-in kind
+- GIVEN a plugin calls `audit.RecordReads("secrets")` in `init()`
+- WHEN an allowed `GET /api/rh-trex-ai/v1/secrets/s-1` or a gRPC `GetSecret` call succeeds
+- THEN an event with `action="get"` and `resource.kind="secrets"` SHALL be stored
+- AND reads of other kinds SHALL still not be stored
 
 #### Scenario: gRPC mutation
 - GIVEN `DeleteDinosaur` is declared as `{Kind: "dinosaurs", Action: "delete"}`
@@ -125,7 +137,7 @@ When the request's transaction is rolled back (a REST status of 400 or more, a
 gRPC error, or a panic), TRex SHALL record the request again outside that
 transaction with outcome `failure` and the response status or code.
 
-Events with outcome `denied`, `unauthenticated`, or `error` SHALL be written
+Events with outcome `denied` or `error` SHALL be written
 outside the request transaction. A failure to write such an event, or a
 `failure` event, SHALL be logged at Error level and counted in the
 `trex_audit_write_failures_total` metric. It SHALL NOT change the response.
@@ -145,6 +157,23 @@ cannot exhaust the connection pool.
 - WHEN the transaction rolls back
 - THEN no `success` event SHALL remain
 - AND one event with `outcome="failure"` and `http.status=409` SHALL be stored
+
+### Requirement: Unauthenticated Events Are Stream-Only
+
+Anyone can cause an authentication failure without credentials. TRex SHALL
+NOT store `unauthenticated` events in `trex_audit_events` or link them into
+the chain, so a flood of anonymous requests costs no database write and
+cannot grow the trail. TRex SHALL write each one at once to the export sink
+as a schema version 1 line with `chain_seq` `0`, an empty `key_id`, and no
+`prev_hash` or `hash`. With `--audit-sink=none`, TRex SHALL log the line at
+Info level instead. Each event SHALL be counted in
+`trex_audit_stream_only_total`.
+
+#### Scenario: Flood of anonymous requests
+- GIVEN 10,000 requests without a token
+- WHEN they are refused with `401`
+- THEN `trex_audit_events` SHALL gain no rows
+- AND the sink SHALL receive 10,000 lines with `outcome="unauthenticated"` and `chain_seq` `0`
 
 ### Requirement: Application Events
 
@@ -316,7 +345,7 @@ accept the database flags, `--audit-hmac-key-file`, `--expect-head`, and
 | Flag | Default | Meaning |
 |---|---|---|
 | `--enable-audit` | `true` | Record, seal, and export audit events |
-| `--audit-reads` | `false` | Also record allowed `get`, `list`, and `watch` requests |
+| `--audit-reads` | `false` | Record allowed `get`, `list`, and `watch` requests on every kind, not only kinds registered with `audit.RecordReads` |
 | `--audit-sink` | `stdout` | `stdout`, `file:<path>`, or `none` |
 | `--audit-hmac-key-file` | empty | HMAC key file |
 | `--audit-seal-interval` | `1s` | Time between sealing passes; at least `100ms` |
@@ -338,7 +367,7 @@ whatever the flag.
 TRex SHALL expose Prometheus metrics on the metrics server:
 `trex_audit_events_recorded_total{outcome}`,
 `trex_audit_write_failures_total`, `trex_audit_seal_failures_total`,
-`trex_audit_sealed_total`, `trex_audit_exported_total`, and
+`trex_audit_sealed_total`, `trex_audit_exported_total`, `trex_audit_stream_only_total`, and
 `trex_audit_unsealed_events` (a gauge set by each sealing pass).
 
 #### Scenario: Sealer stalled

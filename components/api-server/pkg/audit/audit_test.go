@@ -85,15 +85,19 @@ func fakeAuthn(next http.Handler) http.Handler {
 }
 
 func newRouter(s *Service, a authz.Authorizer, handler http.HandlerFunc) *mux.Router {
+	return newKindRouter(s, a, "dinosaurs", handler)
+}
+
+func newKindRouter(s *Service, a authz.Authorizer, kind string, handler http.HandlerFunc) *mux.Router {
 	router := mux.NewRouter()
 	v1 := router.PathPrefix("/api/x/v1").Subrouter()
 	v1.Use(s.HTTPBegin)
 	v1.Use(fakeAuthn)
 	sub := v1.NewRoute().Subrouter()
-	sub.Use(authz.HTTPMiddleware(a, authz.SurfaceV1, "dinosaurs"))
+	sub.Use(authz.HTTPMiddleware(a, authz.SurfaceV1, kind))
 	sub.Use(s.HTTPRecord)
-	sub.HandleFunc("/dinosaurs", handler)
-	sub.HandleFunc("/dinosaurs/{id}", handler)
+	sub.HandleFunc("/"+kind, handler)
+	sub.HandleFunc("/"+kind+"/{id}", handler)
 	return router
 }
 
@@ -173,16 +177,25 @@ func TestHTTPDenials(t *testing.T) {
 	}
 }
 
-func TestHTTPUnauthenticated(t *testing.T) {
+func TestHTTPUnauthenticatedIsStreamOnly(t *testing.T) {
 	s, c := newTestService(t, false)
+	var sink bytes.Buffer
+	s.sink = NewWriterSink(&sink)
 	router := newRouter(s, fakeAuthorizer{allowAll}, func(http.ResponseWriter, *http.Request) {})
 	rec := do(router, http.MethodGet, "/api/x/v1/dinosaurs", "")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d", rec.Code)
 	}
-	if len(c.rows) != 1 || c.rows[0].Outcome != OutcomeUnauthenticated || c.rows[0].ActorType != ActorAnonymous ||
-		c.rows[0].HTTPStatus != http.StatusUnauthorized {
-		t.Fatalf("unexpected events: %+v", c.rows)
+	if len(c.rows) != 0 {
+		t.Fatalf("unauthenticated requests must not be stored: %+v", c.rows)
+	}
+	var l map[string]any
+	if err := json.Unmarshal(sink.Bytes(), &l); err != nil {
+		t.Fatalf("want one JSON line on the sink, got %q: %v", sink.String(), err)
+	}
+	if l["outcome"] != OutcomeUnauthenticated || l["chain_seq"].(float64) != 0 || l["hash"] != nil ||
+		l["actor"].(map[string]any)["type"] != ActorAnonymous || l["http"].(map[string]any)["status"].(float64) != 401 {
+		t.Fatalf("unexpected stream-only line: %s", sink.String())
 	}
 }
 
@@ -199,6 +212,14 @@ func TestHTTPReads(t *testing.T) {
 	do(newRouter(s, fakeAuthorizer{allowAll}, handler), http.MethodGet, "/api/x/v1/dinosaurs", "alice")
 	if len(c.rows) != 1 || c.rows[0].Action != "list" || c.rows[0].Outcome != OutcomeSuccess {
 		t.Fatalf("read must be recorded with --audit-reads: %+v", c.rows)
+	}
+
+	RecordReads("test_secrets")
+	s, c = newTestService(t, false)
+	do(newKindRouter(s, fakeAuthorizer{allowAll}, "test_secrets", handler), http.MethodGet, "/api/x/v1/test_secrets/s-1", "alice")
+	do(newRouter(s, fakeAuthorizer{allowAll}, handler), http.MethodGet, "/api/x/v1/dinosaurs/d-1", "alice")
+	if len(c.rows) != 1 || c.rows[0].ResourceKind != "test_secrets" || c.rows[0].Action != "get" {
+		t.Fatalf("only reads of opted-in kinds must be recorded: %+v", c.rows)
 	}
 }
 
@@ -351,7 +372,6 @@ func TestGRPCOutcomes(t *testing.T) {
 		{"success", "alice", allowAll, ok, []string{OutcomeSuccess}, ""},
 		{"failure", "alice", allowAll, fail, []string{OutcomeSuccess, OutcomeFailure}, "NotFound"},
 		{"denied", "alice", func(authz.Request) (authz.Decision, error) { return authz.Deny("no"), nil }, ok, []string{OutcomeDenied}, "PermissionDenied"},
-		{"unauthenticated", "", allowAll, ok, []string{OutcomeUnauthenticated}, "Unauthenticated"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -366,6 +386,19 @@ func TestGRPCOutcomes(t *testing.T) {
 				t.Fatalf("unexpected event: %+v", last)
 			}
 		})
+	}
+}
+
+func TestGRPCUnauthenticatedIsStreamOnly(t *testing.T) {
+	s, c := newTestService(t, false)
+	var sink bytes.Buffer
+	s.sink = NewWriterSink(&sink)
+	info := &grpc.UnaryServerInfo{FullMethod: "/rh_trex.v1.DinosaurService/DeleteDinosaur"}
+	_, _ = grpcChain(s, grpcAuthn(""), fakeAuthorizer{allowAll})(context.Background(), "req", info,
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil })
+	if len(c.rows) != 0 || !strings.Contains(sink.String(), `"outcome":"unauthenticated"`) ||
+		!strings.Contains(sink.String(), `"code":"Unauthenticated"`) {
+		t.Fatalf("rows %+v sink %q", c.rows, sink.String())
 	}
 }
 
@@ -480,7 +513,8 @@ func TestTraceIDFromHeader(t *testing.T) {
 func TestHostileBytesAreStorable(t *testing.T) {
 	s, c := newTestService(t, false)
 	router := newRouter(s, fakeAuthorizer{allowAll}, func(http.ResponseWriter, *http.Request) {})
-	req := httptest.NewRequest(http.MethodGet, "/api/x/v1/dinosaurs", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/x/v1/dinosaurs", nil)
+	req.Header.Set("X-User", "alice")
 	req.Header.Set("User-Agent", "bad\xff\x00agent"+strings.Repeat("a", 5000))
 	router.ServeHTTP(httptest.NewRecorder(), req)
 	if len(c.rows) != 1 {

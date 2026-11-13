@@ -42,6 +42,10 @@ var (
 		Name: "trex_audit_exported_total",
 		Help: "Audit events written to the export sink.",
 	})
+	metricStreamOnly = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "trex_audit_stream_only_total",
+		Help: "Unauthenticated audit events written to the export sink without being stored.",
+	})
 	metricUnsealed = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "trex_audit_unsealed_events",
 		Help: "Committed audit events not yet sealed, as seen by the last sealing pass.",
@@ -50,7 +54,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(metricRecorded, metricWriteFailures, metricSealFailures,
-		metricSealed, metricExported, metricUnsealed)
+		metricSealed, metricExported, metricUnsealed, metricStreamOnly)
 }
 
 // Service records, seals, exports, and verifies audit events. A nil *Service
@@ -264,9 +268,64 @@ func claim(c jwt.MapClaims, name string) string {
 	return v
 }
 
-// recordsAllowed reports whether an allowed request with this action is recorded.
-func (s *Service) recordsAllowed(action string) bool {
-	return !isRead(action) || s.reads
+// recordsAllowed reports whether an allowed request with this action on this
+// kind is recorded. Reads are recorded only for kinds registered with
+// RecordReads, or for every kind with --audit-reads.
+func (s *Service) recordsAllowed(action, kind string) bool {
+	return !isRead(action) || s.reads || readsRecordedFor(kind)
+}
+
+var (
+	readKindsMu sync.RWMutex
+	readKinds   = map[string]bool{}
+)
+
+// RecordReads makes TRex record allowed get, list, and watch requests on the
+// given kinds, on REST and gRPC alike. Call it from a plugin's init() for
+// kinds whose reads matter, such as secrets. Other kinds record reads only
+// with --audit-reads.
+func RecordReads(kinds ...string) {
+	readKindsMu.Lock()
+	defer readKindsMu.Unlock()
+	for _, k := range kinds {
+		readKinds[k] = true
+	}
+}
+
+func readsRecordedFor(kind string) bool {
+	if kind == "" {
+		return false
+	}
+	readKindsMu.RLock()
+	defer readKindsMu.RUnlock()
+	return readKinds[kind]
+}
+
+// streamOnly writes an unauthenticated event to the export sink without
+// storing it. Anyone can cause these, so they must not cost a database write
+// or grow the chain. With no sink they are logged instead.
+func (s *Service) streamOnly(ctx context.Context, e Event) {
+	fill(ctx, &e)
+	r, err := toRow(e)
+	if err == nil {
+		var line *Line
+		if line, err = lineFor(r, 0, ""); err == nil {
+			var b []byte
+			if b, err = marshalCanonical(line); err == nil {
+				if s.sink == nil {
+					slog.InfoContext(ctx, "Unauthenticated request", "audit_event", string(b))
+					metricStreamOnly.Inc()
+					return
+				}
+				if err = s.sink.WriteLines([][]byte{append(b, '\n')}); err == nil {
+					metricStreamOnly.Inc()
+					return
+				}
+			}
+		}
+	}
+	metricWriteFailures.Inc()
+	slog.ErrorContext(ctx, "Unable to export unauthenticated audit event", "error", err)
 }
 
 // requestState is shared between the outer and inner audit hooks of one request.

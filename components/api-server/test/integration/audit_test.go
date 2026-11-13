@@ -95,7 +95,7 @@ func TestAuditRESTRequests(t *testing.T) {
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	// An unauthenticated request is recorded.
+	// An unauthenticated request goes to the export stream only, not the table.
 	_, _, err = client.DefaultAPI.GetDinosaur(context.Background(), *created.Id).Execute()
 	Expect(err).To(HaveOccurred())
 
@@ -110,7 +110,7 @@ func TestAuditRESTRequests(t *testing.T) {
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusCreated))
 
 	rows := auditRows(sf)
-	Expect(rows).To(HaveLen(4), "events: %+v", rows)
+	Expect(rows).To(HaveLen(3), "events: %+v", rows)
 
 	Expect(rows[0].Outcome).To(Equal(audit.OutcomeSuccess))
 	Expect(rows[0].Action).To(Equal("create"))
@@ -125,11 +125,7 @@ func TestAuditRESTRequests(t *testing.T) {
 	Expect(rows[1].ResourceID).To(Equal("missing"))
 	Expect(rows[1].HTTPStatus).To(Equal(http.StatusNotFound))
 
-	Expect(rows[2].Outcome).To(Equal(audit.OutcomeUnauthenticated))
-	Expect(rows[2].ActorType).To(Equal(audit.ActorAnonymous))
-	Expect(rows[2].HTTPStatus).To(Equal(http.StatusUnauthorized))
-
-	Expect(rows[3].Outcome).To(Equal(audit.OutcomeSuccess))
+	Expect(rows[2].Outcome).To(Equal(audit.OutcomeSuccess))
 	var raw []map[string]any
 	Expect(sf.New(context.Background()).Table(audit.TableName).Find(&raw).Error).To(Succeed())
 	dump, _ := json.Marshal(raw)
@@ -393,22 +389,25 @@ func TestAuditSinkFailureDoesNotStopSealing(t *testing.T) {
 func TestAuditHostileBytesStillRecorded(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	sf := h.Env().Database.SessionFactory
-	req, err := http.NewRequest(http.MethodDelete, h.RestURL("/dinosaurs/%ff"), nil)
+	req, err := http.NewRequest(http.MethodPatch, h.RestURL("/dinosaurs/%ff"), strings.NewReader(`{}`))
 	Expect(err).NotTo(HaveOccurred())
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+h.CreateJWTString(h.NewRandAccount()))
 	req.Header.Set("User-Agent", "probe\xff")
 	resp, err := http.DefaultClient.Do(req)
 	Expect(err).NotTo(HaveOccurred())
 	resp.Body.Close()
-	Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))
+	Expect(resp.StatusCode).To(BeNumerically(">=", http.StatusBadRequest))
 	rows := auditRows(sf)
-	Expect(rows).To(HaveLen(1))
-	Expect(rows[0].Outcome).To(Equal(audit.OutcomeUnauthenticated))
+	Expect(rows).To(HaveLen(1), "a failure with odd bytes in the path and user agent must still be stored")
+	Expect(rows[0].Outcome).To(Equal(audit.OutcomeFailure))
 }
 
-func TestAuditUnauthenticatedGRPCBurstDoesNotExhaustPool(t *testing.T) {
+func TestAuditFailedGRPCBurstDoesNotExhaustPool(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	sf := h.Env().Database.SessionFactory
-	conn, err := grpc.NewClient(h.GRPCAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(h.GRPCAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithPerRPCCredentials(bearer(h.CreateJWTString(h.NewRandAccount()))))
 	Expect(err).NotTo(HaveOccurred())
 	defer conn.Close()
 	client := pb.NewDinosaurServiceClient(conn)
@@ -421,7 +420,8 @@ func TestAuditUnauthenticatedGRPCBurstDoesNotExhaustPool(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = client.CreateDinosaur(ctx, &pb.CreateDinosaurRequest{Species: "x"})
+			// Each failed call writes its failure event outside the call's transaction.
+			_, _ = client.UpdateDinosaur(ctx, &pb.UpdateDinosaurRequest{Id: "missing"})
 		}()
 	}
 	wg.Wait()
