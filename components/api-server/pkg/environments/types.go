@@ -104,9 +104,12 @@ type EnvironmentImpl interface {
 	// OverrideServices, so the policy can use registered services. It must
 	// not return nil.
 	OverrideAuthorizer(env *Env) (authz.Authorizer, error)
-	// OverrideAudit returns the recorder audit events are handed to
-	// (SEC-004). It runs after OverrideAuthorizer. Return
-	// audit.DefaultRecorder(env.Config.Audit) for JSON lines on stdout or a
-	// file. It must not return nil.
+}
+
+// AuditOverrider is implemented by an environment that chooses where audit
+// events go (SEC-004). It is optional: an environment without it gets
+// audit.DefaultRecorder, which writes JSON lines to --audit-sink.
+// OverrideAudit runs after OverrideAuthorizer and must not return nil.
+type AuditOverrider interface {
 	OverrideAudit(env *Env) (audit.Recorder, error)
 }

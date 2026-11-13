@@ -144,18 +144,28 @@ connection.
 
 ### Requirement: Environment Selects the Recorder
 
-`EnvironmentImpl` SHALL include a required method:
+`pkg/environments` SHALL define an optional interface:
 
 ```go
-OverrideAudit(env *Env) (audit.Recorder, error)
+type AuditOverrider interface {
+    OverrideAudit(env *Env) (audit.Recorder, error)
+}
 ```
 
-The framework SHALL call it after `OverrideAuthorizer`, build `Env.Audit` from
-its result and the audit configuration, and log the recorder's type at
-startup. A `nil` recorder or an error SHALL stop initialization. TRex's own
-production and development environments, and those in
-`templates/new-project/`, SHALL return `audit.DefaultRecorder(env.Config.Audit)`;
-its testing environments SHALL return `audit.NewMemoryRecorder()`.
+`EnvironmentImpl` SHALL NOT require it, so environments written before audit
+existed keep compiling. When an environment implements `AuditOverrider`, the
+framework SHALL call `OverrideAudit` after `OverrideAuthorizer` and use its
+recorder; a `nil` recorder or an error SHALL stop initialization. Otherwise the
+framework SHALL use `audit.DefaultRecorder(env.Config.Audit)`. The framework
+SHALL build `Env.Audit` from the recorder and the audit configuration and log
+the recorder's type at startup. TRex's testing environments, and those in
+`templates/new-project/`, SHALL return `audit.NewMemoryRecorder()`.
+
+#### Scenario: Environment without the hook
+- GIVEN an environment that does not implement `OverrideAudit`
+- WHEN it initializes
+- THEN it SHALL compile and start unchanged
+- AND audit events SHALL be written by the default JSON-lines recorder
 
 #### Scenario: Nil recorder
 - GIVEN `OverrideAudit` returns `nil` and no error
@@ -251,7 +261,7 @@ TRex SHALL expose `trex_audit_events_total{outcome}` and
 | TRex owns capture; the environment owns storage | Capture (hook placement, ordering, route metadata, field hygiene) is the part every service gets wrong when it does it alone. Storage depends on each deployment's log pipeline, SIEM, and compliance needs, so it sits behind one interface. |
 | Capture at the authorization hook points | TRex already knows subject, action, kind, ID, parents, and surface there (SEC-002). Every plugin is covered by default, and policies, audit, and route metadata cannot drift. |
 | JSON lines on stdout by default | No database writes and no new infrastructure. Every collector (Fluent Bit, Vector, Splunk forwarders, OpenTelemetry Collector) ingests JSON lines from container stdout. Kubernetes' API server audit log takes the same approach. |
-| Required `OverrideAudit` hook | Matches `OverrideAuthorizer` (SEC-002): explicit, runs after services exist, and the compiler makes every environment choose. A one-line `return audit.DefaultRecorder(env.Config.Audit)` keeps the default easy. |
+| Optional `OverrideAudit` hook | Unlike `OverrideAuthorizer` (SEC-002), which is required because there is no safe default policy, audit has a safe default (JSON lines on stdout). An optional interface keeps existing environments compiling and gives them audit on upgrade; an environment that needs other storage implements one method. |
 | One event per request, after it completes | The event carries the final status and outcome. Recording before the handler would need a second event or an update for the result. |
 | Read auditing opt-in per kind | Most reads have little audit value and would dominate volume; some (secrets) matter. A per-kind registration covers REST and gRPC in one line. |
 | Known limits of the default | Events are recorded after the change commits, so a crash between commit and write can lose one, and a recorder failure does not fail the request. The default trail is not tamper-evident by itself: its integrity depends on shipping lines promptly to a store administrators cannot edit. A recorder that writes in the request transaction and hash-chains events can lift both limits; a prototype is kept on the `feat/audit-logging-chain` branch for when a requirement calls for it. |

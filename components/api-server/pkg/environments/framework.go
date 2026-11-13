@@ -105,12 +105,9 @@ func (e *Env) Initialize() error {
 	e.Authorizer = authorizer
 	slog.Info("Authorization policy", "authorizer", fmt.Sprintf("%T", authorizer))
 
-	recorder, err := envImpl.OverrideAudit(e)
+	recorder, err := auditRecorder(envImpl, e)
 	if err != nil {
 		return fmt.Errorf("failed to configure audit recorder: %w", err)
-	}
-	if recorder == nil {
-		return fmt.Errorf("failed to configure audit recorder: environment %q returned nil", e.Name)
 	}
 	e.Audit = audit.New(e.Config.Audit, recorder)
 	audit.SetDefault(e.Audit)
@@ -165,4 +162,21 @@ func SetConfigDefaults(flags *pflag.FlagSet, defaults map[string]string) error {
 		f.DefValue = f.Value.String()
 	}
 	return nil
+}
+
+// auditRecorder returns the environment's recorder when it implements
+// AuditOverrider, and the default JSON-lines recorder otherwise.
+func auditRecorder(envImpl EnvironmentImpl, e *Env) (audit.Recorder, error) {
+	o, ok := envImpl.(AuditOverrider)
+	if !ok {
+		return audit.DefaultRecorder(e.Config.Audit)
+	}
+	recorder, err := o.OverrideAudit(e)
+	if err != nil {
+		return nil, err
+	}
+	if recorder == nil {
+		return nil, fmt.Errorf("environment %q returned a nil recorder", e.Name)
+	}
+	return recorder, nil
 }

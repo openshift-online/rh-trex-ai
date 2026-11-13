@@ -41,7 +41,7 @@ func (e *DevEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, erro
 	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
 }
 
-// OverrideAudit writes audit events as JSON lines to --audit-sink.
+// OverrideAudit is optional; this spells out the default (JSON lines to --audit-sink).
 func (e *DevEnvImpl) OverrideAudit(env *pkgenv.Env) (audit.Recorder, error) {
 	return audit.DefaultRecorder(env.Config.Audit)
 }
