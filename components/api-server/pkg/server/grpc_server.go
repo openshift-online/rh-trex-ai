@@ -105,6 +105,10 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 		RecoveryUnaryInterceptor(),
 		LoggingUnaryInterceptor(),
 		MetricsUnaryInterceptor(),
+		// Before authentication, so authentication failures are audited too,
+		// and outside the transaction, so a recorder that writes to the
+		// database runs after the call has released its connection.
+		env.Audit.UnaryBegin(bypass),
 		TransactionUnaryInterceptor(env.Database.SessionFactory),
 	}
 	// Add pre-auth interceptors before JWT auth
@@ -118,6 +122,7 @@ func NewDefaultGRPCServer(env *environments.Env) Server {
 		RecoveryStreamInterceptor(),
 		LoggingStreamInterceptor(),
 		MetricsStreamInterceptor(),
+		env.Audit.StreamBegin(bypass),
 	}
 	// Add pre-auth interceptors before JWT auth
 	streamChain = append(streamChain, preAuthStreamInterceptors...)

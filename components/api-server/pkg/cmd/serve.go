@@ -105,6 +105,10 @@ func runServe(getSpecData func() ([]byte, error)) {
 		slog.Warn("Shutdown timed out, forcing exit")
 	}
 
+	if err := env.Audit.Close(); err != nil {
+		slog.Error("Error closing audit recorder", "error", err)
+	}
+
 	_ = env.Database.SessionFactory.Close()
 	slog.Info("Database connections closed")
 }

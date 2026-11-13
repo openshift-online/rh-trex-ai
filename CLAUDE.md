@@ -102,6 +102,8 @@ Specs (`specs/`) define desired state. Skills (`skills/`) define procedures. `sk
 
 **Monitoring:** `--health-check-server-bindaddress` (default: `localhost:8083`), `--metrics-server-bindaddress` (default: `localhost:8080`), `--enable-sentry`
 
+**Audit:** `--enable-audit` (default: true), `--audit-reads` (default: false; reads are opt-in per kind with `audit.RecordReads("<kind>")` in a plugin's `init()`), `--audit-sink` (`stdout`|`file:<path>`, default: `stdout`). Environments may choose where events go by implementing `OverrideAudit` (optional); the default writes JSON lines to stdout while logs go to stderr (see `specs/security/audit-logging.spec.md`).
+
 **Performance:** `--http-read-timeout` (default: 5s), `--http-write-timeout` (default: 30s)
 
 **Logging:** `--log-level` (`debug`|`info`|`warn`|`error`, default: `info`), `--log-format` (`text`|`json`, default: `text`). Logs go to stderr through `log/slog`; a program can install its own handler with `slog.SetDefault` (see `specs/standards/logging.spec.md`). The old glog flags `-v`, `--logtostderr`, `--alsologtostderr` are deprecated but still accepted.

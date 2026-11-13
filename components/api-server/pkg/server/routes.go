@@ -49,7 +49,7 @@ func (r *APIRouter) Resource(kind string) *mux.Router {
 func (r *APIRouter) Public() *mux.Router {
 	route := r.router.NewRoute()
 	sub := route.Subrouter()
-	sub.Use(authz.HTTPPublicMiddleware(r.authorizer))
+	sub.Use(authz.HTTPPublicSurfaceMiddleware(r.authorizer, r.surface))
 	r.declared[route] = true
 	return sub
 }
