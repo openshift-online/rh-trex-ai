@@ -78,7 +78,7 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 
 	// Authorization is attached per declared resource by APIRouter, after
 	// the authentication above.
-	LoadDiscoveredRoutes(apiV1Router, services, env.Authorizer, WithAudit(env.Audit))
+	LoadDiscoveredRoutes(apiV1Router, services, env.Authorizer)
 
 	LoadDiscoveredPrefixedRoutes(apiRouter, services, env.Authorizer,
 		func(r *mux.Router) {
@@ -90,7 +90,6 @@ func BuildDefaultRoutes(env *environments.Env, specData []byte) *mux.Router {
 			})
 			r.Use(gorillahandlers.CompressHandler)
 		},
-		WithAudit(env.Audit),
 	)
 
 	return mainRouter

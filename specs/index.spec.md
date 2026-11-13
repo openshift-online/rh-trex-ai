@@ -24,7 +24,7 @@ This file is the machine-readable registry of all specifications governing the r
 | SEC-001 | Authentication | security | Active | API-001, API-002 | `security/authentication.spec.md` |
 | SEC-002 | Authorization | security | Active | SEC-001, API-001, API-002 | `security/authorization.spec.md` |
 | SEC-003 | Secrets Management | security | Active | — | `security/secrets-management.spec.md` |
-| SEC-004 | Audit Logging | security | Active | SEC-001, SEC-002, SEC-003, DA-002, STD-005 | `security/audit-logging.spec.md` |
+| SEC-004 | Audit Logging | security | Active | SEC-001, SEC-002, STD-005 | `security/audit-logging.spec.md` |
 | CG-001 | Entity Generator | codegen | Active | FW-001, FW-002, DA-002, API-001, API-002 | `codegen/entity-generator.spec.md` |
 | CG-005 | OpenAPI Intermediate Representation | codegen | Active | API-001, STD-003, STD-004 | `codegen/openapi-ir.spec.md` |
 | CG-002 | CLI Generator | codegen | Active | CG-005 | `codegen/cli-generator.spec.md` |

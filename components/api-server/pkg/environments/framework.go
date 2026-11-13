@@ -86,21 +86,6 @@ func (e *Env) Initialize() error {
 		return fmt.Errorf("failed to configure Database: %w", err)
 	}
 
-	auditService, err := audit.New(e.Database.SessionFactory, e.Config.Audit)
-	if err != nil {
-		return fmt.Errorf("failed to configure audit: %w", err)
-	}
-	e.Audit = auditService
-	audit.SetDefault(auditService)
-	switch {
-	case !e.Config.Audit.Enabled:
-		slog.Warn("Audit logging is disabled (--enable-audit=false); no audit trail will be recorded")
-	case e.Config.Audit.HMACKey() == nil:
-		slog.Warn("No --audit-hmac-key-file configured; the audit hash chain detects accidental damage but not a forger who can recompute hashes")
-	default:
-		slog.Info("Audit logging enabled", "key_id", auditService.KeyID(), "sink", e.Config.Audit.Sink)
-	}
-
 	if err := envImpl.OverrideClients(&e.Clients); err != nil {
 		return fmt.Errorf("failed to configure Clients: %w", err)
 	}
@@ -119,6 +104,21 @@ func (e *Env) Initialize() error {
 	}
 	e.Authorizer = authorizer
 	slog.Info("Authorization policy", "authorizer", fmt.Sprintf("%T", authorizer))
+
+	recorder, err := envImpl.OverrideAudit(e)
+	if err != nil {
+		return fmt.Errorf("failed to configure audit recorder: %w", err)
+	}
+	if recorder == nil {
+		return fmt.Errorf("failed to configure audit recorder: environment %q returned nil", e.Name)
+	}
+	e.Audit = audit.New(e.Config.Audit, recorder)
+	audit.SetDefault(e.Audit)
+	if e.Audit.Enabled() {
+		slog.Info("Audit recorder", "recorder", fmt.Sprintf("%T", recorder))
+	} else {
+		slog.Warn("Audit capture is disabled (--enable-audit=false); no audit events will be recorded")
+	}
 
 	seedErr := e.Seed()
 	if seedErr != nil {

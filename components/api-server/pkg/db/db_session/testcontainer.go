@@ -227,21 +227,10 @@ func (f *Testcontainer) ResetDB() {
 		return
 	}
 
-	// Triggers are disabled for this transaction only, so append-only tables
-	// such as trex_audit_events (SEC-004) can be emptied between tests.
-	err = g2.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("SET LOCAL session_replication_role = replica").Error; err != nil {
-			return fmt.Errorf("disabling triggers for reset: %w", err)
+	for _, table := range tables {
+		if err := g2.Exec(fmt.Sprintf("TRUNCATE TABLE \"%s\" CASCADE", table)).Error; err != nil {
+			slog.ErrorContext(ctx, "Error truncating table", "table", table, "error", err)
 		}
-		for _, table := range tables {
-			if err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE \"%s\" CASCADE", table)).Error; err != nil {
-				return fmt.Errorf("truncating table %s: %w", table, err)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		slog.ErrorContext(ctx, "Error resetting database", "error", err)
 	}
 }
 

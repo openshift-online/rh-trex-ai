@@ -2,8 +2,6 @@ package audit
 
 import (
 	"context"
-	"encoding/json"
-	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -11,14 +9,11 @@ import (
 	"github.com/felixge/httpsnoop"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/errors"
-	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/logger"
 )
 
-// HTTPBegin is the outer REST hook. TRex attaches it to each authenticated
-// surface router before authentication. It sees the final status of every
-// request and records the outcomes that the request transaction cannot hold:
-// authentication failures, denials, authorization errors, and failures.
+// HTTPBegin is the REST hook. TRex attaches it to each authenticated surface
+// router, before authentication. When the request completes it records one
+// event with the final outcome and status.
 func (s *Service) HTTPBegin(next http.Handler) http.Handler {
 	if !s.Enabled() {
 		return next
@@ -28,33 +23,15 @@ func (s *Service) HTTPBegin(next http.Handler) http.Handler {
 			m.begun = true
 		}
 		ctx, obs := authz.WithObservation(r.Context())
-		ctx, st := withState(ctx)
 		r = r.WithContext(ctx)
 
 		status := 0
-		w = httpsnoop.Wrap(w, httpsnoop.Hooks{
-			WriteHeader: func(next httpsnoop.WriteHeaderFunc) httpsnoop.WriteHeaderFunc {
-				return func(code int) {
-					if status == 0 {
-						status = code
-					}
-					next(code)
-				}
-			},
-			Write: func(next httpsnoop.WriteFunc) httpsnoop.WriteFunc {
-				return func(b []byte) (int, error) {
-					if status == 0 {
-						status = http.StatusOK
-					}
-					return next(b)
-				}
-			},
-		})
+		w = httpsnoop.Wrap(w, statusHooks(&status))
 
 		panicked := true
 		defer func() {
 			if panicked {
-				s.finishHTTP(ctx, r, obs, st, http.StatusInternalServerError, "panic")
+				s.finishHTTP(ctx, r, obs, http.StatusInternalServerError, "panic")
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -62,7 +39,7 @@ func (s *Service) HTTPBegin(next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		s.finishHTTP(ctx, r, obs, st, status, "")
+		s.finishHTTP(ctx, r, obs, status, "")
 	})
 }
 
@@ -84,60 +61,40 @@ func (s *Service) HTTPAuthentication(pathPrefix string) func(http.Handler) http.
 			m := &authnMarker{}
 			r = r.WithContext(context.WithValue(r.Context(), authnMarkerKey{}, m))
 			status := 0
-			w = httpsnoop.Wrap(w, httpsnoop.Hooks{
-				WriteHeader: func(next httpsnoop.WriteHeaderFunc) httpsnoop.WriteHeaderFunc {
-					return func(code int) {
-						if status == 0 {
-							status = code
-						}
-						next(code)
-					}
-				},
-			})
+			w = httpsnoop.Wrap(w, statusHooks(&status))
 			next.ServeHTTP(w, r)
 			if m.begun || status != http.StatusUnauthorized || !strings.HasPrefix(r.URL.Path, pathPrefix) {
 				return
 			}
 			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
 			e.Action = httpAction(r.Method)
-			s.streamOnly(r.Context(), e)
+			s.recordFromHook(r.Context(), e)
 		})
 	}
 }
 
-// HTTPRecord is the inner REST hook. TRex attaches it after authorization on
-// every Resource and Public subrouter. For an allowed request that is
-// recorded, it writes the success event in the request transaction before the
-// handler runs, and refuses the request with 503 when that write fails.
-func (s *Service) HTTPRecord(next http.Handler) http.Handler {
-	if !s.Enabled() {
-		return next
+func statusHooks(status *int) httpsnoop.Hooks {
+	return httpsnoop.Hooks{
+		WriteHeader: func(next httpsnoop.WriteHeaderFunc) httpsnoop.WriteHeaderFunc {
+			return func(code int) {
+				if *status == 0 {
+					*status = code
+				}
+				next(code)
+			}
+		},
+		Write: func(next httpsnoop.WriteFunc) httpsnoop.WriteFunc {
+			return func(b []byte) (int, error) {
+				if *status == 0 {
+					*status = http.StatusOK
+				}
+				return next(b)
+			}
+		},
 	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		obs := authz.ObservationFromContext(ctx)
-		st := stateFrom(ctx)
-		if obs == nil || obs.Request == nil || st == nil || !s.recordsAllowed(obs.Request.Action, obs.Request.Resource.Kind) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		e := httpEvent(r, obs.Request, OutcomeSuccess, "", 0)
-		e.Actor = actorFromSubject(authz.SubjectFromContext(ctx))
-		if err := s.Record(ctx, e); err != nil {
-			st.insertFailed = true
-			slog.ErrorContext(ctx, "Unable to write audit event; refusing request", "error", err)
-			body := errors.GeneralError("audit unavailable").AsOpenapiError(logger.GetOperationID(ctx))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(body)
-			return
-		}
-		st.inserted = true
-		next.ServeHTTP(w, r)
-	})
 }
 
-func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Observation, st *requestState, status int, reason string) {
+func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Observation, status int, reason string) {
 	req := obs.Request
 	switch {
 	case obs.Undeclared:
@@ -145,31 +102,28 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 		if req == nil {
 			e.Action = httpAction(r.Method)
 		}
-		s.recordDetached(ctx, e)
+		s.recordFromHook(ctx, e)
 	case obs.Err != nil:
-		s.recordDetached(ctx, httpEvent(r, req, OutcomeError, "authorization unavailable", status))
+		s.recordFromHook(ctx, httpEvent(r, req, OutcomeError, "authorization unavailable", status))
 	case obs.Decided && !obs.Decision.Allowed:
-		s.recordDetached(ctx, httpEvent(r, req, OutcomeDenied, denyReason(obs.Decision), status))
+		s.recordFromHook(ctx, httpEvent(r, req, OutcomeDenied, denyReason(obs.Decision), status))
 	case req == nil:
 		// The request never reached authorization.
+		action := httpAction(r.Method)
 		if status == http.StatusUnauthorized {
 			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
-			e.Action = httpAction(r.Method)
-			s.streamOnly(ctx, e)
-		} else if status >= http.StatusBadRequest && !isRead(httpAction(r.Method)) {
+			e.Action = action
+			s.recordFromHook(ctx, e)
+		} else if status >= http.StatusBadRequest && !isRead(action) {
 			e := httpEvent(r, nil, OutcomeFailure, "request failed before authorization", status)
-			e.Action = httpAction(r.Method)
-			s.recordDetached(ctx, e)
+			e.Action = action
+			s.recordFromHook(ctx, e)
 		}
+	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case status >= http.StatusBadRequest || reason != "":
-		// The request transaction rolled back, taking any success event with it.
-		if !s.recordsAllowed(req.Action, req.Resource.Kind) {
-			return
-		}
-		if reason == "" && st.insertFailed {
-			reason = "audit write failed"
-		}
-		s.recordDetached(ctx, httpEvent(r, req, OutcomeFailure, reason, status))
+		s.recordFromHook(ctx, httpEvent(r, req, OutcomeFailure, reason, status))
+	default:
+		s.recordFromHook(ctx, httpEvent(r, req, OutcomeSuccess, "", status))
 	}
 }
 
@@ -181,16 +135,12 @@ func httpEvent(r *http.Request, req *authz.Request, outcome, reason string, stat
 		HTTP:      HTTPInfo{Method: r.Method, Path: r.URL.Path, Status: status},
 		Source:    Source{IP: remoteIP(r.RemoteAddr), UserAgent: r.UserAgent()},
 		TraceID:   traceIDFromHeader(r.Header.Get("traceparent")),
-	}
-	if outcome == OutcomeSuccess {
-		e.HTTP.Status = 0
+		Actor:     Actor{Type: ActorAnonymous},
 	}
 	if req != nil {
 		e.Action = req.Action
 		e.Resource = Resource{Surface: req.Resource.Surface, Kind: req.Resource.Kind, ID: req.Resource.ID, Parent: req.Resource.Parent}
 		e.Actor = actorFromSubject(req.Subject)
-	} else {
-		e.Actor = Actor{Type: ActorAnonymous}
 	}
 	return e
 }

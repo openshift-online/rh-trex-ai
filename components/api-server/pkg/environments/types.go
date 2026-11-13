@@ -30,8 +30,9 @@ type Env struct {
 	// Authorizer is the policy for every REST route and gRPC method.
 	// It is set by OverrideAuthorizer and is never nil after Initialize.
 	Authorizer authz.Authorizer
-	// Audit records, seals, and exports the audit trail (SEC-004). It is
-	// set by Initialize and is never nil afterwards; it may be disabled.
+	// Audit captures audit events and hands them to the environment's
+	// recorder (SEC-004). It is set by Initialize and is never nil
+	// afterwards; it may be disabled.
 	Audit *audit.Service
 }
 
@@ -103,4 +104,9 @@ type EnvironmentImpl interface {
 	// OverrideServices, so the policy can use registered services. It must
 	// not return nil.
 	OverrideAuthorizer(env *Env) (authz.Authorizer, error)
+	// OverrideAudit returns the recorder audit events are handed to
+	// (SEC-004). It runs after OverrideAuthorizer. Return
+	// audit.DefaultRecorder(env.Config.Audit) for JSON lines on stdout or a
+	// file. It must not return nil.
+	OverrideAudit(env *Env) (audit.Recorder, error)
 }

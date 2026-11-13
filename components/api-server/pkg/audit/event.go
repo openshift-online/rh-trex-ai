@@ -1,7 +1,7 @@
-// Package audit records, seals, exports, and verifies the TRex audit trail
-// (SEC-004). TRex records every REST and gRPC request that changes state or
-// that authentication or authorization refuses. Applications add their own
-// events with Record.
+// Package audit captures the TRex audit trail (SEC-004). TRex captures every
+// REST and gRPC request that changes state or that authentication or
+// authorization refuses, and hands each event to the environment's Recorder.
+// Applications add their own events with Record.
 package audit
 
 import "time"

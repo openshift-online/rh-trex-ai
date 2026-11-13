@@ -49,9 +49,6 @@ func runServe(getSpecData func() ([]byte, error)) {
 
 	var servers []pkgserver.Server
 
-	// Seal and export the audit trail in the background (SEC-004).
-	env.Audit.Start()
-
 	controllersServer := pkgserver.NewDefaultControllersServer(env)
 	go controllersServer.Start()
 
@@ -108,11 +105,9 @@ func runServe(getSpecData func() ([]byte, error)) {
 		slog.Warn("Shutdown timed out, forcing exit")
 	}
 
-	// Final sealing pass after the servers stop, so recent events are exported.
-	if err := env.Audit.Stop(); err != nil {
-		slog.Error("Error stopping audit sealer", "error", err)
+	if err := env.Audit.Close(); err != nil {
+		slog.Error("Error closing audit recorder", "error", err)
 	}
-	slog.Info("Audit sealer stopped")
 
 	_ = env.Database.SessionFactory.Close()
 	slog.Info("Database connections closed")

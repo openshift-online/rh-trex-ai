@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"github.com/openshift-online/rh-trex-ai/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/pkg/db/db_session"
@@ -36,6 +37,11 @@ func (e *ProductionEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 
 func (e *ProductionEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, error) {
 	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
+}
+
+// OverrideAudit writes audit events as JSON lines to --audit-sink.
+func (e *ProductionEnvImpl) OverrideAudit(env *pkgenv.Env) (audit.Recorder, error) {
+	return audit.DefaultRecorder(env.Config.Audit)
 }
 
 func (e *ProductionEnvImpl) Flags() map[string]string {
