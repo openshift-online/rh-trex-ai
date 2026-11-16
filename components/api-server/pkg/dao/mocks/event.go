@@ -100,3 +100,30 @@ func (d *eventDaoMock) FindBySourceAndType(ctx context.Context, source string, e
 	}
 	return result, nil
 }
+
+func (d *eventDaoMock) DeleteReconciledBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	return d.deleteMatching(limit, func(e *api.Event) bool {
+		return e.ReconciledDate != nil && e.ReconciledDate.Before(cutoff)
+	}), nil
+}
+
+func (d *eventDaoMock) DeleteCreatedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	return d.deleteMatching(limit, func(e *api.Event) bool {
+		return e.CreatedAt.Before(cutoff)
+	}), nil
+}
+
+// deleteMatching removes up to limit events that match, in insertion order.
+func (d *eventDaoMock) deleteMatching(limit int, match func(*api.Event) bool) int64 {
+	kept := api.EventList{}
+	var deleted int64
+	for _, e := range d.events {
+		if deleted < int64(limit) && match(e) {
+			deleted++
+			continue
+		}
+		kept = append(kept, e)
+	}
+	d.events = kept
+	return deleted
+}

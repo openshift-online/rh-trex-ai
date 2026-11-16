@@ -23,6 +23,10 @@ type EventService interface {
 	// Sync-the-world methods for missed event recovery
 	FindUnreconciled(ctx context.Context, olderThan time.Duration) (api.EventList, *errors.ServiceError)
 	FindBySourceAndType(ctx context.Context, source string, eventType api.EventType) (api.EventList, *errors.ServiceError)
+
+	// Retention methods: each call deletes at most limit events and returns the count.
+	DeleteReconciledBefore(ctx context.Context, cutoff time.Time, limit int) (int64, *errors.ServiceError)
+	DeleteCreatedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, *errors.ServiceError)
 }
 
 func NewEventService(eventDao dao.EventDao) EventService {
@@ -98,4 +102,20 @@ func (s *sqlEventService) FindBySourceAndType(ctx context.Context, source string
 		return nil, errors.GeneralError("Unable to find events by source and type: %s", err)
 	}
 	return events, nil
+}
+
+func (s *sqlEventService) DeleteReconciledBefore(ctx context.Context, cutoff time.Time, limit int) (int64, *errors.ServiceError) {
+	n, err := s.eventDao.DeleteReconciledBefore(ctx, cutoff, limit)
+	if err != nil {
+		return n, errors.GeneralError("Unable to delete reconciled events: %s", err)
+	}
+	return n, nil
+}
+
+func (s *sqlEventService) DeleteCreatedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, *errors.ServiceError) {
+	n, err := s.eventDao.DeleteCreatedBefore(ctx, cutoff, limit)
+	if err != nil {
+		return n, errors.GeneralError("Unable to delete old events: %s", err)
+	}
+	return n, nil
 }

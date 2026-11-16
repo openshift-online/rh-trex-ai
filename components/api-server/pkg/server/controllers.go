@@ -14,6 +14,7 @@ import (
 type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
 	SyncController        *controllers.SyncController
+	RetentionController   *controllers.EventRetentionController
 	Broker                *EventBroker
 	SessionFactory        db.SessionFactory
 	cancel                context.CancelFunc
@@ -34,6 +35,11 @@ func (s *ControllersServer) Start() {
 		s.SyncController.Start()
 		slog.Info("Sync controller started for missed event recovery")
 	}
+
+	// Start the events table retention job (does nothing when turned off)
+	if s.RetentionController != nil {
+		s.RetentionController.Start()
+	}
 }
 
 func (s *ControllersServer) Stop() {
@@ -42,6 +48,12 @@ func (s *ControllersServer) Stop() {
 	if s.SyncController != nil {
 		if err := s.SyncController.Stop(); err != nil {
 			slog.Error("Error stopping sync controller", "error", err)
+		}
+	}
+
+	if s.RetentionController != nil {
+		if err := s.RetentionController.Stop(); err != nil {
+			slog.Error("Error stopping event retention controller", "error", err)
 		}
 	}
 
@@ -66,10 +78,8 @@ func NewDefaultControllersServer(env *environments.Env) *ControllersServer {
 	broker := NewEventBroker(256, eventService)
 	env.Services.SetService("EventBroker", broker)
 
-	kindControllerManager := controllers.NewKindControllerManager(
-		db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-		eventService,
-	)
+	lockFactory := db.NewAdvisoryLockFactory(env.Database.SessionFactory)
+	kindControllerManager := controllers.NewKindControllerManager(lockFactory, eventService)
 
 	// Create sync controller for missed event recovery
 	var syncController *controllers.SyncController
@@ -85,9 +95,28 @@ func NewDefaultControllersServer(env *environments.Env) *ControllersServer {
 		)
 	}
 
+	// Create the events table retention job
+	var retentionController *controllers.EventRetentionController
+	if eventService != nil && env.Config != nil && env.Config.EventRetention != nil {
+		rc := env.Config.EventRetention
+		retentionController = controllers.NewEventRetentionController(
+			eventService,
+			lockFactory,
+			controllers.EventRetentionConfig{
+				Interval:     rc.Interval,
+				Retention:    rc.Period,
+				MaxAge:       rc.MaxAge,
+				BatchSize:    rc.BatchSize,
+				BatchPause:   rc.BatchPause,
+				InitialDelay: rc.InitialDelay,
+			},
+		)
+	}
+
 	s := &ControllersServer{
 		KindControllerManager: kindControllerManager,
 		SyncController:        syncController,
+		RetentionController:   retentionController,
 		Broker:                broker,
 		SessionFactory:        env.Database.SessionFactory,
 	}
