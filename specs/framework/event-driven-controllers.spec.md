@@ -49,6 +49,30 @@ The `KindControllerManager` SHALL dispatch events to registered handlers based o
 - GIVEN no controllers registered for source "UnknownKind"
 - WHEN an event with `Source: "UnknownKind"` arrives
 - THEN the event SHALL be logged and skipped without error
+- AND `event.ReconciledDate` SHALL be set to the current time, because there is nothing to retry
+
+#### Scenario: No handler for the event type
+- GIVEN a controller registered for source "Dinosaurs" with handlers only for `CreateEventType`
+- WHEN an event with `Source: "Dinosaurs"` and `EventType: DeleteEventType` arrives
+- THEN no handler function SHALL be invoked
+- AND `event.ReconciledDate` SHALL be set to the current time, because there is nothing to retry
+
+#### Scenario: Handler failure
+- GIVEN a controller registered for source "Dinosaurs" whose `CreateEventType` handler returns an error
+- WHEN an event with `Source: "Dinosaurs"` and `EventType: CreateEventType` is handled
+- THEN `event.ReconciledDate` SHALL remain unset
+- AND the event SHALL be retried by the `SyncController`
+
+#### Scenario: Event cannot be loaded
+- GIVEN an event ID that cannot be loaded from the events table
+- WHEN `Handle(id)` is invoked
+- THEN no handler SHALL be invoked and no event SHALL be marked reconciled
+
+#### Scenario: Failure to save the reconciled date
+- GIVEN an event that was handled, or had nothing to run
+- WHEN saving `event.ReconciledDate` fails
+- THEN the error SHALL be logged
+- AND the event SHALL remain unreconciled and be retried by the `SyncController`
 
 ### Requirement: Idempotent Event Handlers
 
@@ -68,6 +92,12 @@ A `SyncController` SHALL periodically scan for unprocessed events to recover fro
 - WHEN the `SyncController` runs its periodic scan (default: every 5 minutes)
 - THEN unprocessed events up to `MaxAge` (default: 1 hour) SHALL be re-dispatched
 - AND at most `MaxEventsPerSync` (default: 1000) events SHALL be processed per cycle
+
+#### Scenario: Events with no handler stop being re-dispatched
+- GIVEN an unreconciled event older than `MaxAge` whose source or event type has no registered handler
+- WHEN the `SyncController` completes one cycle that includes it
+- THEN the event SHALL be marked reconciled
+- AND later cycles SHALL NOT return it as unprocessed
 
 ### Requirement: Event Broker Fan-Out
 
@@ -109,5 +139,5 @@ The `EventBroker` SHALL expose Prometheus metrics for observability.
 | Non-blocking advisory locks | Fail-fast prevents worker pile-up on contested events |
 | Sync controller for missed events | NOTIFY is fire-and-forget; periodic scan ensures at-least-once delivery |
 | Buffered channels for broker subscribers | Prevents blocking the publish path; drops events for slow consumers |
-| Event reconciliation date marking | Prevents re-processing of successfully handled events |
+| Event reconciliation date marking | Prevents re-processing of successfully handled events. An event with no registered controller or handler counts as handled: no retry can change the outcome, and leaving it unreconciled makes every sync cycle re-handle it |
 | Kubernetes-style controller pattern | Familiar to Go developers; proven at scale in upstream projects |

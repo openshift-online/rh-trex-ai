@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -84,6 +85,89 @@ func TestControllerFramework(t *testing.T) {
 	Expect(ctrl.updateCounter).To(Equal(1))
 	Expect(ctrl.deleteCounter).To(Equal(1))
 
-	eve, _ := eventsDao.Get(ctx, "1")
-	Expect(eve.ReconciledDate).ToNot(BeNil(), "event reconcile date should be set")
+	for _, id := range []string{"1", "2", "3"} {
+		eve, _ := eventsDao.Get(ctx, id)
+		Expect(eve.ReconciledDate).ToNot(BeNil(), "event %s reconcile date should be set", id)
+	}
+}
+
+func newTestManager() (*KindControllerManager, services.EventService, context.Context) {
+	eventsDao := mocks.NewEventDao()
+	events := services.NewEventService(eventsDao)
+	mgr := NewKindControllerManager(dbmocks.NewMockAdvisoryLockFactory(), events)
+	return mgr, events, context.Background()
+}
+
+func TestControllerFramework_NoControllerForSource_MarksReconciled(t *testing.T) {
+	RegisterTestingT(t)
+	mgr, events, ctx := newTestManager()
+	mgr.Add(newExampleControllerConfig(&exampleController{}))
+
+	_, _ = events.Create(ctx, &api.Event{
+		Meta:      api.Meta{ID: "no-source"},
+		Source:    "kind-without-controller",
+		SourceID:  "any id",
+		EventType: api.CreateEventType,
+	})
+
+	mgr.Handle("no-source")
+
+	eve, err := events.Get(ctx, "no-source")
+	Expect(err).To(BeNil())
+	Expect(eve.ReconciledDate).ToNot(BeNil(), "an event with no controller for its source should be reconciled")
+}
+
+func TestControllerFramework_NoHandlerForEventType_MarksReconciled(t *testing.T) {
+	RegisterTestingT(t)
+	mgr, events, ctx := newTestManager()
+	ctrl := &exampleController{}
+	mgr.Add(&ControllerConfig{
+		Source: "my-event-source",
+		Handlers: map[api.EventType][]ControllerHandlerFunc{
+			api.CreateEventType: {ctrl.OnAdd},
+		},
+	})
+
+	_, _ = events.Create(ctx, &api.Event{
+		Meta:      api.Meta{ID: "no-handler"},
+		Source:    "my-event-source",
+		SourceID:  "any id",
+		EventType: api.DeleteEventType,
+	})
+
+	mgr.Handle("no-handler")
+
+	Expect(ctrl.addCounter).To(Equal(0))
+	eve, err := events.Get(ctx, "no-handler")
+	Expect(err).To(BeNil())
+	Expect(eve.ReconciledDate).ToNot(BeNil(), "an event with no handler for its type should be reconciled")
+}
+
+func TestControllerFramework_HandlerError_LeavesUnreconciled(t *testing.T) {
+	RegisterTestingT(t)
+	mgr, events, ctx := newTestManager()
+	calls := 0
+	mgr.Add(&ControllerConfig{
+		Source: "my-event-source",
+		Handlers: map[api.EventType][]ControllerHandlerFunc{
+			api.CreateEventType: {func(ctx context.Context, id string) error {
+				calls++
+				return fmt.Errorf("handler failed")
+			}},
+		},
+	})
+
+	_, _ = events.Create(ctx, &api.Event{
+		Meta:      api.Meta{ID: "fails"},
+		Source:    "my-event-source",
+		SourceID:  "any id",
+		EventType: api.CreateEventType,
+	})
+
+	mgr.Handle("fails")
+
+	Expect(calls).To(Equal(1))
+	eve, err := events.Get(ctx, "fails")
+	Expect(err).To(BeNil())
+	Expect(eve.ReconciledDate).To(BeNil(), "a failed handler must leave the event for SyncController to retry")
 }
