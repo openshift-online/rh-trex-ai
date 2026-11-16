@@ -21,6 +21,10 @@ type (
 const (
 	Migrations LockType = "migrations"
 	Events     LockType = "events"
+	// EventRetention guards the events retention job so one replica runs it at a time.
+	// It must differ from Events: the second advisory lock key is hash(lockType), so a
+	// distinct type can never block, or be blocked by, a per-event lock.
+	EventRetention LockType = "event_retention"
 )
 
 // LockFactory provides the blocking/unblocking locks based on PostgreSQL advisory lock.

@@ -102,6 +102,8 @@ Specs (`specs/`) define desired state. Skills (`skills/`) define procedures. `sk
 
 **Monitoring:** `--health-check-server-bindaddress` (default: `localhost:8083`), `--metrics-server-bindaddress` (default: `localhost:8080`), `--enable-sentry`
 
+**Event retention:** `--event-retention-interval` (default: 1h; `<= 0` turns the job off), `--event-retention-period` (default: 168h, how long reconciled events are kept), `--event-retention-max-age` (default: 0 = off; deletes any older event, reconciled or not), `--event-retention-batch-size` (default: 5000), `--event-retention-batch-pause` (default: 100ms), `--event-retention-initial-delay` (default: 5m)
+
 **Performance:** `--http-read-timeout` (default: 5s), `--http-write-timeout` (default: 30s)
 
 **Logging:** `--log-level` (`debug`|`info`|`warn`|`error`, default: `info`), `--log-format` (`text`|`json`, default: `text`). Logs go to stderr through `log/slog`; a program can install its own handler with `slog.SetDefault` (see `specs/standards/logging.spec.md`). The old glog flags `-v`, `--logtostderr`, `--alsologtostderr` are deprecated but still accepted.

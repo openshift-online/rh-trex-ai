@@ -22,6 +22,11 @@ type EventDao interface {
 	// Sync-the-world methods for missed event recovery
 	FindUnreconciled(ctx context.Context, olderThan time.Duration) (api.EventList, error)
 	FindBySourceAndType(ctx context.Context, source string, eventType api.EventType) (api.EventList, error)
+
+	// Retention methods. Each call hard-deletes at most limit rows, oldest first,
+	// and returns how many rows it deleted.
+	DeleteReconciledBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error)
+	DeleteCreatedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 }
 
 var _ EventDao = &sqlEventDao{}
@@ -120,4 +125,35 @@ func (d *sqlEventDao) FindBySourceAndType(ctx context.Context, source string, ev
 		return nil, err
 	}
 	return events, nil
+}
+
+// DeleteReconciledBefore deletes up to limit events whose reconciled_date is
+// older than cutoff. Unreconciled events are never matched.
+func (d *sqlEventDao) DeleteReconciledBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	return d.deleteBatch(ctx, "reconciled_date IS NOT NULL AND reconciled_date < ?", "reconciled_date", cutoff, limit)
+}
+
+// DeleteCreatedBefore deletes up to limit events whose created_at is older
+// than cutoff, reconciled or not.
+func (d *sqlEventDao) DeleteCreatedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	return d.deleteBatch(ctx, "created_at < ?", "created_at", cutoff, limit)
+}
+
+// deleteBatch runs one bounded DELETE. The inner SELECT picks the oldest rows
+// first and skips rows another session holds a row lock on, so a run never
+// waits on an event that is being updated. The where and order arguments are
+// fixed strings from this file, never user input.
+func (d *sqlEventDao) deleteBatch(ctx context.Context, where, order string, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		return 0, fmt.Errorf("event delete batch limit must be positive, got %d", limit)
+	}
+	g2 := (*d.sessionFactory).New(ctx)
+	query := fmt.Sprintf(
+		"DELETE FROM events WHERE id IN (SELECT id FROM events WHERE %s ORDER BY %s LIMIT ? FOR UPDATE SKIP LOCKED)",
+		where, order)
+	result := g2.Exec(query, cutoff, limit)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }

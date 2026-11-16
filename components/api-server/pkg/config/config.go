@@ -16,26 +16,28 @@ var projectRootDir string
 func SetProjectRootDir(dir string) { projectRootDir = dir }
 
 type ApplicationConfig struct {
-	Server      *ServerConfig      `json:"server"`
-	GRPC        *GRPCConfig        `json:"grpc"`
-	Auth        *AuthConfig        `json:"auth"`
-	TLS         *TLSConfig         `json:"tls"`
-	Metrics     *MetricsConfig     `json:"metrics"`
-	HealthCheck *HealthCheckConfig `json:"health_check"`
-	Database    *DatabaseConfig    `json:"database"`
-	Logging     *LoggingConfig     `json:"logging"`
+	Server         *ServerConfig         `json:"server"`
+	GRPC           *GRPCConfig           `json:"grpc"`
+	Auth           *AuthConfig           `json:"auth"`
+	TLS            *TLSConfig            `json:"tls"`
+	Metrics        *MetricsConfig        `json:"metrics"`
+	HealthCheck    *HealthCheckConfig    `json:"health_check"`
+	Database       *DatabaseConfig       `json:"database"`
+	Logging        *LoggingConfig        `json:"logging"`
+	EventRetention *EventRetentionConfig `json:"event_retention"`
 }
 
 func NewApplicationConfig() *ApplicationConfig {
 	return &ApplicationConfig{
-		Server:      NewServerConfig(),
-		GRPC:        NewGRPCConfig(),
-		Auth:        NewAuthConfig(),
-		TLS:         NewTLSConfig(),
-		Metrics:     NewMetricsConfig(),
-		HealthCheck: NewHealthCheckConfig(),
-		Database:    NewDatabaseConfig(),
-		Logging:     NewLoggingConfig(),
+		Server:         NewServerConfig(),
+		GRPC:           NewGRPCConfig(),
+		Auth:           NewAuthConfig(),
+		TLS:            NewTLSConfig(),
+		Metrics:        NewMetricsConfig(),
+		HealthCheck:    NewHealthCheckConfig(),
+		Database:       NewDatabaseConfig(),
+		Logging:        NewLoggingConfig(),
+		EventRetention: NewEventRetentionConfig(),
 	}
 }
 
@@ -53,6 +55,7 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.HealthCheck.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
 	c.Logging.AddFlags(flagset)
+	c.EventRetention.AddFlags(flagset)
 }
 
 func (c *ApplicationConfig) ReadFiles() []string {
@@ -90,6 +93,7 @@ func (c *ApplicationConfig) Validate() []string {
 		{c.GRPC.Validate, "GRPC"},
 		{c.Auth.Validate, "Auth"},
 		{c.TLS.Validate, "TLS"},
+		{c.EventRetention.Validate, "EventRetention"},
 	}
 	var messages []string
 	for _, v := range validators {

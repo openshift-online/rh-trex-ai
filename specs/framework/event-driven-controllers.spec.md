@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** FW-003
 **Related:** [Plugin Architecture](plugin-architecture.spec.md), [gRPC Conventions](../api/grpc-conventions.spec.md)
-**Implements:** `pkg/controllers/framework.go`, `pkg/server/controllers.go`, `pkg/server/event_broker.go`, `pkg/db/session_factory.go`
+**Implements:** `pkg/controllers/framework.go`, `pkg/controllers/event_retention_controller.go`, `pkg/server/controllers.go`, `pkg/server/event_broker.go`, `pkg/db/session_factory.go`
 
 ---
 
@@ -99,6 +99,56 @@ A `SyncController` SHALL periodically scan for unprocessed events to recover fro
 - THEN the event SHALL be marked reconciled
 - AND later cycles SHALL NOT return it as unprocessed
 
+### Requirement: Event Retention
+
+An `EventRetentionController` SHALL periodically delete old rows from the `events` table, so the table does not grow without bound.
+
+#### Scenario: Reconciled events past the retention period
+- GIVEN the retention period is `--event-retention-period` (default: 168h)
+- WHEN a retention run starts
+- THEN every event with `reconciled_date` older than now minus the retention period SHALL be deleted
+- AND events with a more recent `reconciled_date` SHALL be kept
+- AND unreconciled events SHALL be kept, so the `SyncController` can still retry them
+
+#### Scenario: Hard cap on event age
+- GIVEN `--event-retention-max-age` is greater than zero
+- WHEN a retention run starts
+- THEN every event with `created_at` older than now minus the max age SHALL be deleted, reconciled or not
+- AND when `--event-retention-max-age` is zero or less, this cap SHALL NOT apply (default: off)
+- AND a non-zero max age MUST NOT be shorter than the retention period
+
+#### Scenario: Batched deletes
+- GIVEN more matching rows than `--event-retention-batch-size` (default: 5000)
+- WHEN a retention run deletes them
+- THEN it SHALL delete at most one batch per statement, oldest first
+- AND it SHALL pause `--event-retention-batch-pause` (default: 100ms) between batches
+- AND it SHALL stop when a batch deletes fewer rows than the batch size, or when the server shuts down
+
+#### Scenario: One replica at a time
+- GIVEN several API server replicas share one database
+- WHEN their retention runs overlap
+- THEN each run SHALL first try a non-blocking advisory lock of type `event_retention`
+- AND a run that does not get the lock SHALL be skipped and counted in `event_retention_runs_skipped_total`
+- AND this lock type MUST differ from the `events` lock type used per event ID
+
+#### Scenario: Scheduling and off switch
+- GIVEN `--event-retention-interval` (default: 1h) is greater than zero
+- WHEN the controllers server starts
+- THEN the first run SHALL start after `--event-retention-initial-delay` (default: 5m), and then once per interval
+- AND when the interval is zero or less, the controller SHALL NOT run
+- AND `Stop` SHALL cancel a run in progress and wait for it to return
+
+#### Scenario: Retention observability
+- GIVEN the retention controller is created
+- THEN it SHALL register these Prometheus metrics:
+  - `event_retention_deleted_total` (counter, label `reason`: `reconciled` | `max_age`)
+  - `event_retention_run_duration_seconds` (histogram)
+  - `event_retention_runs_total` (counter)
+  - `event_retention_runs_skipped_total` (counter)
+  - `event_retention_errors_total` (counter)
+- AND each run SHALL log one `slog` line with the deleted counts and the duration
+- AND errors SHALL be logged and counted, and SHALL NOT stop the process
+
 ### Requirement: Event Broker Fan-Out
 
 The `EventBroker` SHALL implement pub/sub fan-out from PostgreSQL events to gRPC stream subscribers.
@@ -140,4 +190,6 @@ The `EventBroker` SHALL expose Prometheus metrics for observability.
 | Sync controller for missed events | NOTIFY is fire-and-forget; periodic scan ensures at-least-once delivery |
 | Buffered channels for broker subscribers | Prevents blocking the publish path; drops events for slow consumers |
 | Event reconciliation date marking | Prevents re-processing of successfully handled events. An event with no registered controller or handler counts as handled: no retry can change the outcome, and leaving it unreconciled makes every sync cycle re-handle it |
+| Retention keeps unreconciled events by default | The sync controller still needs them; the max-age cap is opt-in |
+| Batched, oldest-first deletes with a pause | Short statements keep row locks and WAL bursts small on a busy table |
 | Kubernetes-style controller pattern | Familiar to Go developers; proven at scale in upstream projects |
