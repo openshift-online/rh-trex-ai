@@ -60,8 +60,10 @@ type lineGRPC struct {
 }
 
 type lineSource struct {
-	IP        string `json:"ip"`
-	UserAgent string `json:"user_agent"`
+	IP           string   `json:"ip"`
+	PeerIP       string   `json:"peer_ip"`
+	ForwardedFor []string `json:"forwarded_for"`
+	UserAgent    string   `json:"user_agent"`
 }
 
 // mapField always encodes as an object with sorted keys, never null.
@@ -93,10 +95,13 @@ func NewLine(e Event) *Line {
 			Surface: clean(e.Resource.Surface), Kind: clean(e.Resource.Kind),
 			ID: clean(e.Resource.ID), Parent: cleanMap(e.Resource.Parent),
 		},
-		Transport:   e.Transport,
-		HTTP:        lineHTTP{Method: clean(e.HTTP.Method), Path: clean(e.HTTP.Path), Status: e.HTTP.Status},
-		GRPC:        lineGRPC{Method: clean(e.GRPC.Method), Code: e.GRPC.Code},
-		Source:      lineSource{IP: clean(e.Source.IP), UserAgent: clean(e.Source.UserAgent)},
+		Transport: e.Transport,
+		HTTP:      lineHTTP{Method: clean(e.HTTP.Method), Path: clean(e.HTTP.Path), Status: e.HTTP.Status},
+		GRPC:      lineGRPC{Method: clean(e.GRPC.Method), Code: e.GRPC.Code},
+		Source: lineSource{
+			IP: clean(e.Source.IP), PeerIP: clean(e.Source.PeerIP),
+			ForwardedFor: cleanList(e.Source.ForwardedFor), UserAgent: clean(e.Source.UserAgent),
+		},
 		OperationID: clean(e.OperationID),
 		TraceID:     clean(e.TraceID),
 		Details:     cleanMap(e.Details),
@@ -119,6 +124,15 @@ func clean(s string) string {
 		s = strings.ToValidUTF8(s[:maxFieldBytes], "")
 	}
 	return s
+}
+
+// cleanList always returns a non-nil slice, so it encodes as [] rather than null.
+func cleanList(l []string) []string {
+	out := make([]string, 0, len(l))
+	for _, v := range l {
+		out = append(out, clean(v))
+	}
+	return out
 }
 
 func cleanMap(m map[string]string) mapField {

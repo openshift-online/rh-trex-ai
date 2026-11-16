@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/environments"
 	pkgserver "github.com/openshift-online/rh-trex-ai/components/api-server/pkg/server"
 )
@@ -55,6 +56,9 @@ func runServe(getSpecData func() ([]byte, error)) {
 	apiServer := pkgserver.NewDefaultAPIServer(env, specData)
 	servers = append(servers, apiServer)
 	go apiServer.Start()
+
+	// Routes are loaded now; flag RecordReads kinds nothing declares (SEC-004).
+	audit.WarnUndeclaredReadKinds(pkgserver.DeclaredKinds())
 
 	if env.Config.GRPC.EnableGRPC {
 		grpcServer := pkgserver.NewDefaultGRPCServer(env)

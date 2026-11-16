@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,9 +44,10 @@ const hookTimeout = 5 * time.Second
 // Service captures audit events and hands them to a Recorder. A nil or
 // disabled Service captures nothing.
 type Service struct {
-	enabled  bool
-	reads    bool
-	recorder Recorder
+	enabled        bool
+	reads          bool
+	recorder       Recorder
+	trustedProxies []*net.IPNet
 }
 
 // New builds a Service. A nil recorder disables the service.
@@ -52,10 +55,13 @@ func New(cfg *config.AuditConfig, recorder Recorder) *Service {
 	if cfg == nil {
 		cfg = config.NewAuditConfig()
 	}
+	// Validate has already rejected malformed entries; any left are skipped.
+	trusted, _ := cfg.TrustedProxyNets()
 	return &Service{
-		enabled:  cfg.Enabled && recorder != nil,
-		reads:    cfg.Reads,
-		recorder: recorder,
+		enabled:        cfg.Enabled && recorder != nil,
+		reads:          cfg.Reads,
+		recorder:       recorder,
+		trustedProxies: trusted,
 	}
 }
 
@@ -221,6 +227,34 @@ func RecordReads(kinds ...string) {
 	defer readKindsMu.Unlock()
 	for _, k := range kinds {
 		readKinds[k] = true
+	}
+}
+
+// UndeclaredReadKinds returns the kinds passed to RecordReads that are not in
+// declared, sorted. A kind there is almost always a typo: its reads would
+// silently go unrecorded.
+func UndeclaredReadKinds(declared []string) []string {
+	known := make(map[string]bool, len(declared))
+	for _, k := range declared {
+		known[k] = true
+	}
+	readKindsMu.RLock()
+	defer readKindsMu.RUnlock()
+	var out []string
+	for k := range readKinds {
+		if !known[k] {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// WarnUndeclaredReadKinds logs one warning per kind passed to RecordReads
+// that no REST route or gRPC method declares. TRex calls it at startup.
+func WarnUndeclaredReadKinds(declared []string) {
+	for _, k := range UndeclaredReadKinds(declared) {
+		slog.Warn("audit.RecordReads names a kind no route or gRPC method declares; its reads will not be recorded", "kind", k)
 	}
 }
 

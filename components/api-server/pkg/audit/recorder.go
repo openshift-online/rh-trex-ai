@@ -34,7 +34,9 @@ func DefaultRecorder(cfg *config.AuditConfig) (Recorder, error) {
 	return NewJSONRecorder(os.Stdout), nil
 }
 
-// JSONRecorder writes each event as one JSON line (schema version 1).
+// JSONRecorder writes each event as one JSON line (schema version 1). Writes
+// are synchronous and do not observe the context deadline, like the blocking
+// mode of the Kubernetes API server log backend.
 type JSONRecorder struct {
 	mu     sync.Mutex
 	w      io.Writer

@@ -62,10 +62,14 @@ type GRPCInfo struct {
 	Code   string
 }
 
-// Source is where the request came from.
+// Source is where the request came from. IP is the client, resolved through
+// trusted proxies only. PeerIP is the direct connection. ForwardedFor is the
+// X-Forwarded-For chain as received; it is untrusted.
 type Source struct {
-	IP        string
-	UserAgent string
+	IP           string
+	PeerIP       string
+	ForwardedFor []string
+	UserAgent    string
 }
 
 // Event is one audit entry. Zero fields that Record can derive from the

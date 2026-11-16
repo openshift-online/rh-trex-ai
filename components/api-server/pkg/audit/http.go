@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"strings"
 
@@ -66,7 +65,7 @@ func (s *Service) HTTPAuthentication(pathPrefix string) func(http.Handler) http.
 			if m.begun || status != http.StatusUnauthorized || !strings.HasPrefix(r.URL.Path, pathPrefix) {
 				return
 			}
-			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
+			e := s.httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
 			e.Action = httpAction(r.Method)
 			s.recordFromHook(r.Context(), e)
 		})
@@ -98,42 +97,42 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 	req := obs.Request
 	switch {
 	case obs.Undeclared:
-		e := httpEvent(r, req, OutcomeDenied, "route has no declared resource kind", status)
+		e := s.httpEvent(r, req, OutcomeDenied, "route has no declared resource kind", status)
 		if req == nil {
 			e.Action = httpAction(r.Method)
 		}
 		s.recordFromHook(ctx, e)
 	case obs.Err != nil:
-		s.recordFromHook(ctx, httpEvent(r, req, OutcomeError, "authorization unavailable", status))
+		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeError, "authorization unavailable", status))
 	case obs.Decided && !obs.Decision.Allowed:
-		s.recordFromHook(ctx, httpEvent(r, req, OutcomeDenied, denyReason(obs.Decision), status))
+		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeDenied, denyReason(obs.Decision), status))
 	case req == nil:
 		// The request never reached authorization.
 		action := httpAction(r.Method)
 		if status == http.StatusUnauthorized {
-			e := httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
+			e := s.httpEvent(r, nil, OutcomeUnauthenticated, "authentication failed", status)
 			e.Action = action
 			s.recordFromHook(ctx, e)
 		} else if status >= http.StatusBadRequest && !isRead(action) {
-			e := httpEvent(r, nil, OutcomeFailure, "request failed before authorization", status)
+			e := s.httpEvent(r, nil, OutcomeFailure, "request failed before authorization", status)
 			e.Action = action
 			s.recordFromHook(ctx, e)
 		}
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case status >= http.StatusBadRequest || reason != "":
-		s.recordFromHook(ctx, httpEvent(r, req, OutcomeFailure, reason, status))
+		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeFailure, reason, status))
 	default:
-		s.recordFromHook(ctx, httpEvent(r, req, OutcomeSuccess, "", status))
+		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeSuccess, "", status))
 	}
 }
 
-func httpEvent(r *http.Request, req *authz.Request, outcome, reason string, status int) Event {
+func (s *Service) httpEvent(r *http.Request, req *authz.Request, outcome, reason string, status int) Event {
 	e := Event{
 		Outcome:   outcome,
 		Reason:    reason,
 		Transport: TransportHTTP,
 		HTTP:      HTTPInfo{Method: r.Method, Path: r.URL.Path, Status: status},
-		Source:    Source{IP: remoteIP(r.RemoteAddr), UserAgent: r.UserAgent()},
+		Source:    s.resolveSource(r.RemoteAddr, r.Header.Values("X-Forwarded-For"), r.UserAgent()),
 		TraceID:   traceIDFromHeader(r.Header.Get("traceparent")),
 		Actor:     Actor{Type: ActorAnonymous},
 	}
@@ -172,13 +171,6 @@ func httpAction(method string) string {
 		return "delete"
 	}
 	return strings.ToLower(method)
-}
-
-func remoteIP(addr string) string {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
-		return host
-	}
-	return addr
 }
 
 // traceIDFromHeader extracts the trace ID from a W3C traceparent header.

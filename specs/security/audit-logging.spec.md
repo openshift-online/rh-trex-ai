@@ -38,7 +38,7 @@ entry uses. An event SHALL carry:
 | `transport` | `http`, `grpc`, or `internal` |
 | `http` | `method`, `path` (no query string), and the response `status` |
 | `grpc` | `method` (full method name) and the status `code` |
-| `source` | `ip` (the transport peer address) and `user_agent` |
+| `source` | `ip` (the client, resolved through trusted proxies), `peer_ip` (the direct connection), `forwarded_for` (the `X-Forwarded-For` chain as received, untrusted), and `user_agent` |
 | `operation_id` | The request operation ID (STD-005 `opid`) |
 | `trace_id` | The W3C trace ID of the request, when a `traceparent` header or span context is present |
 | `details` | String key/value pairs supplied by application events |
@@ -50,6 +50,25 @@ values other than `User-Agent`, tokens, passwords, or other credentials.
 - GIVEN user `alice` with a verified token
 - WHEN she sends `DELETE /api/rh-trex-ai/v1/dinosaurs/d-1` and it succeeds with `204`
 - THEN one event SHALL be recorded with `actor.type="user"`, `actor.username="alice"`, `action="delete"`, `outcome="success"`, `resource.kind="dinosaurs"`, `resource.id="d-1"`, `resource.surface="v1"`, `transport="http"`, and `http.status=204`
+
+TRex SHALL resolve `source.ip` the way reverse proxies do (nginx
+`real_ip_recursive`, Envoy trusted hops): when the peer is in
+`--audit-trusted-proxies`, walk `X-Forwarded-For` (gRPC metadata
+`x-forwarded-for`) from the right while each hop is a trusted proxy, and use
+the first untrusted hop. An unparsable hop SHALL stop the walk. When the peer
+is not trusted, or no proxies are configured, `source.ip` SHALL be the peer and
+the header SHALL NOT be believed. `forwarded_for` SHALL keep at most the last
+20 hops.
+
+#### Scenario: Client behind a trusted router
+- GIVEN `--audit-trusted-proxies=10.128.0.0/14`
+- WHEN a request arrives from `10.128.0.5` with `X-Forwarded-For: 1.2.3.4, 203.0.113.9`
+- THEN `source.ip` SHALL be `203.0.113.9`, `source.peer_ip` SHALL be `10.128.0.5`, and `source.forwarded_for` SHALL be `["1.2.3.4", "203.0.113.9"]`
+
+#### Scenario: Spoofed header from an untrusted peer
+- GIVEN `--audit-trusted-proxies=10.128.0.0/14`
+- WHEN a request arrives from `198.51.100.7` with `X-Forwarded-For: 203.0.113.9`
+- THEN `source.ip` SHALL be `198.51.100.7`
 
 #### Scenario: No credentials recorded
 - GIVEN a request with an `Authorization` header, a `Cookie` header, a query string, and a JSON body
@@ -78,7 +97,14 @@ SHALL count as success.
 Reads are opt-in per kind because most reads (for example listing gateways)
 carry little audit value, while some (for example reading secrets) carry a
 lot. A plugin SHALL opt a kind in from its `init()`; the registration applies
-to REST and gRPC alike.
+to REST and gRPC alike. At startup `serve` SHALL log a warning for each kind
+passed to `RecordReads` that no REST route or gRPC method table declares, so a
+typo cannot silently leave reads unrecorded.
+
+#### Scenario: Mistyped kind
+- GIVEN a plugin calls `audit.RecordReads("secret_source")` and the declared kind is `secret_sources`
+- WHEN `serve` starts
+- THEN it SHALL log a warning naming `secret_source`
 
 #### Scenario: Plugin without audit code
 - GIVEN a plugin that registers routes with `r.Resource("fossils")` and contains no audit code
@@ -127,9 +153,13 @@ type Recorder interface {
 ```
 
 TRex SHALL hand every captured event to the environment's recorder. Record
-SHALL be called after the request completes, with a context that is not
-canceled with the request and that has a 5-second deadline. A recorder SHALL
-be safe for concurrent use. When a recorder also implements `io.Closer`, TRex
+SHALL be called synchronously after the request completes, with a context that
+is not canceled with the request and that has a 5-second deadline. A recorder
+SHALL be safe for concurrent use and SHOULD honor the deadline. A recorder that
+cannot (the default writes to a file descriptor) blocks the request goroutine
+while it writes; this matches the blocking mode of the Kubernetes API server's
+log audit backend. A recorder that ships over the network SHOULD buffer and
+send in batches instead. When a recorder also implements `io.Closer`, TRex
 SHALL close it when `serve` shuts down.
 
 The gRPC hook SHALL run outside the transaction interceptor, so a recorder
@@ -233,6 +263,7 @@ The `serve` command SHALL accept:
 | `--enable-audit` | `true` | Capture audit events |
 | `--audit-reads` | `false` | Record allowed `get`, `list`, and `watch` requests on every kind, not only kinds registered with `audit.RecordReads` |
 | `--audit-sink` | `stdout` | Destination of the default recorder: `stdout` or `file:<path>` |
+| `--audit-trusted-proxies` | empty | CIDRs or IPs of proxies whose `X-Forwarded-For` is trusted when resolving `source.ip` |
 
 Invalid values SHALL stop startup with an error. With `--enable-audit=false`,
 TRex SHALL capture nothing, log a warning at startup, and `audit.Record` SHALL
@@ -266,4 +297,6 @@ TRex SHALL expose `trex_audit_events_total{outcome}` and
 | Read auditing opt-in per kind | Most reads have little audit value and would dominate volume; some (secrets) matter. A per-kind registration covers REST and gRPC in one line. |
 | Known limits of the default | Events are recorded after the change commits, so a crash between commit and write can lose one, and a recorder failure does not fail the request. The default trail is not tamper-evident by itself: its integrity depends on shipping lines promptly to a store administrators cannot edit. A recorder that writes in the request transaction and hash-chains events can lift both limits; a prototype is kept on the `feat/audit-logging-chain` branch for when a requirement calls for it. |
 | `created_by`/`updated_by` fields are separate | Last-writer fields on entities are useful to users but are not an audit trail (one writer, overwritten, no denials). They are left to a separate spec. |
+| Client IP through trusted proxies only, plus the raw chain | `X-Forwarded-For` is client-controlled. Trusting it only from configured proxies, walked from the right, is the reverse-proxy standard; recording the raw chain and the peer as well (as the Kubernetes audit log does with `sourceIPs`) keeps the evidence without trusting it. |
+| Synchronous default recorder | Matches the Kubernetes API server's default for its log backend. Buffering trades lost events for latency and belongs in network recorders, which can add it when they exist. |
 | String-only `details` | Keeps encoding deterministic and discourages structured payloads that could hold secrets. |

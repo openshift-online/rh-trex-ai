@@ -67,27 +67,27 @@ func (s *Service) finishGRPC(ctx context.Context, method string, obs *authz.Obse
 	req := obs.Request
 	switch {
 	case obs.Undeclared:
-		s.recordFromHook(ctx, grpcEvent(ctx, method, req, OutcomeDenied, "method has no declared resource", code))
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeDenied, "method has no declared resource", code))
 	case obs.Err != nil:
-		s.recordFromHook(ctx, grpcEvent(ctx, method, req, OutcomeError, "authorization unavailable", code))
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeError, "authorization unavailable", code))
 	case obs.Decided && !obs.Decision.Allowed:
-		s.recordFromHook(ctx, grpcEvent(ctx, method, req, OutcomeDenied, denyReason(obs.Decision), code))
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeDenied, denyReason(obs.Decision), code))
 	case req == nil:
 		if code == codes.Unauthenticated {
-			e := grpcEvent(ctx, method, nil, OutcomeUnauthenticated, "authentication failed", code)
+			e := s.grpcEvent(ctx, method, nil, OutcomeUnauthenticated, "authentication failed", code)
 			e.Action = "unknown"
 			s.recordFromHook(ctx, e)
 		}
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case code != codes.OK && (!stream || code != codes.Canceled):
-		s.recordFromHook(ctx, grpcEvent(ctx, method, req, OutcomeFailure, reason, code))
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeFailure, reason, code))
 	default:
 		// Success, or a stream the client closed.
-		s.recordFromHook(ctx, grpcEvent(ctx, method, req, OutcomeSuccess, "", code))
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeSuccess, "", code))
 	}
 }
 
-func grpcEvent(ctx context.Context, method string, req *authz.Request, outcome, reason string, code codes.Code) Event {
+func (s *Service) grpcEvent(ctx context.Context, method string, req *authz.Request, outcome, reason string, code codes.Code) Event {
 	e := Event{
 		Outcome:   outcome,
 		Reason:    reason,
@@ -95,17 +95,21 @@ func grpcEvent(ctx context.Context, method string, req *authz.Request, outcome, 
 		GRPC:      GRPCInfo{Method: method, Code: code.String()},
 		Actor:     Actor{Type: ActorAnonymous},
 	}
+	var peerAddr, userAgent string
+	var xff []string
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-		e.Source.IP = remoteIP(p.Addr.String())
+		peerAddr = p.Addr.String()
 	}
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if ua := md.Get("user-agent"); len(ua) > 0 {
-			e.Source.UserAgent = ua[0]
+			userAgent = ua[0]
 		}
+		xff = md.Get("x-forwarded-for")
 		if tp := md.Get("traceparent"); len(tp) > 0 {
 			e.TraceID = traceIDFromHeader(tp[0])
 		}
 	}
+	e.Source = s.resolveSource(peerAddr, xff, userAgent)
 	if req != nil {
 		e.Action = req.Action
 		e.Resource = Resource{Surface: req.Resource.Surface, Kind: req.Resource.Kind, ID: req.Resource.ID, Parent: req.Resource.Parent}
