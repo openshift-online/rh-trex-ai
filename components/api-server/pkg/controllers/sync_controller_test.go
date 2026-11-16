@@ -270,3 +270,49 @@ func TestSyncController_StartStop(t *testing.T) {
 		t.Error("Sync controller did not stop within timeout")
 	}
 }
+
+func TestSyncController_ReconcilesEventsWithNoHandler(t *testing.T) {
+	ctx := context.Background()
+	mockEventDao := mocks.NewEventDao()
+	eventService := services.NewEventService(mockEventDao)
+	manager := NewKindControllerManager(&mockLockFactory{}, eventService)
+
+	// A controller exists for "TestSource", but only for create events.
+	manager.Add(&ControllerConfig{
+		Source: "TestSource",
+		Handlers: map[api.EventType][]ControllerHandlerFunc{
+			api.CreateEventType: {func(ctx context.Context, id string) error { return nil }},
+		},
+	})
+
+	old := time.Now().Add(-2 * time.Hour)
+	for _, e := range []*api.Event{
+		{Meta: api.Meta{ID: "no-source", CreatedAt: old}, Source: "NoControllerKind", SourceID: "a", EventType: api.CreateEventType},
+		{Meta: api.Meta{ID: "no-type", CreatedAt: old}, Source: "TestSource", SourceID: "b", EventType: api.UpdateEventType},
+	} {
+		_, _ = mockEventDao.Create(ctx, e)
+	}
+
+	syncController := NewSyncControllerForTesting(manager, eventService, SyncControllerConfig{
+		Interval: 1 * time.Hour,
+		MaxAge:   1 * time.Hour,
+	})
+
+	before, err := eventService.FindUnreconciled(ctx, time.Hour)
+	if err != nil {
+		t.Fatalf("FindUnreconciled failed: %v", err)
+	}
+	if len(before) != 2 {
+		t.Fatalf("Expected 2 unreconciled events before sync, got %d", len(before))
+	}
+
+	syncController.performSync(ctx)
+
+	after, err := eventService.FindUnreconciled(ctx, time.Hour)
+	if err != nil {
+		t.Fatalf("FindUnreconciled failed: %v", err)
+	}
+	if len(after) != 0 {
+		t.Errorf("Expected no unreconciled events after one sync cycle, got %d", len(after))
+	}
+}

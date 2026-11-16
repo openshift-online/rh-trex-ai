@@ -107,13 +107,18 @@ func (km *KindControllerManager) handle(ctx context.Context, id string) {
 
 	source, found := km.controllers[event.Source]
 	if !found {
-		slog.InfoContext(ctx, "No controllers found", "source", event.Source)
+		// Nothing is registered to react to this source, so there is nothing to retry.
+		// Mark the event handled; otherwise SyncController re-handles it forever.
+		slog.DebugContext(ctx, "No controllers found", "source", event.Source, "event_id", id)
+		km.markReconciled(ctx, event)
 		return
 	}
 
 	handlerFns, found := source[event.EventType]
 	if !found {
-		slog.InfoContext(ctx, "No handler functions found", "source", event.Source, "event_type", event.EventType)
+		// The source has a controller, but not for this event type. Same as above.
+		slog.DebugContext(ctx, "No handler functions found", "source", event.Source, "event_type", event.EventType, "event_id", id)
+		km.markReconciled(ctx, event)
 		return
 	}
 
@@ -126,10 +131,16 @@ func (km *KindControllerManager) handle(ctx context.Context, id string) {
 	}
 
 	// all handlers successfully executed
+	km.markReconciled(ctx, event)
+}
+
+// markReconciled records that the event needs no more work, so SyncController
+// stops picking it up. A failed save is logged; the event is then retried on the
+// next sync cycle.
+func (km *KindControllerManager) markReconciled(ctx context.Context, event *api.Event) {
 	now := time.Now()
 	event.ReconciledDate = &now
-	_, err = km.events.Replace(ctx, event)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to mark event as reconciled", "event_id", id, "error", err)
+	if _, err := km.events.Replace(ctx, event); err != nil {
+		slog.ErrorContext(ctx, "Failed to mark event as reconciled", "event_id", event.ID, "error", err)
 	}
 }

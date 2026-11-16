@@ -22,21 +22,38 @@ func NewEventDao() *eventDaoMock {
 }
 
 func (d *eventDaoMock) Get(ctx context.Context, id string) (*api.Event, error) {
-	for _, dino := range d.events {
-		if dino.ID == id {
-			return dino, nil
+	for _, e := range d.events {
+		if e.ID == id {
+			return copyEvent(e), nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
 }
 
+// The mock stores and returns copies, like a real database. A change the caller
+// makes to an event is visible only after it is saved with Replace.
 func (d *eventDaoMock) Create(ctx context.Context, event *api.Event) (*api.Event, error) {
-	d.events = append(d.events, event)
+	d.events = append(d.events, copyEvent(event))
 	return event, nil
 }
 
 func (d *eventDaoMock) Replace(ctx context.Context, event *api.Event) (*api.Event, error) {
-	return nil, errors.NotImplemented("Event").AsError()
+	for i, e := range d.events {
+		if e.ID == event.ID {
+			d.events[i] = copyEvent(event)
+			return event, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func copyEvent(e *api.Event) *api.Event {
+	c := *e
+	if e.ReconciledDate != nil {
+		t := *e.ReconciledDate
+		c.ReconciledDate = &t
+	}
+	return &c
 }
 
 func (d *eventDaoMock) Delete(ctx context.Context, id string) error {
