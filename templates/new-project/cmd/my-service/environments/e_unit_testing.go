@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"github.com/openshift-online/rh-trex-ai/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/pkg/authz"
 	"os"
 
@@ -41,6 +42,11 @@ func (e *UnitTestingEnvImpl) OverrideClients(c *pkgenv.Clients) error {
 
 func (e *UnitTestingEnvImpl) OverrideAuthorizer(env *pkgenv.Env) (authz.Authorizer, error) {
 	return authz.FromFlag(env.Config.Auth.EnableAuthz), nil
+}
+
+// OverrideAudit keeps audit events in memory so tests can assert on them.
+func (e *UnitTestingEnvImpl) OverrideAudit(env *pkgenv.Env) (audit.Recorder, error) {
+	return audit.NewMemoryRecorder(), nil
 }
 
 func (e *UnitTestingEnvImpl) Flags() map[string]string {

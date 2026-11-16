@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/errors"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/registry"
@@ -104,6 +105,18 @@ func (e *Env) Initialize() error {
 	e.Authorizer = authorizer
 	slog.Info("Authorization policy", "authorizer", fmt.Sprintf("%T", authorizer))
 
+	recorder, err := auditRecorder(envImpl, e)
+	if err != nil {
+		return fmt.Errorf("failed to configure audit recorder: %w", err)
+	}
+	e.Audit = audit.New(e.Config.Audit, recorder)
+	audit.SetDefault(e.Audit)
+	if e.Audit.Enabled() {
+		slog.Info("Audit recorder", "recorder", fmt.Sprintf("%T", recorder))
+	} else {
+		slog.Warn("Audit capture is disabled (--enable-audit=false); no audit events will be recorded")
+	}
+
 	seedErr := e.Seed()
 	if seedErr != nil {
 		return seedErr
@@ -149,4 +162,21 @@ func SetConfigDefaults(flags *pflag.FlagSet, defaults map[string]string) error {
 		f.DefValue = f.Value.String()
 	}
 	return nil
+}
+
+// auditRecorder returns the environment's recorder when it implements
+// AuditOverrider, and the default JSON-lines recorder otherwise.
+func auditRecorder(envImpl EnvironmentImpl, e *Env) (audit.Recorder, error) {
+	o, ok := envImpl.(AuditOverrider)
+	if !ok {
+		return audit.DefaultRecorder(e.Config.Audit)
+	}
+	recorder, err := o.OverrideAudit(e)
+	if err != nil {
+		return nil, err
+	}
+	if recorder == nil {
+		return nil, fmt.Errorf("environment %q returned a nil recorder", e.Name)
+	}
+	return recorder, nil
 }

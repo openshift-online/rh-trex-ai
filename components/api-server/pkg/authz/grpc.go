@@ -35,6 +35,7 @@ func UnaryInterceptor(a Authorizer, lookup GRPCMethodLookup, bypass []string) gr
 			return nil, undeclared(ctx, info.FullMethod)
 		}
 		ctx, subject, err := prepare(ctx, a)
+		observeRequest(ctx, grpcRequest(subject, res, info.FullMethod), false)
 		if err != nil {
 			return nil, unavailable(ctx, err)
 		}
@@ -57,6 +58,7 @@ func StreamInterceptor(a Authorizer, lookup GRPCMethodLookup, bypass []string) g
 			return undeclared(ss.Context(), info.FullMethod)
 		}
 		ctx, subject, err := prepare(ss.Context(), a)
+		observeRequest(ctx, grpcRequest(subject, res, info.FullMethod), false)
 		if err != nil {
 			return unavailable(ctx, err)
 		}
@@ -87,17 +89,23 @@ func (s *authorizedStream) RecvMsg(m interface{}) error {
 	return authorizeGRPC(s.ctx, s.a, s.subject, s.res, s.method, m)
 }
 
-func authorizeGRPC(ctx context.Context, a Authorizer, subject Subject, res GRPCResource, method string, msg any) error {
-	d, err := a.Authorize(ctx, Request{
+func grpcRequest(subject Subject, res GRPCResource, method string) Request {
+	return Request{
 		Subject:    subject,
 		Action:     res.Action,
 		Resource:   Resource{Kind: res.Kind},
 		GRPCMethod: method,
-		GRPCMsg:    msg,
-	})
+	}
+}
+
+func authorizeGRPC(ctx context.Context, a Authorizer, subject Subject, res GRPCResource, method string, msg any) error {
+	req := grpcRequest(subject, res, method)
+	req.GRPCMsg = msg
+	d, err := a.Authorize(ctx, req)
 	if err != nil {
 		return unavailable(ctx, err)
 	}
+	observeDecision(ctx, d)
 	if d.Allowed {
 		return nil
 	}
@@ -122,11 +130,13 @@ func bypassed(method string, bypass []string) bool {
 
 func undeclared(ctx context.Context, method string) error {
 	slog.ErrorContext(ctx, "gRPC method has no declared resource; denying", "method", method)
+	observeUndeclared(ctx, Request{Subject: subjectFromAuth(ctx), Action: "unknown", GRPCMethod: method})
 	return status.Error(codes.PermissionDenied, "method has no declared resource")
 }
 
 func unavailable(ctx context.Context, err error) error {
 	slog.ErrorContext(ctx, "Authorization could not decide", "error", err)
+	observeError(ctx, err)
 	return status.Error(codes.Unavailable, "authorization unavailable")
 }
 

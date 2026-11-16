@@ -1,6 +1,8 @@
 package server
 
 import (
+	"sync"
+
 	"github.com/gorilla/mux"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
@@ -40,6 +42,7 @@ func (r *APIRouter) Resource(kind string) *mux.Router {
 	route := r.router.NewRoute()
 	sub := route.Subrouter()
 	sub.Use(authz.HTTPMiddleware(r.authorizer, r.surface, kind))
+	declareRESTKind(kind)
 	r.declared[route] = true
 	return sub
 }
@@ -49,7 +52,7 @@ func (r *APIRouter) Resource(kind string) *mux.Router {
 func (r *APIRouter) Public() *mux.Router {
 	route := r.router.NewRoute()
 	sub := route.Subrouter()
-	sub.Use(authz.HTTPPublicMiddleware(r.authorizer))
+	sub.Use(authz.HTTPPublicSurfaceMiddleware(r.authorizer, r.surface))
 	r.declared[route] = true
 	return sub
 }
@@ -122,4 +125,36 @@ func LoadDiscoveredPrefixedRoutes(
 		}
 		r.denyUndeclared()
 	}
+}
+
+var (
+	restKindsMu sync.Mutex
+	restKinds   = map[string]bool{}
+)
+
+func declareRESTKind(kind string) {
+	restKindsMu.Lock()
+	defer restKindsMu.Unlock()
+	restKinds[kind] = true
+}
+
+// DeclaredKinds returns every kind declared by a REST route (after routes are
+// loaded) or by a registered gRPC method table.
+func DeclaredKinds() []string {
+	seen := map[string]bool{}
+	restKindsMu.Lock()
+	for k := range restKinds {
+		seen[k] = true
+	}
+	restKindsMu.Unlock()
+	for _, entry := range grpcServiceRegistry {
+		for _, res := range entry.resources {
+			seen[res.Kind] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	return out
 }

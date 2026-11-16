@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/audit"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
@@ -29,6 +30,10 @@ type Env struct {
 	// Authorizer is the policy for every REST route and gRPC method.
 	// It is set by OverrideAuthorizer and is never nil after Initialize.
 	Authorizer authz.Authorizer
+	// Audit captures audit events and hands them to the environment's
+	// recorder (SEC-004). It is set by Initialize and is never nil
+	// afterwards; it may be disabled.
+	Audit *audit.Service
 }
 
 type ApplicationConfig struct {
@@ -99,4 +104,12 @@ type EnvironmentImpl interface {
 	// OverrideServices, so the policy can use registered services. It must
 	// not return nil.
 	OverrideAuthorizer(env *Env) (authz.Authorizer, error)
+}
+
+// AuditOverrider is implemented by an environment that chooses where audit
+// events go (SEC-004). It is optional: an environment without it gets
+// audit.DefaultRecorder, which writes JSON lines to --audit-sink.
+// OverrideAudit runs after OverrideAuthorizer and must not return nil.
+type AuditOverrider interface {
+	OverrideAudit(env *Env) (audit.Recorder, error)
 }
