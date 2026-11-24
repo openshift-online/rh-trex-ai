@@ -215,7 +215,7 @@ above is not recomputed by this scoped pass.
 | Spec | Requirement | Status | Evidence |
 |------|-------------|--------|----------|
 | SEC-004 | Audit Event Record | closed | `pkg/audit/event.go`, `record.go`, `source.go` (trusted-proxy client IP); `TestHTTPEventHasNoCredentials`, `TestResolveSource`, `TestHTTPEventUsesTrustedProxies`, `TestAuditRESTRequests` (no query, body, or token in events) |
-| SEC-004 | Framework-Captured Requests | closed | `HTTPBegin`/`HTTPAuthentication`, `UnaryBegin`/`StreamBegin` wired in `routebuilder.go`, `apiserver.go`, `grpc_server.go`; `pkg/authz/observation.go`; `TestHTTPDenials`, `TestHTTPUnauthenticated`, `TestHTTPAuthenticationOuterHandler`, `TestHTTPReads` (per-kind `RecordReads`), `TestUndeclaredReadKinds`, `TestDeclaredKindsIncludesRESTResources`, `TestHTTPUndeclaredRouteKeepsActor`, `TestPublicRouteSurface`, `TestGRPCOutcomes`, `TestStreamClosedByClientIsSuccess`, `TestAuditRESTRequests`, `TestAuditGRPCRequests` |
+| SEC-004 | Framework-Captured Requests | closed | `HTTPBegin`/`HTTPAuthentication`, `UnaryBegin`/`StreamBegin` wired in `routebuilder.go`, `apiserver.go`, `grpc_server.go`; `pkg/authz/observation.go`; `TestHTTPDenials`, `TestHTTPUnauthenticated`, `TestHTTPAuthenticationOuterHandler`, `TestHTTPCommitFailureIsRecordedAsFailure`, `TestGRPCCommitFailureIsRecordedAsFailure`, `TestAuditRecordsRESTCommitFailure`, `TestAuditRecordsGRPCCommitFailure` (real deferred-constraint commit failure), `TestHTTPReads` (per-kind `RecordReads`), `TestUndeclaredReadKinds`, `TestDeclaredKindsIncludesRESTResources`, `TestHTTPUndeclaredRouteKeepsActor`, `TestPublicRouteSurface`, `TestGRPCOutcomes`, `TestStreamClosedByClientIsSuccess`, `TestAuditRESTRequests`, `TestAuditGRPCRequests` |
 | SEC-004 | Recorder Interface | closed | `pkg/audit/recorder.go`; `TestRecorderFailureDoesNotChangeResponse`; gRPC hook ordered before `TransactionUnaryInterceptor` |
 | SEC-004 | Environment Selects the Recorder | closed | Optional `environments.AuditOverrider`, `auditRecorder` in `environments/framework.go`; `TestAuditRecorderIsOptional`; HyperShell's environments build unchanged against this branch |
 | SEC-004 | Default JSON-Lines Recorder | closed | `audit.DefaultRecorder`, `NewJSONRecorder`, `NewMemoryRecorder`; `TestJSONLine`, `TestHostileBytesAreSanitized` |
@@ -226,3 +226,15 @@ above is not recomputed by this scoped pass.
 
 No gaps remain open. Storage beyond JSON lines (transactional, tamper-evident)
 is out of scope by design; see the spec's design decisions.
+
+## Scoped reconciliation: Resolve before responding (2026-11-24)
+
+Scope: DA-001 Resolve Before Responding. The historical repository-wide
+coverage table above is not recomputed by this scoped pass.
+
+| Spec | Requirement | Status | Evidence |
+|------|-------------|--------|----------|
+| DA-001 | Resolve Before Responding | closed | `pkg/db/transaction_middleware.go` (buffered response, early commit on flush, hijack, `ReadFrom`, or more than 1 MiB), `pkg/server/grpc_interceptors.go`, `db.ResolveErr`; `TestCommitFailureIsReportedToRESTClient`, `TestCommittedResponseIsSentUnchanged`, `TestErrorResponseStillRollsBackAndPassesThrough`, `TestFlushCommitsBeforeStreaming`, `TestFlushWithFailedCommitSendsOnlyTheError`, `TestLargeResponseCommitsEarly`, `TestCommitFailureIsReportedToGRPCClient`; the REST client and streaming tests fail against the previous middleware |
+
+The previous `TODO` in `Resolve` ("seems like they will get a false positive")
+is closed by this requirement.

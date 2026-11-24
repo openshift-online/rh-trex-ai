@@ -19,6 +19,7 @@ import (
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/api"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/logger"
 )
 
@@ -265,4 +266,14 @@ func readsRecordedFor(kind string) bool {
 	readKindsMu.RLock()
 	defer readKindsMu.RUnlock()
 	return readKinds[kind]
+}
+
+// reasonCommitFailed is the reason of an event whose request reported success
+// but whose transaction failed to commit.
+const reasonCommitFailed = "commit failed"
+
+// commitFailed reports whether the request transaction failed to commit.
+func commitFailed(ctx context.Context) bool {
+	r := db.TxResultFromContext(ctx)
+	return r != nil && r.Outcome == db.TxCommitFailed
 }

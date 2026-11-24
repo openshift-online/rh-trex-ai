@@ -8,6 +8,7 @@ import (
 	"github.com/felixge/httpsnoop"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
 
 // HTTPBegin is the REST hook. TRex attaches it to each authenticated surface
@@ -22,6 +23,9 @@ func (s *Service) HTTPBegin(next http.Handler) http.Handler {
 			m.begun = true
 		}
 		ctx, obs := authz.WithObservation(r.Context())
+		// The transaction middleware runs inside this hook; it reports how
+		// the request transaction ended here.
+		ctx, _ = db.WithTxResult(ctx)
 		r = r.WithContext(ctx)
 
 		status := 0
@@ -120,7 +124,14 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 		}
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case status >= http.StatusBadRequest || reason != "":
+		if reason == "" && commitFailed(ctx) {
+			// The transaction middleware replaced the response with 500.
+			reason = reasonCommitFailed
+		}
 		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeFailure, reason, status))
+	case commitFailed(ctx):
+		// The response said success, but nothing was persisted.
+		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeFailure, reasonCommitFailed, status))
 	default:
 		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeSuccess, "", status))
 	}
