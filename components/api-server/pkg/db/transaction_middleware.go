@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/felixge/httpsnoop"
 
@@ -21,6 +22,22 @@ import (
 // holds back while the request transaction is still open. A larger response
 // commits the transaction before its first byte is sent.
 const MaxBufferedResponseBytes = 1 << 20
+
+// bufferPool reuses response buffers across requests, so holding the response
+// back costs a copy, not an allocation and a garbage collection per request.
+var bufferPool = sync.Pool{New: func() any { b := make([]byte, 0, 64<<10); return &b }}
+
+func getBuffer() []byte { return (*bufferPool.Get().(*[]byte))[:0] }
+
+// putBuffer returns a buffer to the pool. Buffers that grew past the response
+// limit are dropped, so the pool never pins large allocations.
+func putBuffer(b []byte) {
+	if b == nil || cap(b) > MaxBufferedResponseBytes+MaxBufferedResponseBytes/4 {
+		return
+	}
+	b = b[:0]
+	bufferPool.Put(&b)
+}
 
 // errCommitFailed is returned to a handler that keeps writing after its
 // transaction failed to commit and the error response was sent instead.
@@ -121,6 +138,9 @@ func (c *commitFirstWriter) wrap() http.ResponseWriter {
 				if c.status == 0 {
 					c.status = http.StatusOK
 				}
+				if c.buf == nil {
+					c.buf = getBuffer()
+				}
 				c.buf = append(c.buf, b...)
 				if len(c.buf) > MaxBufferedResponseBytes && !c.release() {
 					return 0, errCommitFailed
@@ -168,6 +188,7 @@ func (c *commitFirstWriter) resolve() bool {
 	}
 	if ResolveErr(ctx) != nil && TxResultFromContext(ctx).Outcome == TxCommitFailed {
 		c.failed = true
+		putBuffer(c.buf)
 		c.buf = nil
 		// Drop what the handler set for the success response (Location,
 		// ETag, ...) before sending the error.
@@ -216,6 +237,7 @@ func (c *commitFirstWriter) sendBuffered() {
 			slog.ErrorContext(c.req.Context(), "Could not write response after commit", "error", err)
 		}
 	}
+	putBuffer(c.buf)
 	c.buf = nil
 }
 
