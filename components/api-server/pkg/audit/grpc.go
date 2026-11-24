@@ -84,6 +84,10 @@ func (s *Service) finishGRPC(ctx context.Context, method string, obs *authz.Obse
 		}
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case code != codes.OK && (!stream || code != codes.Canceled):
+		if reason == "" && commitFailed(ctx) {
+			// The transaction interceptor replaced the response with an error.
+			reason = reasonCommitFailed
+		}
 		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeFailure, reason, code))
 	case commitFailed(ctx):
 		// The call returned OK, but nothing was persisted.

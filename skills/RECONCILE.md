@@ -226,3 +226,15 @@ above is not recomputed by this scoped pass.
 
 No gaps remain open. Storage beyond JSON lines (transactional, tamper-evident)
 is out of scope by design; see the spec's design decisions.
+
+## Scoped reconciliation: Resolve before responding (2026-11-24)
+
+Scope: DA-001 Resolve Before Responding. The historical repository-wide
+coverage table above is not recomputed by this scoped pass.
+
+| Spec | Requirement | Status | Evidence |
+|------|-------------|--------|----------|
+| DA-001 | Resolve Before Responding | closed | `pkg/db/transaction_middleware.go` (buffered response, early commit on flush, hijack, `ReadFrom`, or more than 1 MiB), `pkg/server/grpc_interceptors.go`, `db.ResolveErr`; `TestCommitFailureIsReportedToRESTClient`, `TestCommittedResponseIsSentUnchanged`, `TestErrorResponseStillRollsBackAndPassesThrough`, `TestFlushCommitsBeforeStreaming`, `TestFlushWithFailedCommitSendsOnlyTheError`, `TestLargeResponseCommitsEarly`, `TestCommitFailureIsReportedToGRPCClient`; the REST client and streaming tests fail against the previous middleware |
+
+The previous `TODO` in `Resolve` ("seems like they will get a false positive")
+is closed by this requirement.

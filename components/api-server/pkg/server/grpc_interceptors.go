@@ -96,8 +96,14 @@ func MetricsUnaryInterceptor() grpc.UnaryServerInterceptor {
 // TransactionUnaryInterceptor runs each unary call in a database transaction.
 // The transaction is rolled back when the handler returns an error or panics.
 // Otherwise it is committed, unless something called db.MarkForRollback.
+// The transaction is resolved before the response is sent: when the commit
+// fails, the client receives codes.Internal instead of the handler's response.
 func TransactionUnaryInterceptor(sessionFactory db.SessionFactory) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		// Make sure the outcome is recorded even when no outer hook asked for it.
+		if db.TxResultFromContext(ctx) == nil {
+			ctx, _ = db.WithTxResult(ctx)
+		}
 		ctx, txErr := db.NewContext(ctx, sessionFactory)
 		if txErr != nil {
 			slog.ErrorContext(ctx, "Failed to create DB transaction for gRPC call", "method", info.FullMethod, "error", txErr)
@@ -112,7 +118,9 @@ func TransactionUnaryInterceptor(sessionFactory db.SessionFactory) grpc.UnarySer
 			if err != nil {
 				db.MarkForRollback(ctx, err)
 			}
-			db.Resolve(ctx)
+			if db.ResolveErr(ctx) != nil && err == nil && db.TxResultFromContext(ctx).Outcome == db.TxCommitFailed {
+				resp, err = nil, status.Error(codes.Internal, "internal database error")
+			}
 		}()
 
 		return handler(ctx, req)

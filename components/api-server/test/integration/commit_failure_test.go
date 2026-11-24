@@ -59,13 +59,16 @@ func TestAuditRecordsRESTCommitFailure(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	}).Methods(http.MethodPost)
 
-	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/x/v1/commit_probes", nil))
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, "/api/x/v1/commit_probes", nil))
 
 	Expect(probeCount(sf)).To(BeZero(), "the commit must have failed")
+	Expect(resp.Code).To(Equal(http.StatusInternalServerError), "the client must not be told success")
 	events := rec.Events()
 	Expect(events).To(HaveLen(1))
 	Expect(events[0].Outcome).To(Equal(audit.OutcomeFailure))
 	Expect(events[0].Reason).To(Equal("commit failed"))
+	Expect(events[0].HTTP.Status).To(Equal(http.StatusInternalServerError))
 }
 
 func TestAuditRecordsGRPCCommitFailure(t *testing.T) {

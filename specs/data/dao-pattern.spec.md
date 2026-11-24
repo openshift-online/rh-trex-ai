@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** DA-001
 **Related:** [Service Locator](../framework/service-locator.spec.md), [Entity Lifecycle](../framework/entity-lifecycle.spec.md)
-**Implements:** `pkg/dao/generic.go`, `plugins/*/dao.go`
+**Implements:** `pkg/db/transaction_middleware.go`, `pkg/db/context.go`, `pkg/server/grpc_interceptors.go`, `pkg/dao/generic.go`, `plugins/*/dao.go`
 
 ---
 
@@ -66,6 +66,61 @@ All DAO methods SHALL obtain a GORM session via `(*sessionFactory).New(ctx)` to 
 - WHEN a service takes an advisory lock with that context
 - THEN the lock SHALL be taken inside the request transaction
 - AND it SHALL stay held until the request transaction commits or rolls back
+
+### Requirement: Resolve Before Responding
+
+The request transaction SHALL be committed or rolled back before any part of
+the response reaches the client, so a client is never told "success" for a
+change that did not persist.
+
+`TransactionMiddleware` SHALL hold the response (status, headers, and body)
+until the handler returns, then resolve the transaction, then send it. When
+the commit fails, it SHALL discard the held response and the headers the
+handler set for it, and send `500 Internal Server Error` with the standard
+error body. When the handler flushes, hijacks the connection, writes through
+`io.ReaderFrom`, or writes more than `db.MaxBufferedResponseBytes` (1 MiB),
+the middleware SHALL resolve the transaction at that moment, before the first
+byte is sent, and stream the rest; statements the handler runs afterwards are
+outside the request transaction. Writes after a failed commit SHALL return an
+error to the handler.
+
+`TransactionUnaryInterceptor` SHALL resolve the transaction before the unary
+response is returned. When the commit fails and the handler returned no
+error, it SHALL return `codes.Internal` instead of the handler's response.
+
+`db.ResolveErr(ctx) error` SHALL return the commit or rollback error;
+`db.Resolve` SHALL keep its signature. The outcome SHALL be recorded in the
+context's `db.TxResult`; the middleware and interceptor SHALL add one when the
+context has none.
+
+#### Scenario: Commit fails after a successful handler (REST)
+- GIVEN a handler that writes rows, sets `Location`, and responds `201`
+- WHEN the commit fails (for example, a deferred constraint is violated)
+- THEN the client SHALL receive `500` with the standard error body
+- AND the response SHALL NOT carry the handler's `Location` or body
+- AND no rows SHALL be persisted
+
+#### Scenario: Commit fails after a successful handler (gRPC)
+- GIVEN a unary handler that writes rows and returns a response
+- WHEN the commit fails
+- THEN the client SHALL receive `codes.Internal` and no response
+
+#### Scenario: Streaming handler
+- GIVEN a handler that writes rows, writes a chunk, and calls `Flush`
+- WHEN `Flush` is called
+- THEN the transaction SHALL be committed before the chunk is sent
+- AND the rest of the response SHALL stream unbuffered
+
+#### Scenario: Large response
+- GIVEN a handler whose body exceeds `db.MaxBufferedResponseBytes`
+- WHEN it writes past that size
+- THEN the transaction SHALL be resolved before the first byte is sent
+
+#### Scenario: Error response is unchanged
+- GIVEN a handler that writes rows and responds `409` with a body
+- WHEN the request completes
+- THEN the transaction SHALL be rolled back
+- AND the client SHALL receive the `409` and its body unchanged
 
 ### Requirement: Generic DAO for Search
 
@@ -129,4 +184,5 @@ DAO methods SHALL return raw GORM/database errors, including `Count`. Error tran
 | Generic DAO for search queries | Avoids duplicating pagination/filtering logic across entity DAOs |
 | `Count` preserves WHERE and JOIN clauses | Accurate total count for paginated responses |
 | `Count` returns its query error | A failing COUNT aborts the request transaction; surfacing the error exposes the real root cause instead of a downstream SQLSTATE 25P02 |
+| Resolve before responding, buffering by default | Committing after the response was sent told clients "success" for changes that never persisted. Buffering keeps the status open until the commit is known; the 1 MiB cap and early commit on flush keep memory bounded and streaming working. |
 | Separate `mock_dao.go` per plugin | Co-located with real DAO; easy to discover and maintain |

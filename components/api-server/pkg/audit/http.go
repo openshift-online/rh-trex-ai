@@ -124,6 +124,10 @@ func (s *Service) finishHTTP(ctx context.Context, r *http.Request, obs *authz.Ob
 		}
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case status >= http.StatusBadRequest || reason != "":
+		if reason == "" && commitFailed(ctx) {
+			// The transaction middleware replaced the response with 500.
+			reason = reasonCommitFailed
+		}
 		s.recordFromHook(ctx, s.httpEvent(r, req, OutcomeFailure, reason, status))
 	case commitFailed(ctx):
 		// The response said success, but nothing was persisted.

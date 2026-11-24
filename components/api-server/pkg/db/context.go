@@ -48,7 +48,8 @@ func ResolveErr(ctx context.Context) error {
 		return nil
 	}
 	if err := tx.Commit(); err != nil {
-		// TODO:  what does the user see when this occurs? seems like they will get a false positive
+		// TransactionMiddleware and TransactionUnaryInterceptor resolve before
+		// the response is sent, so the client receives an error, not success.
 		slog.ErrorContext(ctx, "Could not commit transaction", "error", err)
 		SetTxResult(ctx, TxCommitFailed, err)
 		return err

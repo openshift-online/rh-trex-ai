@@ -121,8 +121,8 @@ typo cannot silently leave reads unrecorded.
 #### Scenario: Commit fails after a successful handler
 - GIVEN an allowed `POST` whose handler responds `201`
 - WHEN the request transaction fails to commit (for example, a deferred constraint is violated)
-- THEN the event SHALL have `outcome="failure"` and `reason="commit failed"`
-- AND `http.status` SHALL be the status the handler wrote
+- THEN the client SHALL receive `500` (DA-001 "Resolve Before Responding")
+- AND the event SHALL have `outcome="failure"`, `reason="commit failed"`, and `http.status=500`
 
 #### Scenario: Failed mutation
 - GIVEN an allowed `PATCH` whose handler responds `404`
