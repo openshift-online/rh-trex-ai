@@ -4,7 +4,7 @@
 **Status:** Active
 **ID:** SEC-004
 **Related:** [Authentication](authentication.spec.md), [Authorization](authorization.spec.md), [Logging](../standards/logging.spec.md)
-**Implements:** `components/api-server/pkg/audit/`, `components/api-server/pkg/authz/observation.go`, `components/api-server/pkg/config/audit.go`, `components/api-server/pkg/environments/types.go`, `components/api-server/pkg/environments/framework.go`, `components/api-server/pkg/server/routebuilder.go`, `components/api-server/pkg/server/apiserver.go`, `components/api-server/pkg/server/grpc_server.go`, `components/api-server/pkg/cmd/serve.go`
+**Implements:** `components/api-server/pkg/audit/`, `components/api-server/pkg/db/tx_result.go`, `components/api-server/pkg/db/context.go`, `components/api-server/pkg/authz/observation.go`, `components/api-server/pkg/config/audit.go`, `components/api-server/pkg/environments/types.go`, `components/api-server/pkg/environments/framework.go`, `components/api-server/pkg/server/routebuilder.go`, `components/api-server/pkg/server/apiserver.go`, `components/api-server/pkg/server/grpc_server.go`, `components/api-server/pkg/cmd/serve.go`
 
 ---
 
@@ -88,6 +88,13 @@ after it completes, for:
 4. Every request that fails authentication (REST `401`, gRPC `codes.Unauthenticated`) on an authenticated surface, including requests the JWT handler refuses before routing. Outcome `unauthenticated`, `actor.type="anonymous"`.
 5. Allowed `get`, `list`, and `watch` requests only on kinds registered with `audit.RecordReads(kind...)`, or on every kind when `--audit-reads=true`.
 
+A request whose response reports success but whose transaction fails to
+commit SHALL be recorded with outcome `failure` and reason `commit failed`,
+because nothing was persisted. The transaction middleware and interceptor
+SHALL report how the request transaction ended through `db.TxResult`, which
+the audit hooks read after the request completes; they run outside the
+transaction, so the outcome is final when they record.
+
 Routes outside the authenticated surfaces (OpenAPI, `/auth/config`, metadata,
 health, metrics), gRPC bypass methods, and REST requests that match no route
 or no route method (`404`/`405` from the router) SHALL NOT be recorded. A gRPC
@@ -110,6 +117,12 @@ typo cannot silently leave reads unrecorded.
 - GIVEN a plugin that registers routes with `r.Resource("fossils")` and contains no audit code
 - WHEN a client creates a fossil
 - THEN TRex SHALL record an event with `action="create"` and `resource.kind="fossils"`
+
+#### Scenario: Commit fails after a successful handler
+- GIVEN an allowed `POST` whose handler responds `201`
+- WHEN the request transaction fails to commit (for example, a deferred constraint is violated)
+- THEN the event SHALL have `outcome="failure"` and `reason="commit failed"`
+- AND `http.status` SHALL be the status the handler wrote
 
 #### Scenario: Failed mutation
 - GIVEN an allowed `PATCH` whose handler responds `404`
@@ -295,7 +308,7 @@ TRex SHALL expose `trex_audit_events_total{outcome}` and
 | Optional `OverrideAudit` hook | Unlike `OverrideAuthorizer` (SEC-002), which is required because there is no safe default policy, audit has a safe default (JSON lines on stdout). An optional interface keeps existing environments compiling and gives them audit on upgrade; an environment that needs other storage implements one method. |
 | One event per request, after it completes | The event carries the final status and outcome. Recording before the handler would need a second event or an update for the result. |
 | Read auditing opt-in per kind | Most reads have little audit value and would dominate volume; some (secrets) matter. A per-kind registration covers REST and gRPC in one line. |
-| Known limits of the default | Events are recorded after the change commits, so a crash between commit and write can lose one, and a recorder failure does not fail the request. The default trail is not tamper-evident by itself: its integrity depends on shipping lines promptly to a store administrators cannot edit. A recorder that writes in the request transaction and hash-chains events can lift both limits; a prototype is kept on the `feat/audit-logging-chain` branch for when a requirement calls for it. |
+| Known limits of the default | Events are recorded after the request transaction resolves, so a commit failure is recorded as a failure, but a crash between commit and write can lose an event, and a recorder failure does not fail the request. The default trail is not tamper-evident by itself: its integrity depends on shipping lines promptly to a store administrators cannot edit. A recorder that writes in the request transaction and hash-chains events can lift both limits; a prototype is kept on the `feat/audit-logging-chain` branch for when a requirement calls for it. |
 | `created_by`/`updated_by` fields are separate | Last-writer fields on entities are useful to users but are not an audit trail (one writer, overwritten, no denials). They are left to a separate spec. |
 | Client IP through trusted proxies only, plus the raw chain | `X-Forwarded-For` is client-controlled. Trusting it only from configured proxies, walked from the right, is the reverse-proxy standard; recording the raw chain and the peer as well (as the Kubernetes audit log does with `sourceIPs`) keeps the evidence without trusting it. |
 | Synchronous default recorder | Matches the Kubernetes API server's default for its log backend. Buffering trades lost events for latency and belongs in network recorders, which can add it when they exist. |

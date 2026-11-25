@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
 
 // UnaryBegin is the gRPC unary hook. TRex places it before authentication
@@ -23,6 +24,9 @@ func (s *Service) UnaryBegin(bypass []string) grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		ctx, obs := authz.WithObservation(ctx)
+		// The transaction interceptor runs inside this hook; it reports how
+		// the call's transaction ended here.
+		ctx, _ = db.WithTxResult(ctx)
 		panicked := true
 		defer func() {
 			if panicked {
@@ -81,6 +85,9 @@ func (s *Service) finishGRPC(ctx context.Context, method string, obs *authz.Obse
 	case !s.recordsAllowed(req.Action, req.Resource.Kind):
 	case code != codes.OK && (!stream || code != codes.Canceled):
 		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeFailure, reason, code))
+	case commitFailed(ctx):
+		// The call returned OK, but nothing was persisted.
+		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeFailure, reasonCommitFailed, code))
 	default:
 		// Success, or a stream the client closed.
 		s.recordFromHook(ctx, s.grpcEvent(ctx, method, req, OutcomeSuccess, "", code))

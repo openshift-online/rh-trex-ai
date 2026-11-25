@@ -20,6 +20,7 @@ import (
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/auth"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/authz"
 	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/config"
+	"github.com/openshift-online/rh-trex-ai/components/api-server/pkg/db"
 )
 
 func newTestService(t *testing.T, reads bool) (*Service, *MemoryRecorder) {
@@ -467,5 +468,45 @@ func TestTraceIDFromHeader(t *testing.T) {
 		if traceIDFromHeader(bad) != "" {
 			t.Fatalf("%q must not yield a trace ID", bad)
 		}
+	}
+}
+
+func TestHTTPCommitFailureIsRecordedAsFailure(t *testing.T) {
+	s, rec := newTestService(t, false)
+	router := newRouter(s, fakeAuthorizer{allowAll}, func(w http.ResponseWriter, r *http.Request) {
+		// Simulates the transaction middleware: the handler succeeded, the commit did not.
+		db.SetTxResult(r.Context(), db.TxCommitFailed, errors.New("deferred constraint violated"))
+		w.WriteHeader(http.StatusCreated)
+	})
+	do(router, http.MethodPost, "/api/x/v1/dinosaurs", "alice")
+	events := rec.Events()
+	if len(events) != 1 || events[0].Outcome != OutcomeFailure || events[0].Reason != "commit failed" || events[0].HTTP.Status != http.StatusCreated {
+		t.Fatalf("want one failure with reason commit failed, got %+v", events)
+	}
+}
+
+func TestHTTPCommittedIsRecordedAsSuccess(t *testing.T) {
+	s, rec := newTestService(t, false)
+	router := newRouter(s, fakeAuthorizer{allowAll}, func(w http.ResponseWriter, r *http.Request) {
+		db.SetTxResult(r.Context(), db.TxCommitted, nil)
+		w.WriteHeader(http.StatusCreated)
+	})
+	do(router, http.MethodPost, "/api/x/v1/dinosaurs", "alice")
+	if events := rec.Events(); len(events) != 1 || events[0].Outcome != OutcomeSuccess {
+		t.Fatalf("want one success, got %+v", events)
+	}
+}
+
+func TestGRPCCommitFailureIsRecordedAsFailure(t *testing.T) {
+	s, rec := newTestService(t, false)
+	info := &grpc.UnaryServerInfo{FullMethod: "/rh_trex.v1.DinosaurService/DeleteDinosaur"}
+	_, _ = grpcChain(s, grpcAuthn("alice"), fakeAuthorizer{allowAll}, "delete")(context.Background(), "req", info,
+		func(ctx context.Context, _ interface{}) (interface{}, error) {
+			db.SetTxResult(ctx, db.TxCommitFailed, errors.New("deferred constraint violated"))
+			return "ok", nil
+		})
+	events := rec.Events()
+	if len(events) != 1 || events[0].Outcome != OutcomeFailure || events[0].Reason != "commit failed" {
+		t.Fatalf("want one failure with reason commit failed, got %+v", events)
 	}
 }
