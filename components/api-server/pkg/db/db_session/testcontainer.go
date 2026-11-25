@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	dockerclient "github.com/docker/docker/client"
+	dockerclient "github.com/moby/moby/client"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -38,13 +37,13 @@ func disableRyukIfPodman(ctx context.Context) {
 		return
 	}
 
-	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	cli, err := dockerclient.New(dockerclient.FromEnv)
 	if err != nil {
 		return
 	}
 	defer func() { _ = cli.Close() }()
 
-	ver, err := cli.ServerVersion(ctx)
+	ver, err := cli.ServerVersion(ctx, dockerclient.ServerVersionOptions{})
 	if err != nil {
 		return
 	}
@@ -98,13 +97,9 @@ func (f *Testcontainer) Init(config *config.DatabaseConfig) {
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
 				WithStartupTimeout(60*time.Second)),
-		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				HostConfigModifier: func(hc *container.HostConfig) {
-					hc.AutoRemove = true
-				},
-			},
-		}),
+		// No AutoRemove: Terminate (see Close) stops and removes the
+		// container itself. AutoRemove made the daemon delete it first, so
+		// Terminate failed with "no such container".
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to start PostgreSQL testcontainer", "error", err)
